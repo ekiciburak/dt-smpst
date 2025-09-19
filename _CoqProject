@@ -1,0 +1,8 @@
+-R . DTSMPST
+
+sort/sort.v
+sort/subst.v
+sort/eval.v
+sort/sortcheck.v
+
+
