@@ -2,7 +2,7 @@ Require Import Coq.Lists.List Coq.Init.Nat Coq.Arith.PeanoNat.
 Import ListNotations.
 Require Import Coq.Bool.Bool Lia.
 
-(* De Bruijn representation - recommended for dependently typed calculi *)
+(* De Bruijn representation *)
 Inductive term : Type :=
   | Star : term
   | Nat : term
@@ -11,8 +11,8 @@ Inductive term : Type :=
   | Zero : term
   | Succ : term -> term
   | Pair : term -> term -> term -> term -> term
-  | Fst : term -> term
-  | Snd : term -> term
+  | TFst : term -> term
+  | TSnd : term -> term
   | Var : nat -> term
   | Lam : term -> term -> term
   | App : term -> term -> term

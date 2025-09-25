@@ -14,11 +14,11 @@ Fixpoint lift (d k : nat) (t : term) : term :=
   | Sigma A B => Sigma (lift d k A) (lift d (S k) B)
   | Succ n => Succ (lift d k n)
   | Pair A B a b => Pair (lift d k A) (lift d k B) (lift d k a) (lift d k b)
-  | Fst p => Fst (lift d k p)
-  | Snd p => Snd (lift d k p)
+  | TFst p => TFst (lift d k p)
+  | TSnd p => TSnd (lift d k p)
   | App f a => App (lift d k f) (lift d k a)
   | NatRec P z s n =>
-      NatRec (lift d (S k) P)
+      NatRec (lift d k P) (* (lift d (S k) P) *)
              (lift d k z)
              (lift d k s)
              (lift d k n)
@@ -30,6 +30,29 @@ Fixpoint lift (d k : nat) (t : term) : term :=
   | _ => t
   end.
 
+(* Proper de Bruijn un-lifting *)
+Fixpoint unlift (d k : nat) (t : term) : term :=
+  match t with
+  | Var n =>
+      if Nat.ltb n k then Var n        (* below the cutoff, keep unchanged *)
+      else Var (n - d)                 (* above cutoff, subtract the lift *)
+  | Lam A b => Lam (unlift d k A) (unlift d (S k) b)
+  | Pi A B => Pi (unlift d k A) (unlift d (S k) B)
+  | Sigma A B => Sigma (unlift d k A) (unlift d (S k) B)
+  | Succ n => Succ (unlift d k n)
+  | Pair A B a b => Pair (unlift d k A) (unlift d k B) (unlift d k a) (unlift d k b)
+  | TFst p => TFst (unlift d k p)
+  | TSnd p => TSnd (unlift d k p)
+  | App f a => App (unlift d k f) (unlift d k a)
+  | NatRec P z s n =>
+      NatRec (unlift d k P)   (* types of predicates usually need careful handling *)
+             (unlift d k z)
+             (unlift d k s)
+             (unlift d k n)
+  | _ => t
+  end.
+
+
 (* === Substitution (capture-avoiding) === *)
 Fixpoint subst (j : nat) (s t : term) : term :=
   match t with
@@ -39,25 +62,31 @@ Fixpoint subst (j : nat) (s t : term) : term :=
   | Nat => Nat
   | Zero => Zero
   | Succ u => Succ (subst j s u)
+(*   | Var i =>
+    match Nat.eq_dec x j with
+    | left _ => lift 0 k s
+    | right _ => if ltb k i then Var (i - 1) else Var i
+    end *)
+(*   | Var n => if Nat.eqb n j then s else Var n *)
   | Var x =>
       match Nat.compare x j with
-      | Eq => s
+      | Eq => (lift 0 j s)
       | Gt => Var (x - 1)       (* one binder removed *)
       | Lt => Var x
-      end
+      end  
   | Pair A B a b =>
       Pair (subst j s A)  (* substitute in type of first component *)
            (subst j s B)  (* substitute in type of second component under new binder *)
            (subst j s a)  (* substitute in first component *)
            (subst j s b)  (* substitute in second component *)
 
-  | Fst p => Fst (subst j s p)
-  | Snd p => Snd (subst j s p)
+  | TFst p => TFst (subst j s p)
+  | TSnd p => TSnd (subst j s p)
 
   | Lam A t1  => Lam (subst j s A) (subst (S j) (lift 1 0 s) t1)
   | App t1 t2 => App (subst j s t1) (subst j s t2)
   | NatRec P z step n =>
-      NatRec (subst (S j) (lift 1 0 s) P)
+      NatRec (subst j s P) (* (subst (S j) (lift 1 0 s) P) *)
              (subst j s z)
              (subst j s step)
              (subst j s n)
@@ -69,6 +98,24 @@ Fixpoint subst (j : nat) (s t : term) : term :=
              (subst j s n0) *)
   end.
 
+Fixpoint subst2 (j : nat) (s t : term) : term :=
+  match t with
+  | Star => Star
+  | Nat => Nat
+  | Zero => Zero
+  | Succ n => Succ (subst2 j s n)
+  | Var x => if Nat.eqb x j then s else Var x
+  | Pi A B => Pi (subst2 j s A) (subst2 (S j) s B)
+  | Sigma A B => Sigma (subst2 j s A) (subst2 (S j) s B)
+  | Lam A t1 => Lam (subst2 j s A) (subst2 (S j) s t1)
+  | App t1 t2 => App (subst2 j s t1) (subst2 j s t2)
+  | Pair A B a b => Pair (subst2 j s A) (subst2 (S j) s B)
+                           (subst2 j s a) (subst2 j s b)
+  | TFst p => TFst (subst2 j s p)
+  | TSnd p => TSnd (subst2 j s p)
+  | NatRec P z step n =>
+      NatRec (subst2 j s P) (subst2 j s z) (subst2 j s step) (subst2 j s n)
+  end.
 
   (* Lift over lift composition *)
 Lemma lift_lift : forall t n m k, lift n k (lift m k t) = lift (n + m) k t.
@@ -180,8 +227,9 @@ Proof.
     rewrite IHt1, IHt2. reflexivity.
   - (* NatRec P z s n *)
     rewrite IHt2, IHt4.
-    f_equal.
-    specialize (IHt1 d e (S k)).
+    f_equal. 
+    rewrite IHt1. easy. rewrite IHt3. easy.
+(*     specialize (IHt1 d e (S k)).
     simpl in IHt1.
     assert((S (e + k)) = (e + S k)) by lia. rewrite H.
     rewrite IHt1.
@@ -190,7 +238,7 @@ Proof.
     simpl in IHt3.
     assert(S(S (e + k)) = (e + S (S k))) by lia. rewrite H. *)
     rewrite IHt3.
-    easy.
+    easy. *)
 Qed.
 
 Lemma lift_commute_general : forall t d e k m, m <= k -> lift d (e + k) (lift e m t) = lift e m (lift d k t).
@@ -260,75 +308,23 @@ Proof. intro t.
    - simpl. rewrite IHt1. rewrite IHt2. easy.
      easy. easy.
    - simpl. rewrite IHt2, IHt3, IHt4.
-     specialize(IHt1 d e (S k) (S m)).
+     rewrite IHt1. easy.
+     easy. easy. easy. easy.
+(*      specialize(IHt1 d e (S k) (S m)).
      assert((e + S k) = S (e + k)) by lia.
      rewrite <- H0. rewrite IHt1. easy.
-     lia. easy. easy. easy.
+     lia. easy. easy. easy. *)
 Qed.
 
-Lemma subst_lift_simple : forall t s j, subst j s (lift 1 j t) = t.
-Proof.
-  intro t.
-  induction t; intros s j; simpl.
-  - (* Star *) reflexivity.
-  - easy.
-  - (* Pi *) 
-    rewrite IHt1, IHt2. reflexivity.
-  - (* Sigma *)
-    rewrite IHt1, IHt2. reflexivity.
-  - (* Nat *) reflexivity.
-  - (* Succ *)
-    rewrite IHt. reflexivity.
-  - (* Pair *)
-    rewrite IHt1, IHt2, IHt3, IHt4. reflexivity.
-  - (* Fst *) rewrite IHt; reflexivity.
-  - (* Snd *) rewrite IHt; reflexivity.
-  - (* Var x *)
-    case (Nat.compare_spec n j) as [H | H | H].
-    + (* x = j *)
-      simpl. subst.
-      assert(j <? j = false).
-      { apply Nat.leb_gt. lia. }
-       rewrite H.
-      simpl. 
-      assert(j + 1 ?= j = Gt).
-      { apply Nat.compare_gt_iff. lia. }
-      rewrite H0.
-      assert((j + 1 - 1) = j) by lia.
-      rewrite H1. easy.
-    + (* x < j *)
-      simpl.
-      assert(n <? j = true).
-      { apply Nat.ltb_lt. lia. }
-      rewrite H0. simpl.
-      assert(n ?= j = Lt).
-      { apply Nat.compare_lt_iff. lia. }
-      rewrite H1. easy.
-    + (* x > j *)
-      simpl.
-      assert(n <? j = false).
-      { apply Nat.ltb_ge. lia. }
-      rewrite H0. simpl.
-      assert(n + 1 ?= j = Gt).
-      { apply Nat.compare_gt_iff. lia. }
-      rewrite H1.
-      assert((n + 1 - 1) = n) by lia.
-      rewrite H2. easy.
-  - (* Lam *)
-    rewrite IHt1, IHt2. reflexivity.
-  - (* App *)
-    rewrite IHt1, IHt2. reflexivity.
-  - (* NatRec *)
-    rewrite IHt2, IHt4. simpl.
-    specialize(IHt1 (lift 1 0 s) (S j)).
-    rewrite IHt1.
-(*     specialize(IHt3 (lift 2 0 s) (S (S j))).
-    assert((j + 2) = S (S j)) by lia.
-    rewrite H. *)
-    rewrite IHt3. easy.
+Lemma lift_commuteA :
+  forall t i j d1 d2,
+    i <= j ->
+    lift d1 i (lift d2 j t) = lift d2 (j + d1) (lift d1 i t).
+Proof. intros. rewrite <- lift_commute_general.
+       rewrite Nat.add_comm. easy. easy.
 Qed.
 
-Lemma lift_after_subst : forall t s j d k, k <= j -> lift d k (subst j s t) = subst (j + d) (lift d k s) (lift d k t).
+Lemma lift_subst : forall t s j d k, k <= j -> lift d k (subst j s t) = subst (j + d) (lift d k s) (lift d k t).
 Proof. intro t.
        induction t; intros.
        10:{
@@ -341,18 +337,26 @@ Proof. intro t.
          rewrite Nat.ltb_ge in H0.
          assert(j + d ?= j + d = Eq).
          { apply Nat.compare_refl. }
-         rewrite H1. easy.
-       + simpl. rewrite H0.
+         rewrite H1. simpl.
+         specialize (lift_commute_general s 0 d j k); intros.
+         rewrite Nat.add_comm in H2.
+         rewrite H2. easy. easy.
+       + simpl.
          apply Nat.compare_lt_iff in H1.
          rewrite Nat.ltb_lt in H0.
          assert(n ?= j + d = Lt).
          { apply Nat.compare_lt_iff. lia. }
-         rewrite H2. easy.
-       + simpl. rewrite H0.
+         assert(n =? j = false).
+         apply Nat.compare_lt_iff in H2.
+         apply Nat.eqb_neq. lia. 
+         rewrite H2.
+         apply Nat.ltb_lt in H0. rewrite H0. easy.
+       + simpl.
          apply Nat.compare_lt_iff in H1.
          assert(n + d ?= j + d = Lt).
          { apply Nat.compare_lt_iff. lia. }
-         rewrite H2. easy.
+         rewrite H2. simpl.
+         rewrite H0. easy.
        + simpl.
          apply Nat.ltb_lt in H0.
          apply Nat.compare_gt_iff in H1.
@@ -360,11 +364,14 @@ Proof. intro t.
        + simpl.
          apply Nat.compare_gt_iff in H1.
          rewrite Nat.ltb_ge in H0.
-         assert(n - 1 <? k = false).
-         { rewrite Nat.ltb_ge. lia. }
-         rewrite H2.
+(*          assert(n =? j = false).
+         { apply Nat.eqb_neq. lia. }
+         rewrite H2. *)
          assert(n + d ?= j + d = Gt).
          { apply Nat.compare_gt_iff. lia. }
+         rewrite H2. simpl.
+         assert(n - 1 <? k = false).
+         { apply Nat.leb_gt. lia. } 
          rewrite H3.
          assert((n - 1 + d) = (n + d - 1)) by lia.
          rewrite H4. easy.
@@ -404,9 +411,89 @@ Proof. intro t.
 
        simpl. rewrite IHt1, IHt2, IHt3, IHt4.
        f_equal. f_equal.
-       specialize(lift_commute_general s d 1 k 0); intro Ha.
+(*        specialize(lift_commute_general s d 1 k 0); intro Ha.
        simpl in Ha. rewrite Ha. easy.
-       lia. easy. easy. easy. lia.
+       lia.  *)
+       
+       easy. easy. easy. lia.
+Qed.
+
+Fixpoint occurs_inb (n : nat) (t : term) : bool :=
+  match t with
+  | Var m => Nat.eqb n m
+  | Lam A b => occurs_inb n A || occurs_inb n b
+  | Pi A B => occurs_inb n A || occurs_inb n B
+  | Sigma A B => occurs_inb n A || occurs_inb n B
+  | App f a => occurs_inb n f || occurs_inb n a
+  | Pair A B a b => occurs_inb n A || occurs_inb n B || occurs_inb n a || occurs_inb n b
+  | TFst p => occurs_inb n p
+  | TSnd p => occurs_inb n p
+  | Succ u => occurs_inb n u
+  | NatRec P z s t => occurs_inb n P || occurs_inb n z || occurs_inb n s || occurs_inb n t
+  | Star | Nat | Zero => false
+  end.
+
+Lemma subst_lift_simple : forall t s j, subst j s (lift 1 j t) = t.
+Proof.
+  intro t.
+  induction t; intros s j; simpl.
+  - (* Star *) reflexivity.
+  - easy.
+  - (* Pi *) 
+    rewrite IHt1, IHt2. reflexivity.
+  - (* Sigma *)
+    rewrite IHt1, IHt2. reflexivity.
+  - (* Nat *) reflexivity.
+  - (* Succ *)
+    rewrite IHt. reflexivity.
+  - (* Pair *)
+    rewrite IHt1, IHt2, IHt3, IHt4. reflexivity.
+  - (* Fst *) rewrite IHt; reflexivity.
+  - (* Snd *) rewrite IHt; reflexivity.
+  - (* Var x *)
+    case (Nat.compare_spec n j) as [H | H | H].
+    + (* x = j *)
+      simpl. subst.
+      assert(j <? j = false).
+      { apply Nat.leb_gt. lia. }
+      rewrite H.
+      simpl. 
+      assert(j + 1 ?= j = Gt).
+      { apply Nat.compare_gt_iff. lia. }
+      rewrite H0.
+      assert((j + 1 - 1) = j) by lia.
+      rewrite H1. easy.
+    + (* x < j *)
+      simpl.
+      assert(n <? j = true).
+      { apply Nat.ltb_lt. lia. }
+      rewrite H0. simpl.
+      assert(n ?= j = Lt).
+      { apply Nat.compare_lt_iff. lia. }
+      rewrite H1. easy.
+    + (* x > j *)
+      simpl.
+      assert(n <? j = false).
+      { apply Nat.ltb_ge. lia. }
+      rewrite H0. simpl.
+      assert(n + 1 ?= j = Gt).
+      { apply Nat.compare_gt_iff. lia. }
+      rewrite H1.
+      assert((n + 1 - 1) = n) by lia.
+      rewrite H2. easy.
+  - (* Lam *)
+    rewrite IHt1, IHt2. reflexivity.
+  - (* App *)
+    rewrite IHt1, IHt2. reflexivity.
+  - (* NatRec *)
+    rewrite IHt2, IHt4. simpl.
+    rewrite IHt1, IHt3. easy.
+(*     specialize(IHt1 (lift 1 0 s) (S j)).
+    rewrite IHt1.
+(*     specialize(IHt3 (lift 2 0 s) (S (S j))).
+    assert((j + 2) = S (S j)) by lia.
+    rewrite H. *)
+    rewrite IHt3. easy. *)
 Qed.
 
 Lemma subst_subst: forall t s u j k, j <= k -> subst k u (subst j s t) = subst j (subst k u s) (subst (S k) (lift 1 j u) t).
@@ -420,7 +507,10 @@ Proof. intro t.
          subst. lia.
        - apply Nat.compare_eq_iff in H1. subst.
          simpl.
-         rewrite Nat.compare_refl. easy.
+         rewrite Nat.compare_refl.
+         rewrite lift_subst; try lia.
+         rewrite !lift_0.
+         rewrite Nat.add_0_r. easy.
        - apply Nat.compare_eq_iff in H1. subst.
          apply Nat.compare_gt_iff in H0. lia.
        - apply Nat.compare_eq_iff in H0. subst.
@@ -441,6 +531,7 @@ Proof. intro t.
          assert(k - 0 ?= k = Eq).
          { apply Nat.compare_eq_iff. lia. }
          rewrite H0. simpl.
+         rewrite !lift_0.
          rewrite subst_lift_simple. easy.
        - apply Nat.compare_lt_iff in H0.
          apply Nat.compare_gt_iff in H1.
@@ -465,7 +556,7 @@ Proof. intro t.
        
        simpl. rewrite IHt1, IHt2.
        f_equal. f_equal.
-       rewrite lift_after_subst.
+       rewrite lift_subst.
        assert((k + 1) = S k) by lia.
        rewrite H0. easy.
        lia.
@@ -476,7 +567,7 @@ Proof. intro t.
        
        simpl. rewrite IHt1, IHt2.
        f_equal. f_equal.
-       rewrite lift_after_subst.
+       rewrite lift_subst.
        assert((k + 1) = S k) by lia.
        rewrite H0. easy.
        lia.
@@ -493,7 +584,7 @@ Proof. intro t.
 
        simpl. rewrite IHt1, IHt2.
        f_equal. f_equal.
-       rewrite lift_after_subst.
+       rewrite lift_subst.
        assert((k + 1) = S k) by lia.
        rewrite H0. easy.
        lia.
@@ -504,10 +595,13 @@ Proof. intro t.
        simpl. rewrite IHt1, IHt2. easy. easy. easy.
        simpl. rewrite IHt1, IHt2, IHt3, IHt4.
        f_equal. f_equal.
-       rewrite lift_after_subst.
+(*        rewrite lift_after_subst.
        assert((k + 1) = S k) by lia.
        rewrite H0. easy. lia.
        f_equal.
        specialize (lift_commute_general u 1 1 j 0); intro Ha.
-       simpl in Ha. rewrite Ha. easy. lia. easy. easy. easy. lia.
+       simpl in Ha. rewrite Ha. easy. lia. *)
+       
+        easy. easy. easy. lia.
 Qed.
+
