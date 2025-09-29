@@ -3,6 +3,7 @@ Import ListNotations.
 Require Import Coq.Bool.Bool Lia.
 From DTSMPST Require Import sort.sort sort.subst.
 
+
 Fixpoint is_value (t : term) : bool :=
   match t with
   | Star | Nat | Zero => true

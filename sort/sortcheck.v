@@ -596,6 +596,8 @@ Fixpoint subst_env (k : nat) (vs : list term) (t : term) {struct t} : term :=
              (subst_env k vs n)
   end.
 
+Require Import List.
+
 Lemma wftS: forall T c,
   wf_type T -> has_type2 c T Star.
 Proof. intro T.
@@ -604,7 +606,7 @@ Proof. intro T.
            - subst.
              inversion H0.
            - subst. 
-             constructor. easy.
+             constructor. easy. simpl.
              apply IHT2. easy.
          }
        11:{ inversion H.
