@@ -51,6 +51,10 @@ with neutral : Type :=
 with closure : Type :=
 | Cl : list whnf -> term -> closure.
 
+Coercion VNeutral : neutral >-> whnf.
+
+Definition env := list whnf.
+
 (* Section ManualMutualInduction_Prop.
 
 Variable Pw : whnf -> Prop.
@@ -161,21 +165,89 @@ with shift_whnf (d c : nat) (v : whnf) : whnf :=
   | VConsV A n x xs => VConsV (shift_whnf d c A) (shift_whnf d c n) (shift_whnf d c x) (shift_whnf d c xs)
   end.
 
-Coercion VNeutral : neutral >-> whnf.
+(* --------------------------------------------- *)
+(* Capture-avoiding shift on TERMS (de Bruijn)   *)
+(* tshift d c t  : add d to any Var x with x >= c *)
+(* --------------------------------------------- *)
+Fixpoint tshift (d c : nat) (t : term) : term :=
+  match t with
+  | Star        => Star
+  | Nat         => Nat
+  | Var x       => if Nat.leb c x then Var (x + d) else Var x
 
-Definition env := list whnf.
+  | Pi A B      => Pi (tshift d c A) (tshift d (S c) B)
+  | Sigma A B   => Sigma (tshift d c A) (tshift d (S c) B)
 
-(* Push a new head value; shift older entries so de Bruijn indices line up. *)
-Definition env_cons (v : whnf) (ρ : env) : env :=
-  v :: map (shift_whnf 1 0) ρ.
+  | Lam A b     => Lam (tshift d c A) (tshift d (S c) b)
+  | App t u     => App (tshift d c t) (tshift d c u)
 
-(* Identity environment of length n (Var i ↦ Neutral (NVar i)). *)
-Fixpoint id_env (n : nat) : env :=
-  match n with
-  | 0 => []
-  | S k => VNeutral (NVar 0) :: map (shift_whnf 1 0) (id_env k)
+  | Pair A B a b =>
+      Pair (tshift d c A) (tshift d (S c) B) (tshift d c a) (tshift d c b)
+
+  | TFst p      => TFst (tshift d c p)
+  | TSnd p      => TSnd (tshift d c p)
+
+  | Zero        => Zero
+  | Succ n      => Succ (tshift d c n)
+
+  | NatRec P z s n =>
+      NatRec (tshift d c P) (tshift d c z) (tshift d c s) (tshift d c n)
+
+  | Vec n A     => Vec (tshift d c n) (tshift d c A)
+  | VNil A      => VNil (tshift d c A)
+  | VCons A n x xs =>
+      VCons (tshift d c A) (tshift d c n) (tshift d c x) (tshift d c xs)
+
+  | VecRec A P z s n xs =>
+      VecRec (tshift d c A) (tshift d c P) (tshift d c z) (tshift d c s)
+             (tshift d c n) (tshift d c xs)
   end.
 
+(* --------------------------------------------------------- *)
+(* Single-hole substitution on TERMS at index c:             *)
+(*   subst c u t    replaces Var c in t with u, adjusting    *)
+(*   for binders via tshift.                                 *)
+(* Patterns:                                                 *)
+(*  - x < c   : unchanged                                    *)
+(*  - x = c   : replace by (tshift c 0 u)                    *)
+(*  - x > c   : decrement index (Var (x-1))                  *)
+(* --------------------------------------------------------- *)
+Fixpoint subst (c : nat) (u : term) (t : term) : term :=
+  match t with
+  | Star        => Star
+  | Nat         => Nat
+  | Var x       =>
+      if Nat.ltb x c then Var x
+      else if Nat.eqb x c then tshift c 0 u
+           else Var (x - 1)
+
+  | Pi A B      => Pi (subst c u A) (subst (S c) u B)
+  | Sigma A B   => Sigma (subst c u A) (subst (S c) u B)
+
+  | Lam A b     => Lam (subst c u A) (subst (S c) u b)
+  | App t1 t2   => App (subst c u t1) (subst c u t2)
+
+  | Pair A B a b =>
+      Pair (subst c u A) (subst (S c) u B) (subst c u a) (subst c u b)
+
+  | TFst p      => TFst (subst c u p)
+  | TSnd p      => TSnd (subst c u p)
+
+  | Zero        => Zero
+  | Succ n      => Succ (subst c u n)
+
+  | NatRec P z s n =>
+      NatRec (subst c u P) (subst c u z) (subst c u s) (subst c u n)
+
+  | Vec n A     => Vec (subst c u n) (subst c u A)
+  | VNil A      => VNil (subst c u A)
+  | VCons A n x xs =>
+      VCons (subst c u A) (subst c u n) (subst c u x) (subst c u xs)
+
+  | VecRec A P z s n xs =>
+      VecRec (subst c u A) (subst c u P) (subst c u z) (subst c u s)
+             (subst c u n) (subst c u xs)
+  end.
 
 (* ---------- Big-step evaluation (tidy, mutual) ---------- *)
 
@@ -189,6 +261,10 @@ Fixpoint id_env (n : nat) : env :=
 (* ================================================================= *)
 (* Mutual relational semantics, now including vapps and eval_vecrec. *)
 (* ================================================================= *)
+
+(* Push a new head value; shift older entries so de Bruijn indices line up. *)
+Definition env_cons (v : whnf) (ρ : env) : env :=
+  v :: map (shift_whnf 1 0) ρ.
 
 Inductive eval' : env -> term -> whnf -> Prop :=
 | E'_Star  : forall ρ,
@@ -326,11 +402,24 @@ with eval_vecrec : whnf -> whnf -> whnf -> whnf -> whnf -> whnf -> whnf -> Prop 
 | EVR_Neut :
     forall vA vP vz vs vn nx,
       eval_vecrec vA vP vz vs vn (VNeutral nx)
-                  (VNeutral (NVecRec vA vP vz vs vn nx)).
+                  (VNeutral (NVecRec vA vP vz vs vn nx))
+(* Add this to eval_vecrec to make it total on arbitrary vxs *)
+| EVR_Other :
+    forall vA vP vz vs vn vxs,
+      (forall vw, vxs <> VNilV vw) ->
+      (forall vw vn' va xs, vxs <> VConsV vw vn' va xs) ->
+      (forall nx, vxs <> VNeutral nx) ->
+      eval_vecrec vA vP vz vs vn vxs vz.
 
+Scheme eval'_rect      := Induction for eval'        Sort Prop
+with vapp_rect         := Induction for vapp         Sort Prop
+with eval_natrec_rect  := Induction for eval_natrec  Sort Prop
+with vapps_rect        := Induction for vapps        Sort Prop
+with eval_vectrec_rect := Induction for eval_vecrec  Sort Prop.
+
+Combined Scheme evalsys_mutind from eval'_rect, vapp_rect, eval_natrec_rect, vapps_rect, eval_vectrec_rect.
 
 (* We assume [term], [whnf], [neutral], [closure] from before. *)
-
 
 Fixpoint evalk (fuel : nat) (ρ : env) (t : term) : option whnf :=
   match fuel with
@@ -536,7 +625,7 @@ with vvecreck
 
     | _ =>
         (* ill-typed shape shouldn't happen at runtime *)
-        None
+         Some vz  
     end
   end.
 
@@ -674,19 +763,9 @@ Definition tm_append_v12_v3 : term :=
 
 Definition bigfuel := 500%nat.
 
-Definition sem_env_of_ctx (Γ : list whnf) : env := id_env (length Γ).
-
 (* Expect: VConsV VNat (Succ (Succ Zero)) 1 (VConsV VNat (Succ Zero) 2 (VConsV VNat Zero 3 [])) *)
 Compute evalk bigfuel [] tm_append_v12_v3.
 
-
-Scheme eval'_rect      := Induction for eval'        Sort Prop
-with vapp_rect         := Induction for vapp         Sort Prop
-with eval_natrec_rect  := Induction for eval_natrec  Sort Prop
-with vapps_rect        := Induction for vapps        Sort Prop
-with eval_vectrec_rect := Induction for eval_vecrec  Sort Prop.
-
-Combined Scheme evalsys_mutind from eval'_rect, vapp_rect, eval_natrec_rect, vapps_rect, eval_vectrec_rect.
 
  (* mutual induction on the first derivation *)
 Lemma det_quintet :
@@ -809,18 +888,23 @@ Proof.
 - inversion H.
   easy.
 - inversion H1. subst. apply H0. apply H in H5. subst. easy.
-- inversion H. easy.
+- inversion H. easy. easy.
 - inversion H1. subst.
   apply H0.
   apply H in H12. subst. easy.
-(* - inversion H4. subst.
-  apply H0 in H9. subst.
-  apply H1 in H15. subst.
-  apply H2 in H17. subst.
-  apply H in H8. subst.
-  apply H3. easy. *)
+  subst.
+  exfalso. apply (H3 vw vn' va vxs). easy.
+ - inversion H. subst.
+   easy.
+   subst. exfalso.
+   apply (H2 nx). easy.
 - inversion H.
-  subst. easy.
+  subst. easy. subst.
+  exfalso. apply (n0 vw vn' va vxs0). easy.
+  subst.
+  exfalso.
+  apply (n1 nx). easy.
+  easy.
 Qed.
 
 (* Determinism corollaries for the three relations *)
@@ -1419,8 +1503,17 @@ Proof. intro k.
          + simpl in H.
            case_eq vxs; intros; subst; try easy.
            * inversion H. subst.
-             constructor.
-           * inversion H. subst. constructor.
+             constructor. easy. easy. easy.
+           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy.
            * case_eq(vvecreck k vA vP vz vs w0 w2); intros.
              ** rewrite H0 in H.
                 simpl.
@@ -1431,6 +1524,21 @@ Proof. intro k.
 Qed.
 
 (* ---------- Completeness: relational ⇒ some fuel computes the same ---------- *)
+
+Lemma vvecreck_other_complete :
+  forall vA vP vz vs vn vxs,
+    (forall vw,               vxs <> VNilV vw) ->
+    (forall vw vn' va xs,     vxs <> VConsV vw vn' va xs) ->
+    (forall nx : neutral,     vxs <> VNeutral nx) ->
+    exists k, vvecreck k vA vP vz vs vn vxs = Some vz.
+Proof.
+  intros vA vP vz vs vn vxs Hnil Hcons Hneu.
+  exists 1%nat. cbn.               (* unfold one fuel *)
+  destruct vxs; try reflexivity.
+  - (* VNilV _ *)    exfalso. eapply Hneu; reflexivity.
+  - (* VConsV _ _ _ _ *) exfalso. eapply Hcons; reflexivity.
+Qed.
+
 
 Lemma evalk_complete:
   (* eval' *)
@@ -1678,6 +1786,7 @@ Proof.
       rewrite vappsk_step_mono with (k := k2) (r := v); try lia.
       easy. easy. easy.
     + exists 1%nat. simpl. reflexivity.
+    + apply vvecreck_other_complete; easy.
 Qed.
 
 Corollary vappk_complete: forall f a r, 
@@ -1710,7 +1819,6 @@ Proof.
   specialize(evalk_complete); intros (Ha, (Hb, Hc)).
   apply Ha. easy.
 Qed.
-
 
 (* Bidirectional Typing *)
 
@@ -1825,32 +1933,40 @@ Scheme whnf_recta := Induction for whnf Sort Prop.
 
 (* -- algorithmic convertibility on WHNFs (non-mutual) ------------------- *)
 
-Inductive conv : whnf -> whnf -> Prop :=
+Definition clos_eval_fuel (fuel : nat) (cl : closure) (v : whnf) : option whnf :=
+  match fuel with
+  | 0 => None
+  | S fuel' =>
+    match cl with
+    | Cl ρ t =>
+        (* extend the environment ρ with v and evaluate the body t *)
+        evalk fuel' (env_cons v ρ) t
+    end
+  end.
+
+Inductive conv_clo : closure -> closure -> Prop :=
+| ConvClo : forall B B' v v',
+    clos_eval' B  fresh v ->
+    clos_eval' B' fresh v' ->
+    conv v v' ->
+    conv_clo B B'
+
+with conv : whnf -> whnf -> Prop :=
 | CoV_Star  : conv VStar VStar
 | CoV_Nat   : conv VNat  VNat
 
 | CoV_Pi : forall A A' B B',
     conv A A' ->
-    (forall vB vB',
-        clos_eval' B  fresh vB  ->
-        clos_eval' B' fresh vB' ->
-        conv vB vB') ->
+    conv_clo B B' ->
     conv (VPi A B) (VPi A' B')
 
 | CoV_Sigma : forall A A' B B',
     conv A A' ->
-    (forall vB vB',
-        clos_eval' B  fresh vB  ->
-        clos_eval' B' fresh vB' ->
-        conv vB vB') ->
+    conv_clo B B' ->
     conv (VSigma A B) (VSigma A' B')
 
-(* Optional η; drop if you don't want extensionality for functions *)
 | CoV_Lam : forall cl1 cl2,
-    (forall v1 v2,
-        clos_eval' cl1 fresh v1 ->
-        clos_eval' cl2 fresh v2 ->
-        conv v1 v2) ->
+    conv_clo cl1 cl2 ->
     conv (VLam cl1) (VLam cl2)
 
 | CoV_Pair : forall A B a b A' B' a' b',
@@ -1896,16 +2012,11 @@ Inductive conv : whnf -> whnf -> Prop :=
     conv (VNeutral (NVecRec A P z s n nx))
          (VNeutral (NVecRec A' P' z' s' n' nx')).
 
-Definition clos_eval_fuel (fuel : nat) (cl : closure) (v : whnf) : option whnf :=
-  match fuel with
-  | 0 => None
-  | S fuel' =>
-    match cl with
-    | Cl ρ t =>
-        (* extend the environment ρ with v and evaluate the body t *)
-        evalk fuel' (env_cons v ρ) t
-    end
-  end.
+
+Scheme conv_ind'      := Induction for conv      Sort Prop
+with conv_clo_ind'  := Induction for conv_clo  Sort Prop.
+Combined Scheme conv_mutind from conv_ind', conv_clo_ind'.
+
 
 Fixpoint conv_fuel (fuel:nat) (v w:whnf) : bool :=
   match fuel with
@@ -1978,6 +2089,15 @@ with conv_neutral_fuel (fuel : nat) (n n' : neutral) : bool :=
           (andb (conv_fuel       fuel' s s')
                 (conv_neutral_fuel fuel' n n')))
 
+    (* NEW: VecRec neutral congruence *)
+    | NVecRec A P z s n nx, NVecRec A' P' z' s' n' nx' =>
+        andb (conv_fuel          fuel' A A')
+         (andb (conv_fuel        fuel' P P')
+          (andb (conv_fuel       fuel' z z')
+           (andb (conv_fuel      fuel' s s')
+            (andb (conv_fuel     fuel' n n')
+                  (conv_neutral_fuel fuel' nx nx')))))
+                  
     | _, _ => false
     end
   end.
@@ -2027,6 +2147,138 @@ Proof.
    easy.
 Qed.
 
+Lemma conv_fuel_monotone :
+  forall k k' v w,
+    k' >= k ->
+    conv_fuel k v w = true ->
+    conv_fuel k' v w = true
+with conv_neutral_fuel_monotone :
+  forall k k' n n',
+    k' >= k ->
+    conv_neutral_fuel k n n' = true ->
+    conv_neutral_fuel k' n n' = true.
+Proof. intro k.
+       induction k; intros.
+       + easy.
+       + (* k = S k *)
+        destruct k' as [|k'']; [lia|].
+        rename H0 into Ht.
+        simpl in Ht |- *.
+        destruct v; destruct w; try discriminate; cbn in *.
+
+        * (* VStar, VStar *) exact Ht.
+        * (* VNat, VNat   *) exact Ht.
+
+        * (* VPi A B, VPi A' B' *)
+          destruct (conv_fuel k v w)   eqn:HA; try discriminate.
+          destruct (clos_eval_fuel k c  fresh) eqn:HB; try discriminate.
+          destruct (clos_eval_fuel k c0 fresh) eqn:HB'; try discriminate.
+          (* from Ht we know conv_fuel k v0 v1 = true *)
+          apply IHk with (k' := k'') in HA; try lia.
+          rewrite HA.
+          rewrite clos_eval_fuel_monotone with (k := k) (v := w0); try lia.
+          rewrite clos_eval_fuel_monotone with (k := k) (v := w1); try lia.
+          apply IHk; try lia. easy. easy. easy.
+
+        * (* VPi A B, VPi A' B' *)
+          destruct (conv_fuel k v w)   eqn:HA; try discriminate.
+          destruct (clos_eval_fuel k c  fresh) eqn:HB; try discriminate.
+          destruct (clos_eval_fuel k c0 fresh) eqn:HB'; try discriminate.
+          (* from Ht we know conv_fuel k v0 v1 = true *)
+          apply IHk with (k' := k'') in HA; try lia.
+          rewrite HA.
+          rewrite clos_eval_fuel_monotone with (k := k) (v := w0); try lia.
+          rewrite clos_eval_fuel_monotone with (k := k) (v := w1); try lia.
+          apply IHk; try lia. easy. easy. easy.
+        * (* VLam cl1, VLam cl2 *)
+          destruct (clos_eval_fuel k c  fresh) eqn:HC; try discriminate.
+          destruct (clos_eval_fuel k c0 fresh) eqn:HC'; try discriminate.
+          rewrite clos_eval_fuel_monotone with (k := k) (v := w); try lia.
+          rewrite clos_eval_fuel_monotone with (k := k) (v := w0); try lia.
+          apply IHk; try lia. easy. easy. easy.
+
+        * (* VPair A B a b, VPair A' B' a' b' *)
+          apply Bool.andb_true_iff in Ht as [HAB Hab].
+          apply Bool.andb_true_iff in Hab as [Ha Hb].
+          apply Bool.andb_true_iff in Hb  as [Ha' Hb'].
+          apply IHk with (k' := k'') in HAB; try lia.
+          apply IHk with (k' := k'') in Ha; try lia.
+          apply IHk with (k' := k'') in Ha'; try lia.
+          apply IHk with (k' := k'') in Hb'; try lia.
+          rewrite HAB, Ha, Ha', Hb'. easy.
+        * easy.
+
+        * apply IHk; try lia. (* VZero, VZero *) exact Ht.
+
+        * (* VNeutral n, VNeutral n' *)
+          apply conv_neutral_fuel_monotone with (k := k); try lia. exact Ht.
+
+        * (* VVec n A, VVec n' A' *)
+          apply Bool.andb_true_iff in Ht as [Hn HA].
+          apply IHk with (k' := k'') in Hn; try lia.
+          apply IHk with (k' := k'') in HA; try lia.
+          rewrite Hn, HA. easy.
+
+        * (* VNilV A, VNilV A' *)
+          eapply (IHk k''); [lia| exact Ht].
+
+        * (* VConsV A n x xs, VConsV A' n' x' xs' *)
+          apply Bool.andb_true_iff in Ht as [HA Hrest].
+          apply Bool.andb_true_iff in Hrest as [Hn Htail].
+          apply Bool.andb_true_iff in Htail as [Hx Hxs].
+          apply IHk with (k' := k'') in HA; try lia.
+          apply IHk with (k' := k'') in Hn; try lia.
+          apply IHk with (k' := k'') in Hx; try lia.
+          apply IHk with (k' := k'') in Hxs; try lia.
+          rewrite HA, Hn, Hx, Hxs. easy.
+
+    (* ===== neutral lemma ===== *)
+    + intros k; induction k as [|k IH] using nat_ind; intros k' n n' Hge Ht.
+      ++ simpl in Ht; discriminate.
+      ++ destruct k' as [|k'']; [lia|].
+        simpl in Ht |- *.
+        destruct n; destruct n'; try discriminate; cbn in *.
+
+        * (* NVar *) (* Nat.eqb i j = true remains true at higher fuel trivially *)
+          exact Ht.
+
+        * (* NApp *)
+          apply Bool.andb_true_iff in Ht as [Hh Ha].
+          apply IH with (k' := k'') in Hh; try lia.
+          apply conv_fuel_monotone with (k' := k'') in Ha; try lia.
+          rewrite Hh, Ha. easy.
+          
+        * (* NFst *)
+          eapply IH; [lia| exact Ht].
+
+        * (* NSnd *)
+          eapply IH; [lia| exact Ht].
+
+        * (* NNatRec *)
+          apply Bool.andb_true_iff in Ht as [HP Htail].
+          apply Bool.andb_true_iff in Htail as [Hz Htail'].
+          apply Bool.andb_true_iff in Htail' as [Hs Hn].
+          apply conv_fuel_monotone with (k' := k'') in HP; try lia.
+          apply conv_fuel_monotone with (k' := k'') in Hz; try lia.
+          apply conv_fuel_monotone with (k' := k'') in Hs; try lia.
+          apply IH with (k' := k'') in Hn; try lia.
+          rewrite HP, Hz, Hs, Hn. reflexivity.
+
+        * (* VVecRec *)
+          apply Bool.andb_true_iff in Ht as [HP Htail].
+          apply Bool.andb_true_iff in Htail as [Hz Htail'].
+          apply Bool.andb_true_iff in Htail' as [Hs Hn].
+          apply Bool.andb_true_iff in Hn as [Hu Hn].
+          apply Bool.andb_true_iff in Hn as [Hv Hn].
+          apply conv_fuel_monotone with (k' := k'') in HP; try lia.
+          apply conv_fuel_monotone with (k' := k'') in Hz; try lia.
+          apply conv_fuel_monotone with (k' := k'') in Hs; try lia.
+          apply conv_fuel_monotone with (k' := k'') in Hu; try lia.
+          apply conv_fuel_monotone with (k' := k'') in Hv; try lia.
+          apply IH with (k' := k'') in Hn; try lia.
+          rewrite HP, Hz, Hs, Hn, Hv, Hu. reflexivity.
+Qed.
+
 Lemma conv_fuel_sound :
   forall k v w,
     conv_fuel k v w = true ->
@@ -2058,13 +2310,17 @@ Proof.
       apply clos_eval_fuel_sound in HB'.
       apply IH in H as HBB.
       eapply CoV_Pi; [exact HAA|].
-      intros vB vB'.
+      apply ConvClo with (v := w0) (v' := w1).
+      easy. easy. easy.
+      
+      
+(*       intros vB vB'.
       intros HvB HvB'.
       unfold clos_eval' in *.
       destruct c, c0.
       specialize (eval'_det _ _ _ _ HvB HB); intros. subst.
       specialize (eval'_det _ _ _ _ HvB' HB'); intros. subst.
-      easy.
+      easy. *)
     + (* VSigma ... *)
       cbn in H.
       destruct (conv_fuel k v w) eqn:HA; try discriminate.
@@ -2075,13 +2331,15 @@ Proof.
       apply clos_eval_fuel_sound in HB'.
       apply IH in H as HBB.
       eapply CoV_Sigma; [exact HAA|].
-      intros vB vB'.
+      apply ConvClo with (v := w0) (v' := w1).
+      easy. easy. easy.
+(*       intros vB vB'.
       intros HvB HvB'.
       unfold clos_eval' in *.
       destruct c, c0.
       specialize (eval'_det _ _ _ _ HvB HB); intros. subst.
       specialize (eval'_det _ _ _ _ HvB' HB'); intros. subst.
-      easy.
+      easy. *)
 
     + (* VLam cl1, VLam cl2 *)
       cbn in H.
@@ -2090,12 +2348,14 @@ Proof.
       apply clos_eval_fuel_sound in HC.
       apply clos_eval_fuel_sound in HC'.
       apply IH in H.
-      constructor. 
-      intros.
+      constructor.
+      apply ConvClo with (v := w) (v' := w0).
+      easy. easy. easy.
+(*       intros.
       destruct c, c0. simpl in *.
       specialize (eval'_det _ _ _ _ H0 HC); intros. subst.
       specialize (eval'_det _ _ _ _ H1 HC'); intros. subst.
-      easy.
+      easy. *)
 
     + (* VPair ... *)
       apply Bool.andb_true_iff in H as [H12 H34].
@@ -2159,6 +2419,462 @@ Proof.
       apply conv_fuel_sound in Hn.
       (* Order was P, z, s, then n; adjust if your andb nesting differs *)
       econstructor; eauto.
+    +  apply Bool.andb_true_iff in H as [H Htail].
+     apply Bool.andb_true_iff in Htail as [Hs Htail].
+     apply Bool.andb_true_iff in Htail as [Hn Htail].
+     apply Bool.andb_true_iff in Htail as [Hu Htail].
+     apply Bool.andb_true_iff in Htail as [Hv Htail].
+      apply conv_fuel_sound in H.
+      apply conv_fuel_sound in Hs.
+      apply conv_fuel_sound in Hn.
+      apply conv_fuel_sound in Hu.
+      apply conv_fuel_sound in Hv. 
+      (* Order was P, z, s, then n; adjust if your andb nesting differs *)
+      econstructor; eauto.
+Qed.
+
+
+(* If not already present: fuelled closure-eval and its facts *)
+Definition clos_evalk (k:nat) (cl:closure) : option whnf :=
+  match cl with Cl ρ body => evalk k (env_cons fresh ρ) body end.
+
+Lemma clos_evalk_complete :
+  forall cl v, clos_eval' cl fresh v -> exists k, clos_evalk k cl = Some v.
+Proof.
+  intros [ρ body] v H; simpl in *.
+  now eapply evalk_complete in H.
+Qed.
+
+Lemma clos_evalk_monotone :
+  forall k k' cl v,
+    k' >= k ->
+    clos_evalk k cl = Some v ->
+    clos_evalk k' cl = Some v.
+Proof.
+  intros k k' [ρ body] v Hge H; simpl in *.
+  eauto using evalk_monotone.
+Qed.
+
+Lemma lift_conv_fuel :
+  forall v w K k, k >= K ->
+  conv_fuel K v w = true -> conv_fuel k v w = true.
+Proof. intros; eapply conv_fuel_monotone; eauto. Qed.
+
+Lemma lift_clos_eval :
+  forall B v K k,
+  k >= K -> clos_eval_fuel K B fresh = Some v ->
+  clos_eval_fuel k  B fresh = Some v.
+Proof. intros; eapply clos_eval_fuel_monotone; eauto. Qed.
+
+Lemma conv_complete :
+  (forall v w, conv v w -> exists k, conv_fuel k v w = true) /\
+  (forall B B', conv_clo B B' -> exists k v v', clos_eval_fuel k B  fresh = Some v /\ clos_eval_fuel k B' fresh = Some v' /\ conv_fuel k v v' = true).
+Proof.
+  apply (conv_mutind
+    (* P: depends on the derivation (3rd arg). *)
+    (fun v w _ =>
+       exists k, conv_fuel k v w = true)
+    (* Q: ***also*** depends on the derivation h *)
+    (fun B B' h =>
+       exists k, exists v v',
+         clos_eval_fuel k B  fresh = Some v /\
+         clos_eval_fuel k B' fresh = Some v' /\
+         conv_fuel k v v' = true)); intros.
+   10:{
+     destruct H as (kA, HA).
+     destruct H0 as (kB, HB).
+     exists (S (S (Nat.max kA kB))).
+     simpl.
+     destruct kA. easy.
+     rewrite conv_neutral_fuel_monotone with (k := kA); try lia.
+     rewrite conv_fuel_monotone with (k := kB); try lia.
+     easy. simpl in HA. easy.
+     }
+     9:{ exists 2. simpl. apply Nat.eqb_refl. }
+     9:{ destruct H as (k, H).
+         destruct k. easy.
+         exists (S (S k)). simpl.
+         simpl in H. easy.
+     }
+     15:{ intros.
+          destruct H as (k3, H).
+
+          destruct (clos_eval_fuel_complete B  fresh v  c) as [k1 HK1].
+          destruct (clos_eval_fuel_complete B' fresh v' c0) as [k2 HK2].
+          
+          (* pick a large enough fuel *)
+          set (K := Nat.max k3 (Nat.max k1 k2)).
+          exists K, v, v'. repeat split.
+
+          rewrite clos_eval_fuel_monotone with (k := k1) (v := v); try lia.
+          easy. apply HK1. lia. apply HK2. lia.
+          rewrite conv_fuel_monotone with (k := k3); try lia. easy.
+     }
+   - exists 1. easy.
+   - exists 1. easy.
+   - destruct H as (kA, HA).
+     destruct H0 as (kB, (v1, (v2, (Hb1, (Hb2, Hc))))).
+     exists (S (Nat.max kA kB)).
+     simpl.
+     rewrite conv_fuel_monotone with (k := kA); try lia.
+     rewrite clos_eval_fuel_monotone with (k := kB) (v := v1); try lia.
+     rewrite clos_eval_fuel_monotone with (k := kB) (v := v2); try lia.
+     rewrite conv_fuel_monotone with (k := kB); try lia.
+     easy. easy. easy. easy.
+   - destruct H as (kA, HA).
+     destruct H0 as (kB, (v1, (v2, (Hb1, (Hb2, Hc))))).
+     exists (S (Nat.max kA kB)).
+     simpl.
+     rewrite conv_fuel_monotone with (k := kA); try lia.
+     rewrite clos_eval_fuel_monotone with (k := kB) (v := v1); try lia.
+     rewrite clos_eval_fuel_monotone with (k := kB) (v := v2); try lia.
+     rewrite conv_fuel_monotone with (k := kB); try lia.
+     easy. easy. easy. easy.
+   - destruct H as (kA, (v1, (v2, (Ha1, (Ha2,Ha3))))).
+     exists (S kA). simpl.
+     rewrite Ha1, Ha2. easy.
+   - destruct H as (kA, HA).
+     destruct H0 as (ka, Ha). 
+     destruct H1 as (kb, Hb).
+     destruct H2 as (kc, Hc).
+     exists (S (Nat.max kA (Nat.max ka (Nat.max kb kc)))).
+     simpl.
+     rewrite conv_fuel_monotone with (k := kA); try lia.
+     rewrite conv_fuel_monotone with (k := ka); try lia.
+     rewrite conv_fuel_monotone with (k := kb); try lia.
+     rewrite conv_fuel_monotone with (k := kc); try lia.
+     easy. easy. easy. easy.
+   - exists 1. easy.
+   - destruct H as (k, H).
+     exists (S k). simpl. easy.
+   - destruct H as (k, H).
+     destruct k. easy.
+     exists (S (S k)). simpl. simpl in H. easy.
+   - destruct H as (kA, HA).
+     destruct H0 as (ka, Ha). 
+     destruct H1 as (kb, Hb).
+     destruct H2 as (kc, Hc).
+     destruct kc. easy.
+     exists (S (S (Nat.max kA (Nat.max ka (Nat.max kb kc))))). simpl.
+     rewrite conv_fuel_monotone with (k := kA); try lia.
+     rewrite conv_fuel_monotone with (k := ka); try lia.
+     rewrite conv_fuel_monotone with (k := kb); try lia.
+     simpl. simpl in Hc.
+     rewrite conv_neutral_fuel_monotone with (k := kc); try lia.
+     easy. easy. easy. easy.
+   - destruct H as (kA, HA).
+     destruct H0 as (ka, Ha). 
+     exists (S (Nat.max kA ka)).
+     simpl.
+     rewrite conv_fuel_monotone with (k := kA); try lia.
+     rewrite conv_fuel_monotone with (k := ka); try lia.
+     easy. easy.
+   - destruct H as (k, H).
+     exists (S k). simpl. easy.
+   - destruct H as (kA, HA).
+     destruct H0 as (ka, Ha). 
+     destruct H1 as (kb, Hb).
+     destruct H2 as (kc, Hc).
+     exists (S ((Nat.max kA (Nat.max ka (Nat.max kb kc))))). simpl.
+     rewrite conv_fuel_monotone with (k := kA); try lia.
+     rewrite conv_fuel_monotone with (k := ka); try lia.
+     rewrite conv_fuel_monotone with (k := kb); try lia.
+     rewrite conv_fuel_monotone with (k := kc); try lia.
+     easy. easy. easy. easy.
+   - destruct H as (k1, HA).
+     destruct H0 as (k2, HP).
+     destruct H1 as (k3, Hz).
+     destruct H2 as (k4, Hs).
+     destruct H3 as (k5, Hn).
+     destruct H4 as (k6, Hnx).
+    
+     destruct k6. easy.
+     exists (S (S (Nat.max k1 (Nat.max k2 (Nat.max k3 (Nat.max k4 (Nat.max k5 k6))))))). simpl.
+     rewrite conv_fuel_monotone with (k := k1); try lia.
+     rewrite conv_fuel_monotone with (k := k2); try lia.
+     rewrite conv_fuel_monotone with (k := k3); try lia.
+     rewrite conv_fuel_monotone with (k := k4); try lia.
+     rewrite conv_fuel_monotone with (k := k5); try lia.
+     rewrite conv_neutral_fuel_monotone with (k := k6); try lia.
+     simpl in Hnx. easy. easy. easy. easy. easy. easy.
+Qed.
+
+Corollary conv_complete_conv: forall v w, conv v w -> exists k, conv_fuel k v w = true.
+Proof. destruct conv_complete as [H _]. exact H. Qed.
+
+Corollary conv_complete_clo :
+  forall B B',
+    conv_clo B B' ->
+    exists k v v',
+      clos_eval_fuel k B  fresh = Some v /\
+      clos_eval_fuel k B' fresh = Some v' /\
+      conv_fuel k v v' = true.
+Proof. destruct conv_complete as [_ H]. exact H. Qed.
+
+Lemma eval'_TFst_Var_exists :
+  forall ρ x v, eval' (env_cons fresh ρ) (Var x) v ->
+    exists r, eval' (env_cons fresh ρ) (TFst (Var x)) r.
+Proof.
+  intros ρ x v Hv; destruct v;
+    eauto using E'_TFst_Pair, E'_TFst_Neut
+         (* and the fallback: *) .
+  - eexists; eapply E'_TFst_Other; eauto;
+      [ intros A B va vb H; discriminate H
+      | intros n H; discriminate H ].
+  - exists VNat. constructor; easy.
+  - exists (VPi v c). constructor; easy.
+  - exists (VSigma v c). constructor; easy.
+  - exists (VLam c). constructor; easy.
+  - exists (VZero). constructor; easy.
+  - exists (VSucc v). constructor; easy.
+  - exists (VVec v1 v2). constructor; easy.
+  - exists (VNilV v). constructor; easy.
+  - exists (VConsV v1 v2 v3 v4). constructor; easy.
+Qed.
+
+Lemma eval'_TFst_App_exists :
+  forall ρ t u v1 vt vu, 
+    eval' (env_cons fresh ρ) (App t u) v1 ->
+    eval' (env_cons fresh ρ) t vt ->
+    eval' (env_cons fresh ρ) u vu ->
+    vapp vt vu v1 ->
+    exists r, eval' (env_cons fresh ρ) (TFst (App t u)) r.
+Proof.
+  intros ρ t u v1 vt vu HeApp _ _ _.
+  (* split on the shape of the WHNF of (App t u) *)
+  destruct v1 eqn:Ev; 
+    try ( (* “other” shapes: Star/Nat/Pi/Sigma/Lam/Zero/Succ *)
+         eexists; 
+         (* rewrite the scrutinee to the chosen shape in the hypothesis *)
+         rewrite Ev in HeApp; 
+         (* use the 'other/stuck' TFst rule; discharge side-conditions by discriminate *)
+         eapply E'_TFstOther; [exact HeApp
+                              | intros A B a b H; discriminate H
+                              | intros n H; discriminate H ]);
+    eauto.
+  - exists VStar. constructor; easy.
+  - exists VNat. constructor; easy.
+  - exists (VPi w c). constructor; easy.
+  - exists (VSigma w c). constructor; easy.
+  - exists (VLam c). constructor; easy.
+  - eauto using E'_TFst_Pair, E'_TFst_Neut.
+  - exists (VZero). constructor; easy.
+  - exists (VSucc w). constructor; easy.
+  - eauto using E'_TFst_Pair, E'_TFst_Neut.
+  - subst. exists (VVec w1 w2). constructor; easy.
+  - exists (VNilV w). constructor; easy.
+  - exists (VConsV w1 w2 w3 w4). constructor; easy.
+Qed.
+
+Lemma eval'_TFst_Fst_exists :
+  forall ρ p v1 A B vb, 
+    eval' (env_cons fresh ρ) (TFst p) v1 ->
+    eval' (env_cons fresh ρ) p (VPair A B v1 vb) ->
+    exists r, eval' (env_cons fresh ρ) (TFst (TFst p)) r.
+Proof.
+  intros ρ p v1 A B vb Hfst _HpPair.
+  (* Split on the shape of the value of (TFst p) *)
+  destruct v1.
+  - eexists. eapply E'_TFst_Other; eauto; easy.
+  - eexists. eapply E'_TFst_Other; eauto; easy.
+  - (* VPi   *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSigma *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VPair A1 B1 a b : first projection on a pair *)
+    eexists. eapply E'_TFst_Pair. exact Hfst.
+  - eexists. eapply E'_TFst_Other; eauto; easy.
+  - eexists. eapply E'_TFst_Other; eauto; easy.
+  - (* VNeutral neu : becomes neutral NFst *)
+    eexists. eapply E'_TFst_Neut. exact Hfst.
+  - eexists. eapply E'_TFst_Other; eauto; easy.
+  - eexists. eapply E'_TFst_Other; eauto; easy.
+  - eexists. eapply E'_TFst_Other; eauto; easy.
+Qed.
+
+Lemma eval'_TFst_Snd_exists :
+  forall ρ p va v1 A B, 
+    eval' (env_cons fresh ρ) (TSnd p) v1 ->
+    eval' (env_cons fresh ρ) p (VPair A B va v1) ->
+    exists r, eval' (env_cons fresh ρ) (TFst (TSnd p)) r.
+Proof.
+  intros ρ p va v1 A B Hsnd _HpPair.
+  (* case on the WHNF of (TSnd p) *)
+  destruct v1.
+  - (* VStar *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VNat  *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VPi   *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSigma*) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VLam  *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VPair A1 B1 a b : fst returns a *)
+    eexists. eapply E'_TFst_Pair. exact Hsnd.
+  - (* VZero *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VNeutral neu : becomes neutral NFst *)
+    eexists. eapply E'_TFst_Neut. exact Hsnd.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+Qed.
+
+Lemma eval'_TFst_TSnd_exists :
+  forall ρ p n,
+    eval' (env_cons fresh ρ) (TSnd p) (NSnd n) ->
+    exists r, eval' (env_cons fresh ρ) (TFst (TSnd p)) r.
+Proof.
+  intros ρ p n Hsnd.
+  eexists. eapply E'_TFst_Neut. exact Hsnd.
+Qed.
+
+Lemma eval'_TFst_NatRec_exists :
+  forall ρ P z s n v1 vP vz vs vn,
+    eval' (env_cons fresh ρ) (NatRec P z s n) v1 ->
+    eval' (env_cons fresh ρ) P vP ->
+    eval' (env_cons fresh ρ) z vz ->
+    eval' (env_cons fresh ρ) s vs ->
+    eval' (env_cons fresh ρ) n vn ->
+    eval_natrec vP vz vs vn v1 ->
+    exists v, eval' (env_cons fresh ρ) (TFst (NatRec P z s n)) v.
+Proof.
+  intros ρ P z s n v1 vP vz vs vn Hnr _ _ _ _ _.
+  (* split on the shape of the WHNF of NatRec P z s n *)
+  destruct v1 eqn:Ev;
+    try ( (* “other” shapes: Star/Nat/Pi/Sigma/Lam/Zero/Succ *)
+         eexists;
+         rewrite Ev in Hnr;
+         eapply E'_TFstOther; [exact Hnr
+                              | intros A B a b H; discriminate H
+                              | intros n' H; discriminate H ]);
+    eauto.
+  - (* VStar *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VNat  *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VPi   *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSigma*) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VLam  *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VPair A1 B1 a b : fst returns a *)
+    eexists. eapply E'_TFst_Pair. exact Hnr.
+  - (* VZero *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VNeutral neu : becomes neutral NFst *)
+    eexists. eapply E'_TFst_Neut. exact Hnr.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+Qed.
+
+Lemma eval'_TFst_VecRec_exists :
+  forall ρ A P z s n xs v1 vA vP vz vs vn vxs,
+    eval' (env_cons fresh ρ) (VecRec A P z s n xs) v1 ->
+    eval' (env_cons fresh ρ) A vA  ->
+    eval' (env_cons fresh ρ) P vP  ->
+    eval' (env_cons fresh ρ) z vz  ->
+    eval' (env_cons fresh ρ) s vs  ->
+    eval' (env_cons fresh ρ) n vn  ->
+    eval' (env_cons fresh ρ) xs vxs ->
+    eval_vecrec vA vP vz vs vn vxs v1 ->
+    exists v, eval' (env_cons fresh ρ) (TFst (VecRec A P z s n xs)) v.
+Proof.
+  intros ρ A P z s n xs v1 vA vP vz vs vn vxs Hrec _ _ _ _ _ _ _.
+  (* Case on the WHNF result of the VecRec *)
+  destruct v1 eqn:Ev;
+    try ( (* “other” shapes: Star/Nat/Pi/Sigma/Lam/Zero/Succ *)
+         eexists;
+         rewrite Ev in Hrec;
+         eapply E'_TFstOther; [ exact Hrec
+                              | intros A' B' a' b' H; discriminate H
+                              | intros n' H; discriminate H ]).
+  - (* VStar *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VNat  *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VPi   *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSigma*) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VLam  *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VPair A1 B1 a b : fst returns a *)
+    eexists. eapply E'_TFst_Pair. exact Hrec.
+  - (* VZero *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VNeutral neu : becomes neutral NFst *)
+    eexists. eapply E'_TFst_Neut. exact Hrec.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+  - (* VSucc n *) eexists. eapply E'_TFst_Other; eauto.
+    + intros A' B' a' b' H; discriminate H.
+    + intros n' H; discriminate H.
+Qed.
+
+Lemma eval'_Var_exists :
+  forall ρ n, exists v, eval' (env_cons fresh ρ) (Var n) v.
+Proof.
+  intros ρ n.
+  destruct (nth_error (env_cons fresh ρ) n) as [v|] eqn:Hlk.
+  - (* hit in the env: return that value *)
+    eexists. constructor. exact Hlk.
+    (* i.e. your Var-Some constructor: E'_VarSome Hlk *)
+  - (* miss in the env: return neutral variable *)
+    eexists. now constructor.
+    (* i.e. your Var-None constructor: E'_VarNone Hlk *)
 Qed.
 
 (* B(n) := Vec (S n) Nat  where n is Var 0 *)
@@ -2186,6 +2902,15 @@ Combined Scheme evalsys_rect from eval'_rect, vapp_rect, eval_natrec_rect.
 
 (* --- Backward compatibility alias so old code using [convV] still compiles --- *)
 (* Notation convV := conv. *)
+
+(* Identity environment of length n (Var i ↦ Neutral (NVar i)). *)
+Fixpoint id_env (n : nat) : env :=
+  match n with
+  | 0 => []
+  | S k => VNeutral (NVar 0) :: map (shift_whnf 1 0) (id_env k)
+  end.
+
+Definition sem_env_of_ctx (Γ : list whnf) : env := id_env (length Γ).
 
 Inductive infer : list whnf -> term -> whnf -> Prop :=
 | I_Var : forall Γ x A,
