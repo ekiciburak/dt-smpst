@@ -167,86 +167,86 @@ with shift_whnf (d c : nat) (v : whnf) : whnf :=
 
 (* --------------------------------------------- *)
 (* Capture-avoiding shift on TERMS (de Bruijn)   *)
-(* tshift d c t  : add d to any Var x with x >= c *)
+(* shift_term d c t  : add d to any Var x with x >= c *)
 (* --------------------------------------------- *)
-Fixpoint tshift (d c : nat) (t : term) : term :=
+Fixpoint shift_term (d c : nat) (t : term) : term :=
   match t with
   | Star        => Star
   | Nat         => Nat
   | Var x       => if Nat.leb c x then Var (x + d) else Var x
 
-  | Pi A B      => Pi (tshift d c A) (tshift d (S c) B)
-  | Sigma A B   => Sigma (tshift d c A) (tshift d (S c) B)
+  | Pi A B      => Pi (shift_term d c A) (shift_term d (S c) B)
+  | Sigma A B   => Sigma (shift_term d c A) (shift_term d (S c) B)
 
-  | Lam A b     => Lam (tshift d c A) (tshift d (S c) b)
-  | App t u     => App (tshift d c t) (tshift d c u)
+  | Lam A b     => Lam (shift_term d c A) (shift_term d (S c) b)
+  | App t u     => App (shift_term d c t) (shift_term d c u)
 
   | Pair A B a b =>
-      Pair (tshift d c A) (tshift d (S c) B) (tshift d c a) (tshift d c b)
+      Pair (shift_term d c A) (shift_term d (S c) B) (shift_term d c a) (shift_term d c b)
 
-  | TFst p      => TFst (tshift d c p)
-  | TSnd p      => TSnd (tshift d c p)
+  | TFst p      => TFst (shift_term d c p)
+  | TSnd p      => TSnd (shift_term d c p)
 
   | Zero        => Zero
-  | Succ n      => Succ (tshift d c n)
+  | Succ n      => Succ (shift_term d c n)
 
   | NatRec P z s n =>
-      NatRec (tshift d c P) (tshift d c z) (tshift d c s) (tshift d c n)
+      NatRec (shift_term d c P) (shift_term d c z) (shift_term d c s) (shift_term d c n)
 
-  | Vec n A     => Vec (tshift d c n) (tshift d c A)
-  | VNil A      => VNil (tshift d c A)
+  | Vec n A     => Vec (shift_term d c n) (shift_term d c A)
+  | VNil A      => VNil (shift_term d c A)
   | VCons A n x xs =>
-      VCons (tshift d c A) (tshift d c n) (tshift d c x) (tshift d c xs)
+      VCons (shift_term d c A) (shift_term d c n) (shift_term d c x) (shift_term d c xs)
 
   | VecRec A P z s n xs =>
-      VecRec (tshift d c A) (tshift d c P) (tshift d c z) (tshift d c s)
-             (tshift d c n) (tshift d c xs)
+      VecRec (shift_term d c A) (shift_term d c P) (shift_term d c z) (shift_term d c s)
+             (shift_term d c n) (shift_term d c xs)
   end.
 
 (* --------------------------------------------------------- *)
 (* Single-hole substitution on TERMS at index c:             *)
 (*   subst c u t    replaces Var c in t with u, adjusting    *)
-(*   for binders via tshift.                                 *)
+(*   for binders via shift_term.                                 *)
 (* Patterns:                                                 *)
 (*  - x < c   : unchanged                                    *)
-(*  - x = c   : replace by (tshift c 0 u)                    *)
+(*  - x = c   : replace by (shift_term c 0 u)                    *)
 (*  - x > c   : decrement index (Var (x-1))                  *)
 (* --------------------------------------------------------- *)
-Fixpoint subst (c : nat) (u : term) (t : term) : term :=
+Fixpoint subst_term (c : nat) (u : term) (t : term) : term :=
   match t with
   | Star        => Star
   | Nat         => Nat
   | Var x       =>
       if Nat.ltb x c then Var x
-      else if Nat.eqb x c then tshift c 0 u
+      else if Nat.eqb x c then shift_term c 0 u
            else Var (x - 1)
 
-  | Pi A B      => Pi (subst c u A) (subst (S c) u B)
-  | Sigma A B   => Sigma (subst c u A) (subst (S c) u B)
+  | Pi A B      => Pi (subst_term c u A) (subst_term (S c) u B)
+  | Sigma A B   => Sigma (subst_term c u A) (subst_term (S c) u B)
 
-  | Lam A b     => Lam (subst c u A) (subst (S c) u b)
-  | App t1 t2   => App (subst c u t1) (subst c u t2)
+  | Lam A b     => Lam (subst_term c u A) (subst_term (S c) u b)
+  | App t1 t2   => App (subst_term c u t1) (subst_term c u t2)
 
   | Pair A B a b =>
-      Pair (subst c u A) (subst (S c) u B) (subst c u a) (subst c u b)
+      Pair (subst_term c u A) (subst_term (S c) u B) (subst_term c u a) (subst_term c u b)
 
-  | TFst p      => TFst (subst c u p)
-  | TSnd p      => TSnd (subst c u p)
+  | TFst p      => TFst (subst_term c u p)
+  | TSnd p      => TSnd (subst_term c u p)
 
   | Zero        => Zero
-  | Succ n      => Succ (subst c u n)
+  | Succ n      => Succ (subst_term c u n)
 
   | NatRec P z s n =>
-      NatRec (subst c u P) (subst c u z) (subst c u s) (subst c u n)
+      NatRec (subst_term c u P) (subst_term c u z) (subst_term c u s) (subst_term c u n)
 
-  | Vec n A     => Vec (subst c u n) (subst c u A)
-  | VNil A      => VNil (subst c u A)
+  | Vec n A     => Vec (subst_term c u n) (subst_term c u A)
+  | VNil A      => VNil (subst_term c u A)
   | VCons A n x xs =>
-      VCons (subst c u A) (subst c u n) (subst c u x) (subst c u xs)
+      VCons (subst_term c u A) (subst_term c u n) (subst_term c u x) (subst_term c u xs)
 
   | VecRec A P z s n xs =>
-      VecRec (subst c u A) (subst c u P) (subst c u z) (subst c u s)
-             (subst c u n) (subst c u xs)
+      VecRec (subst_term c u A) (subst_term c u P) (subst_term c u z) (subst_term c u s)
+             (subst_term c u n) (subst_term c u xs)
   end.
 
 (* ---------- Big-step evaluation (tidy, mutual) ---------- *)
@@ -637,7 +637,7 @@ Definition eval (ρ : env) (t : term) : option whnf :=
 Definition PconstNat : term := Lam Nat Nat.
 
 (* add : Nat -> Nat -> Nat *)
-Definition add : term :=
+(* Definition add : term :=
   Lam Nat (                             (* m *)
     Lam Nat (                           (* n *)
       NatRec
@@ -647,7 +647,22 @@ Definition add : term :=
           (Lam (App PconstNat (Var 0))
                (Succ (Var 0))))
         (Var 1)                         (* recurse on m *)
+  )). *)
+
+(* Correct: recurse on the SECOND argument (n),
+   base = first argument (m) *)
+Definition add : term :=
+  Lam Nat (                             (* m : Nat *)
+    Lam Nat (                           (* n : Nat *)
+      NatRec
+        PconstNat                       (* P : Nat -> Star, here constant Nat *)
+        (Var 1)                         (* base: m *)
+        (Lam Nat                        (* step: λ k:Nat. λ acc:Nat. Succ acc *)
+          (Lam (App PconstNat (Var 0))
+               (Succ (Var 0))))
+        (Var 0)                         (* recurse on n *)
   )).
+
 
 (* mult : Nat -> Nat -> Nat *)
 Definition mult : term :=
@@ -674,6 +689,7 @@ Definition five  : term := Succ four.
 Definition six   : term := Succ five.
 Definition seven  : term := Succ six.
 Definition eighth : term := Succ seven.
+Definition nine : term := Succ eighth.
 
 (* Examples *)
 Eval compute in evalk 200 [] (App (App add two) one).
@@ -713,11 +729,11 @@ Eval compute in eval [] (App fib four).    (* = Some (VSucc (VSucc (VSucc VZero)
 Eval compute in eval [] (App fib five).    (* = 5 *)
 Eval compute in eval [] (App fib six).     (* = 8 *)
 Eval compute in eval [] (App fib seven).   (* = 13 *)
-Eval compute in eval [] (App fib eighth).   (* = 13 *)
-
+Eval compute in eval [] (App fib eighth).   (* = 21 *)
+Eval compute in eval [] (App fib nine).   (* = 34 *)
 
 (* plus k m := m + k, via add *)
-Definition tm_plus (k m : term) : term := App (App add m) k.
+Definition tm_plus (k m : term) : term := App (App add k) m.
 
 (* step function for VecRec:
    λ k:Nat. λ a:A. λ xs:Vec k A. λ ih:Vec (plus k m) A.
@@ -733,12 +749,12 @@ Definition tm_s_cons (A m : term) : term :=
    Var 3 = k,  Var 2 = a,  Var 1 = xs,  Var 0 = ih *)
 
 (* Motive just to satisfy typing; runtime eval doesn't depend on it *)
-Definition tm_vec_motive (A : term) : term :=
-  Lam Nat (Pi (Vec (Var 0) A) Star).
+Definition tm_vec_motive (A m : term) : term :=
+  Lam Nat (Lam (Vec (Var 0) A) (Vec (tm_plus (Var 1) m) A)).
 
-(* append A n xs m ys := VecRec A (tm_vec_motive A) ys (tm_s_cons A m) n xs *)
+(* append A n xs m ys := VecRec A (tm_vec_motive A m) ys (tm_s_cons A m) n xs *)
 Definition tm_append (A n xs m ys : term) : term :=
-  VecRec A (tm_vec_motive A) ys (tm_s_cons A m) n xs.
+  VecRec A (tm_vec_motive A m) ys (tm_s_cons A m) n xs.
 
 (* numerals in the object language *)
 Definition tm_num (k:nat) : term :=
@@ -2097,7 +2113,7 @@ with conv_neutral_fuel (fuel : nat) (n n' : neutral) : bool :=
            (andb (conv_fuel      fuel' s s')
             (andb (conv_fuel     fuel' n n')
                   (conv_neutral_fuel fuel' nx nx')))))
-                  
+
     | _, _ => false
     end
   end.
@@ -2433,7 +2449,6 @@ Proof.
       econstructor; eauto.
 Qed.
 
-
 (* If not already present: fuelled closure-eval and its facts *)
 Definition clos_evalk (k:nat) (cl:closure) : option whnf :=
   match cl with Cl ρ body => evalk k (env_cons fresh ρ) body end.
@@ -2501,7 +2516,7 @@ Proof.
 
           destruct (clos_eval_fuel_complete B  fresh v  c) as [k1 HK1].
           destruct (clos_eval_fuel_complete B' fresh v' c0) as [k2 HK2].
-          
+
           (* pick a large enough fuel *)
           set (K := Nat.max k3 (Nat.max k1 k2)).
           exists K, v, v'. repeat split.
@@ -2610,6 +2625,100 @@ Corollary conv_complete_clo :
       clos_eval_fuel k B' fresh = Some v' /\
       conv_fuel k v v' = true.
 Proof. destruct conv_complete as [_ H]. exact H. Qed.
+
+(* ∀-style closure predicate *)
+Inductive conv_clo_forall: closure -> closure -> Prop :=
+| ConvClo_forall: forall B B',
+  (forall v v',
+    clos_eval' B  fresh v ->
+    clos_eval' B' fresh v' ->
+    conv_forall v v') -> conv_clo_forall B B'
+   
+with conv_forall : whnf -> whnf -> Prop :=
+| CoF_Star  : conv_forall VStar VStar
+| CoF_Nat   : conv_forall VNat  VNat
+
+| CoF_Pi : forall A A' B B',
+    conv_forall A A' ->
+    conv_clo_forall B B' ->
+    conv_forall (VPi A B) (VPi A' B')
+
+| CoF_Sigma : forall A A' B B',
+    conv_forall A A' ->
+    conv_clo_forall B B' ->
+    conv_forall (VSigma A B) (VSigma A' B')
+
+| CoF_Lam : forall cl1 cl2,
+    conv_clo_forall cl1 cl2 ->
+    conv_forall (VLam cl1) (VLam cl2)
+
+| CoF_Pair : forall A B a b A' B' a' b',
+    conv_forall A A' -> conv_forall B B' ->
+    conv_forall a a' -> conv_forall b b' ->
+    conv_forall (VPair A B a b) (VPair A' B' a' b')
+
+| CoF_Zero : conv_forall VZero VZero
+| CoF_Succ : forall n n', conv_forall n n' -> conv_forall (VSucc n) (VSucc n')
+
+(* Neutral congruence *)
+| CoF_NVar    : forall i,
+    conv_forall (VNeutral (NVar i)) (VNeutral (NVar i))
+| CoF_NApp    : forall n n' v v',
+    conv_forall (VNeutral n) (VNeutral n') -> conv_forall v v' ->
+    conv_forall (VNeutral (NApp n v)) (VNeutral (NApp n' v'))
+| CoF_NFst    : forall n n',
+    conv_forall (VNeutral n) (VNeutral n') ->
+    conv_forall (VNeutral (NFst n)) (VNeutral (NFst n'))
+| CoF_NSnd    : forall n n',
+    conv_forall (VNeutral n) (VNeutral n') ->
+    conv_forall (VNeutral (NSnd n)) (VNeutral (NSnd n'))
+| CoF_NNatRec : forall P P' z z' s s' n n',
+    conv_forall P P' -> conv_forall z z' -> conv_forall s s' ->
+    conv_forall (VNeutral n) (VNeutral n') ->
+    conv_forall (VNeutral (NNatRec P z s n)) (VNeutral (NNatRec P' z' s' n'))
+
+| CoF_Vec : forall n n' A A',
+    conv_forall n n' -> conv_forall A A' ->
+    conv_forall (VVec n A) (VVec n' A')
+
+| CoF_VNil : forall A A',
+    conv_forall A A' ->
+    conv_forall (VNilV A) (VNilV A')
+
+| CoF_VCons : forall A A' n n' x x' xs xs',
+    conv_forall A A' -> conv_forall n n' ->
+    conv_forall x x' -> conv_forall xs xs' ->
+    conv_forall (VConsV A n x xs) (VConsV A' n' x' xs')
+
+| CoF_NVecRec : forall A A' P P' z z' s s' n n' nx nx',
+    conv_forall A A' -> conv_forall P P' -> conv_forall z z' ->
+    conv_forall s s' -> conv_forall n n' ->
+    conv_forall (VNeutral nx) (VNeutral nx') ->
+    conv_forall (VNeutral (NVecRec A P z s n nx))
+                (VNeutral (NVecRec A' P' z' s' n' nx')).
+
+Scheme conv_forall_rect      := Induction for conv_forall      Sort Prop
+with   conv_clo_forall_rect := Induction for conv_clo_forall Sort Prop.
+Combined Scheme conv_forall_mutind from conv_forall_rect, conv_clo_forall_rect.
+
+Inductive conv_clo_exists_forall : closure -> closure -> Prop :=
+| ConvCloE : forall B B' v v',
+    clos_eval' B  fresh v ->
+    clos_eval' B' fresh v' ->
+    conv_forall v v' ->
+    conv_clo_exists_forall B B'.
+
+Lemma conv_clo_forall_to_conv_clo_exists_forall :
+  forall B B',
+    conv_clo_forall B B' ->
+    (exists v,  clos_eval' B  fresh v) ->
+    (exists v', clos_eval' B' fresh v') ->
+    conv_clo_exists_forall B B'.
+Proof.
+  intros B B' H [v Hv] [v' Hv'].
+  inversion H as [B1 B1' Hf]; subst.
+  eapply ConvCloE; eauto using Hf.
+Qed.
 
 Lemma eval'_TFst_Var_exists :
   forall ρ x v, eval' (env_cons fresh ρ) (Var x) v ->
@@ -2912,6 +3021,14 @@ Fixpoint id_env (n : nat) : env :=
 
 Definition sem_env_of_ctx (Γ : list whnf) : env := id_env (length Γ).
 
+(* accept both syntactic lambda and Pi-value as “function closures” *)
+Definition fn_closure_of (v : whnf) : option closure :=
+  match v with
+  | VLam cl   => Some cl
+  | VPi _ c   => Some c
+  | _         => None
+  end.
+  
 Inductive infer : list whnf -> term -> whnf -> Prop :=
 | I_Var : forall Γ x A,
     nth_error Γ x = Some A ->
@@ -2946,7 +3063,7 @@ Inductive infer : list whnf -> term -> whnf -> Prop :=
     clos_eval' B vu vB ->
     infer Γ (App t u) vB
 
-(* Lambda *synthesizes* a Pi when you also provide a codomain closure B
+(* (* Lambda *synthesizes* a Pi when you also provide a codomain closure B
    such that the body checks against B·fresh under Γ extended by vA. *)
 | I_Lam : forall Γ A b vA B vBodyTy,
     (* domain is a type *)
@@ -2958,7 +3075,7 @@ Inductive infer : list whnf -> term -> whnf -> Prop :=
     check (vA :: Γ) b vBodyTy ->
     (* result: the lambda synthesizes Π vA. B *)
     infer Γ (Lam A b) (VPi vA B)
-
+ *)
 | I_Fst : forall Γ p A B,
     infer Γ p (VSigma A B) ->
     infer Γ (TFst p) A
@@ -2980,27 +3097,25 @@ Inductive infer : list whnf -> term -> whnf -> Prop :=
     check Γ n VNat ->
     infer Γ (Succ n) VNat
 
-| I_NatRec : forall Γ P z s n vP vs vn v,
+| I_NatRec : forall Γ P z s n vP cP vn vTy vP0,
     (* P : Π Nat . Star *)
-    infer Γ P (VPi VNat (Cl (sem_env_of_ctx Γ) Star)) ->
-    (* z : P 0 *)
-    (* infer/check P 0: use application rule in the semantic world *)
+    check Γ P (VPi VNat (Cl (sem_env_of_ctx Γ) Star)) ->
     eval' (sem_env_of_ctx Γ) P vP ->
-    clos_eval' (match vP with VPi _ c => c | _ => Cl [] Star end) VZero v ->
-    check Γ z v ->
-    (* s : Π n:Nat. Π _:P n. P (S n) *)
-    (* For brevity, assume s is annotated and typechecks appropriately *)
-    eval' (sem_env_of_ctx Γ) s vs ->
+    fn_closure_of vP = Some cP ->          (* or: exists cP, ... *)
+    (* z : P 0 *)
+    clos_eval' cP VZero vP0 ->
+    check Γ z vP0 ->
+    (* s well-typed: you can keep it as a separate premise or as you had it *)
     (* n : Nat *)
     check Γ n VNat ->
     eval' (sem_env_of_ctx Γ) n vn ->
-    (* result type is P n *)
-    clos_eval' (match vP with VPi _ c => c | _ => Cl [] Star end) vn v ->
-    infer Γ (NatRec P z s n) v
+    (* result type is (P n) i.e. cP·vn *)
+    clos_eval' cP vn vTy ->
+    infer Γ (NatRec P z s n) vTy
+
 
 (* infer Γ (Vec n A) ⋆  when  n : Nat  and  A : ⋆ *)
 | I_Vec : forall Γ n A,
-    infer Γ n VNat ->
     infer Γ A VStar ->
     infer Γ (Vec n A) VStar
 
@@ -3029,44 +3144,28 @@ Inductive infer : list whnf -> term -> whnf -> Prop :=
 (* -------------------- Vec eliminator -------------------- *)
 
 | I_VecRec : forall Γ A P z s n xs
-                    vA vP vs vn vxs
-                    vPn vTy_res,
-    (* A : ⋆ and compute its WHNF *)
+                    vA vP vn vxs
+                    cP vPn c2 vTy_res,
     infer Γ A VStar ->
     eval' (sem_env_of_ctx Γ) A vA ->
 
-    (* Motive: P : Π n:Nat. Π _:Vec n A. ⋆ *)
-    infer Γ P (VPi VNat (Cl (sem_env_of_ctx Γ)
-                            (Pi (Vec (Var 0) A) Star))) ->
+    (* P checks against the expected Π Nat. Π (Vec …). ★ *)
+    check Γ P (VPi VNat (Cl (sem_env_of_ctx Γ) (Pi (Vec (Var 0) A) Star))) ->
     eval' (sem_env_of_ctx Γ) P vP ->
 
-    (* Step is assumed annotated and well-typed (as in your NatRec rule) *)
-    eval' (sem_env_of_ctx Γ) s vs ->
+    check Γ n VNat -> eval' (sem_env_of_ctx Γ) n vn ->
+    check Γ xs (VVec vn vA) -> eval' (sem_env_of_ctx Γ) xs vxs ->
 
-    (* Scrutinee indices and value: n : Nat, xs : Vec n A *)
-    check Γ n VNat ->
-    eval' (sem_env_of_ctx Γ) n vn ->
-    check Γ xs (VVec vn vA) ->
-    eval' (sem_env_of_ctx Γ) xs vxs ->
-
-    (* Result type is (P n) xs:
-       1) instantiate P at n to get a Pi (over vectors) value vPn,
-       2) extract its codomain closure and instantiate at xs. *)
-    clos_eval'
-      (match vP with VPi _ c => c | _ => Cl [] Star end)
-      vn vPn ->
-    clos_eval'
-      (match vPn with VPi _ c => c | _ => Cl [] Star end)
-      vxs vTy_res ->
+    (* instantiate the *value* of P twice via its closure *)
+    fn_closure_of vP = Some cP ->
+    clos_eval' cP vn vPn ->
+    fn_closure_of vPn = Some c2 ->
+    clos_eval' c2 vxs vTy_res ->
 
     infer Γ (VecRec A P z s n xs) vTy_res
 
 (* Introductions synthesize only when canonical: pair/lambda won’t synthesize without a target. *)
 with check : list whnf -> term -> whnf -> Prop :=
-| C_Sub : forall Γ t A A',
-    infer Γ t A' ->
-    conv A' A ->
-    check Γ t A
 
 | C_Lam : forall Γ A b vA vA' B,
     (* decodes the intended rule properly *)
@@ -3086,7 +3185,28 @@ with check : list whnf -> term -> whnf -> Prop :=
       check (vA' :: Γ) b vBodyTy ->
       check Γ (Lam A b) (VPi vA' B)
 
-| C_Pair : forall Γ A Btm a b vA va vBsnd Bcl,
+(* expected type is VSigma Aexp Bcl; we allow the syntactic Aty
+   to evaluate to some vA_eval merely convertible to Aexp *)
+| C_Pair : forall Γ Aty Btm a b Aexp Bcl vA_eval va vBsnd,
+    (* 1) Aty : ⋆ and evaluate it *)
+    check Γ Aty VStar ->
+    eval' (sem_env_of_ctx Γ) Aty vA_eval ->
+
+    (* 2) the first component a : vA_eval and evaluate it *)
+    check Γ a vA_eval ->
+    eval' (sem_env_of_ctx Γ) a va ->
+
+    (* 3) instantiate codomain with that evaluated first component *)
+    clos_eval' Bcl va vBsnd ->
+    check Γ b vBsnd ->
+
+    (* 4) crucial alignment: the domain we computed is convertible to the expected domain *)
+    conv vA_eval Aexp ->
+
+    check Γ (Pair Aty Btm a b) (VSigma Aexp Bcl)
+
+
+(* | C_Pair : forall Γ A Btm a b vA va vBsnd Bcl,
     (* We are checking [Pair A Btm a b] against the expected Sigma type [VSigma vA Bcl] *)
     (* 1) A : Star and evaluate it to vA (domain of the Sigma) *)
     check Γ A VStar ->
@@ -3102,7 +3222,7 @@ with check : list whnf -> term -> whnf -> Prop :=
 
     (* Conclusion: the pair checks against the expected Sigma *)
     check Γ (Pair A Btm a b) (VSigma vA Bcl)
-
+ *)
 | C_AnnoNat : forall Γ n,
     infer Γ n VNat -> check Γ n VNat
 
@@ -3115,6 +3235,819 @@ with check : list whnf -> term -> whnf -> Prop :=
 Scheme infer_rect := Induction for infer Sort Prop
 with check_rect := Induction for check Sort Prop.
 Combined Scheme typing_rect from infer_rect, check_rect.
+
+(* helper to peel a codomain closure out of a vPi value;
+   fall back to a dummy closure if needed (shouldn't happen on well-typed inputs). *)
+Definition codclo_of (v : whnf) (Γ : list whnf) : closure :=
+  match v with
+  | VPi _ c => c
+  | _       => Cl (sem_env_of_ctx Γ) Star
+  end.
+
+Fixpoint infer_fuel (k:nat) (Γ:list whnf) (t:term) : option whnf :=
+  match k with
+  | 0 => None
+  | S k' =>
+    match t with
+    | Var x => nth_error Γ x
+    | Star  => Some VStar
+    | Nat   => Some VStar
+
+    | Pi A B =>
+        match infer_fuel k' Γ A with
+        | Some VStar =>
+            match evalk k' (sem_env_of_ctx Γ) A with
+            | Some vA =>
+                match infer_fuel k' (vA :: Γ) B with
+                | Some VStar => Some VStar
+                | _ => None
+                end
+            | _ => None
+            end
+        | _ => None
+        end
+
+    | Sigma A B =>
+        match infer_fuel k' Γ A with
+        | Some VStar =>
+            match evalk k' (sem_env_of_ctx Γ) A with
+            | Some vA =>
+                match infer_fuel k' (vA :: Γ) B with
+                | Some VStar => Some VStar
+                | _ => None
+                end
+            | _ => None
+            end
+        | _ => None
+        end
+
+    | App t u =>
+        match infer_fuel k' Γ t with
+        | Some (VPi A B) =>
+            match check_fuel k' Γ u A with
+            | true =>
+                match evalk k' (sem_env_of_ctx Γ) u with
+                | Some vu =>
+                    match clos_eval_fuel k' B vu with
+                    | Some vB => Some vB
+                    | None => None
+                    end
+                | None => None
+                end
+            | false => None
+            end
+        | _ => None
+        end
+        
+    | Lam  _ _ | Pair _ _ _ _ =>
+        (* Pairs don’t synthesize; they only check against an expected Sigma *)
+        None
+    | TFst p =>
+        match infer_fuel k' Γ p with
+        | Some (VSigma A _B) => Some A
+        | _ => None
+        end
+
+    | TSnd p =>
+        match infer_fuel k' Γ p with
+        | Some (VSigma _A B) =>
+            match evalk k' (sem_env_of_ctx Γ) (TFst p) with
+            | Some vfst =>
+                match clos_eval_fuel k' B vfst with
+                | Some vB => Some vB
+                | None => None
+                end
+            | None => None
+            end
+        | _ => None
+        end
+
+    | Zero   => Some VNat
+    | Succ n => if check_fuel k' Γ n VNat then Some VNat else None
+
+| NatRec P z s n =>
+    (* Expect P : Π Nat . ★  (checked, not inferred) *)
+    let expP := VPi VNat (Cl (sem_env_of_ctx Γ) Star) in
+    if check_fuel k' Γ P expP then
+      match evalk k' (sem_env_of_ctx Γ) P with
+      | Some vP =>
+          match fn_closure_of vP with
+          | Some cP =>
+              (* evaluate the index *)
+              match evalk k' (sem_env_of_ctx Γ) n with
+              | Some vn =>
+                  (* result type is (cP · vn) *)
+                  match clos_eval_fuel k' cP vn with
+                  | Some vTy =>
+                      (* base has type (cP · 0), and n : Nat *)
+                      match clos_eval_fuel k' cP VZero with
+                      | Some vP0 =>
+                          if andb (check_fuel k' Γ z vP0)
+                                  (check_fuel k' Γ n VNat)
+                          then Some vTy
+                          else None
+                      | None => None
+                      end
+                  | None => None
+                  end
+              | None => None
+              end
+          | None => None
+          end
+      | None => None
+      end
+    else None
+
+
+| Vec n A =>
+    match infer_fuel k' Γ A with
+    | Some VStar => Some VStar
+    | _ => None
+    end
+
+
+    | VNil A =>
+        match infer_fuel k' Γ A with
+        | Some VStar =>
+            match evalk k' (sem_env_of_ctx Γ) A with
+            | Some vA => Some (VVec VZero vA)
+            | None => None
+            end
+        | _ => None
+        end
+
+    | VCons A n x xs =>
+        match infer_fuel k' Γ A with
+        | Some VStar =>
+            match check_fuel k' Γ n VNat with
+            | true =>
+                match evalk k' (sem_env_of_ctx Γ) A,
+                      evalk k' (sem_env_of_ctx Γ) n with
+                | Some vA, Some vn =>
+                    if andb (check_fuel k' Γ x vA)
+                            (check_fuel k' Γ xs (VVec vn vA))
+                    then Some (VVec (VSucc vn) vA)
+                    else None
+                | _, _ => None
+                end
+            | false => None
+            end
+        | _ => None
+        end
+
+    | VecRec A P z s n xs =>
+        match infer_fuel k' Γ A with
+        | Some VStar =>
+          match evalk k' (sem_env_of_ctx Γ) A with
+          | Some vA =>
+            (* Expected type of P: Π n:Nat. Π xs:Vec n A. ★ *)
+            let expP := VPi VNat (Cl (sem_env_of_ctx Γ) (Pi (Vec (Var 0) A) Star)) in
+            if check_fuel k' Γ P expP then
+              match evalk k' (sem_env_of_ctx Γ) P,
+                    evalk k' (sem_env_of_ctx Γ) n,
+                    evalk k' (sem_env_of_ctx Γ) xs with
+              | Some vP, Some vn, Some vxs =>
+                if andb (check_fuel k' Γ n VNat)
+                        (check_fuel k' Γ xs (VVec vn vA))
+                then
+                  (* instantiate motive as a value, allowing VLam or VPi at each step *)
+                  let app1 :=
+                    match vP with
+                    | VLam cl => clos_eval_fuel k' cl vn
+                    | VPi  _ c => clos_eval_fuel k' c  vn
+                    | _ => None
+                    end in
+                  match app1 with
+                  | Some (VLam cl2) => clos_eval_fuel k' cl2 vxs
+                  | Some (VPi  _ c2) => clos_eval_fuel k' c2  vxs
+                  | _ => None
+                  end
+                else None
+              | _, _, _ => None
+              end
+            else None
+          | None => None
+          end
+        | _ => None
+        end
+
+
+    end
+  end
+
+with check_fuel (k:nat) (Γ:list whnf) (t:term) (Aexp:whnf) : bool :=
+  match k with
+  | 0 => false
+  | S k' =>
+    match t with
+    | Lam Aann b =>
+        match evalk k' (sem_env_of_ctx Γ) Aann with
+        | Some vA =>
+          match Aexp with                         (* ← use Aexp *)
+          | VPi vA' B =>
+              if conv_fuel k' vA vA'
+              then
+                match clos_eval_fuel k' B fresh with
+                | Some vBodyTy =>
+                    check_fuel k' (vA' :: Γ) b vBodyTy
+                | None => false
+                end
+              else false
+          | _ => false
+          end
+        | None => false
+        end
+
+| Pair Aty Btm a b =>
+    match Aexp with
+    | VSigma vA_exp Bcl =>
+        if check_fuel k' Γ Aty VStar then
+          match evalk k' (sem_env_of_ctx Γ) Aty with
+          | Some vA_eval =>
+              if conv_fuel k' vA_eval vA_exp then
+                if check_fuel k' Γ a vA_eval then
+                  match evalk k' (sem_env_of_ctx Γ) a with
+                  | Some va =>
+                      match clos_eval_fuel k' Bcl va with
+                      | Some vBsnd => check_fuel k' Γ b vBsnd
+                      | None => false
+                      end
+                  | None => false
+                  end
+                else false
+              else false
+          | None => false
+          end
+        else false
+    | _ => false
+    end
+
+    | _ =>
+        match infer_fuel k' Γ t with
+        | Some A' => conv_fuel k' A' Aexp        (* ← use Aexp *)
+        | None => false
+        end
+    end
+  end.
+
+
+Compute infer_fuel 1000 [] add.
+
+Compute check_fuel 100 [] add (VPi VNat (Cl [] (Pi Nat Nat))).
+Compute check_fuel 8 [] mult (VPi VNat (Cl [] (Pi Nat Nat))).
+
+Definition xs1 := VCons Nat Zero (Succ Zero) (VNil Nat).  (* [1] *)
+Definition ys1' := VCons Nat Zero Zero (VNil Nat).        (* [0] *)
+
+Compute check_fuel 1000 []
+  (tm_vec_motive Nat (Succ Zero))
+  (VPi VNat (Cl [] (Pi (Vec (Var 0) Nat) Star))).
+
+Compute infer_fuel 100 [] ys1'.
+Compute infer_fuel 100 [] tm_append_v12_v3.
+
+Compute check_fuel 1000 []
+  (tm_append_v12_v3)
+  (VVec (VSucc (VSucc (VSucc VZero))) VNat).
+
+
+Lemma fn_closure_of_sound_app :
+  forall k vP vn vPn c,
+    (match vP with
+     | VPi _ c' => clos_eval_fuel k c' vn
+     | VLam cl  => clos_eval_fuel k cl  vn
+     | _ => None
+     end) = Some (VPi vPn c) ->
+  exists cP, fn_closure_of vP = Some cP /\ clos_eval' cP vn (VPi vPn c).
+Proof.
+  intros k vP vn vPn c H; destruct vP; simpl in H; try discriminate.
+  all: inversion H; subst; eexists; split; [reflexivity| eapply clos_eval_fuel_sound].
+  exact H. exact H.
+Qed.
+
+
+Theorem infer_fuel_sound :
+  forall k Γ t A, infer_fuel k Γ t = Some A -> infer Γ t A
+with check_fuel_sound :
+  forall k Γ t A, check_fuel k Γ t A = true -> check Γ t A.
+Proof. intro k.
+       induction k; intros.
+       - easy.
+       - simpl in H.
+         case_eq t; intros; subst.
+         + inversion H. subst. constructor.
+         + inversion H. subst. constructor.
+         + (* Pi A B *)
+           destruct (infer_fuel k Γ t0) eqn:HA; try discriminate.
+           destruct w; try discriminate.
+           destruct (evalk k (sem_env_of_ctx Γ) t0) eqn:EA; try discriminate.
+           destruct (infer_fuel k (w :: Γ) t1) eqn:HB; try discriminate.
+           destruct w0; try discriminate.
+           inversion H; subst.
+           apply I_Pi with (vA := w).
+           * eapply IHk; eauto.
+           * apply evalk_sound with (k := k). easy.
+           * eapply IHk; eauto.
+         + (* Sigma A B *)
+           destruct (infer_fuel k Γ t0) eqn:HA; try discriminate.
+           destruct w; try discriminate.
+           destruct (evalk k (sem_env_of_ctx Γ) t0) eqn:EA; try discriminate.
+           destruct (infer_fuel k (w :: Γ) t1) eqn:HB; try discriminate.
+           destruct w0; try discriminate.
+           inversion H; subst.
+           apply I_Sigma with (vA := w).
+           * eapply IHk; eauto.
+           * apply evalk_sound with (k := k). easy.
+           * eapply IHk; eauto.
+         + inversion H. subst. constructor.
+         + case_eq(check_fuel k Γ t0 VNat); intros.
+           * rewrite H0 in H. inversion H. constructor.
+             apply check_fuel_sound with (k := k). easy.
+           * rewrite H0 in H. easy.
+         + (* Pair does not synthesize *)
+           discriminate.
+         + destruct (infer_fuel k Γ t0) eqn:Hp; try discriminate.
+           destruct w; try discriminate.
+           inversion H; subst.
+           eapply I_Fst.
+           eapply IHk; eauto.
+         + (* TSnd p *)
+           destruct (infer_fuel k Γ t0) eqn:Hp; try discriminate.
+           destruct w; try discriminate.
+           destruct (evalk k (sem_env_of_ctx Γ) (TFst t0)) eqn:Ef; try discriminate.
+           destruct (clos_eval_fuel k c w0) eqn:EB; try discriminate.
+           inversion H; subst.
+           apply I_Snd with (A:=w) (B:=c) (vfst:=w0) (vB:=A).
+           * eapply IHk; eauto.
+           * eapply evalk_sound; eauto.
+           * eapply clos_eval_fuel_sound; eauto.
+         + constructor. easy.
+         + discriminate. 
+                           
+         + (* App t u *)
+           destruct (infer_fuel k Γ t0) eqn:Ht; try discriminate.
+           destruct w; try discriminate.
+           destruct (check_fuel k Γ t1 w) eqn:Hu; try discriminate.
+           destruct (evalk k (sem_env_of_ctx Γ) t1) eqn:Eu; try discriminate.
+           destruct (clos_eval_fuel k c w0) eqn:EB; try discriminate.
+           inversion H; subst.
+(*            eapply I_App. *)
+           apply I_App with (A:=w) (B:=c) (vu:=w0) (vB:=A).
+           * eapply IHk; eauto.
+           * eapply check_fuel_sound; eauto.
+           * eapply evalk_sound; eauto.
+           * eapply clos_eval_fuel_sound; eauto.
+         + (* t = NatRec t0 t1 t2 t3, and H is the big match you showed *)
+            simpl in H.
+            destruct (check_fuel k Γ t0 (VPi VNat (Cl (sem_env_of_ctx Γ) Star))) eqn:HCp; try discriminate H.
+            destruct (evalk k (sem_env_of_ctx Γ) t0) as [vP|] eqn:HP; try discriminate H.
+            destruct (fn_closure_of vP) as [cP|] eqn:HcP; try discriminate H.
+            destruct (evalk k (sem_env_of_ctx Γ) t3) as [vn|] eqn:Hn; try discriminate H.
+            destruct (clos_eval_fuel k cP vn) as [vTy|] eqn:HTy; try discriminate H.
+            destruct (clos_eval_fuel k cP VZero) as [vP0|] eqn:HP0; try discriminate H.
+            (* split the final andb *)
+            case_eq((check_fuel k Γ t1 vP0 && check_fuel k Γ t3 VNat)%bool); intros.
+            rewrite H0 in H.
+            apply Bool.andb_true_iff in H0.
+            destruct H0 as [Hz HnNat]. inversion H. subst. clear H.
+            (* the branch returns Some vTy, so A = vTy *)
+(*             assert (A = vTy) by reflexivity. subst A. *)
+
+            (* Now discharge premises of I_NatRec *)
+            eapply I_NatRec.
+            * (* check Γ P expP *)
+              eapply check_fuel_sound; eauto.
+            * (* eval' P vP *)
+              eapply evalk_sound; eauto.
+            * (* fn_closure_of vP = Some cP *)
+              exact HcP.
+            * (* clos_eval' cP VZero vP0 *)
+              eapply clos_eval_fuel_sound; eauto.
+            * (* check Γ z vP0 *)
+              eapply check_fuel_sound; eauto.
+            * (* check Γ n Nat *)
+              eapply check_fuel_sound; eauto.
+            * (* eval' n vn *)
+              eapply evalk_sound; eauto.
+            * (* clos_eval' cP vn vTy *)
+              eapply clos_eval_fuel_sound; eauto.
+            * rewrite H0 in H. easy.
+        + (* Vec n A : ★ (relaxed) *)
+          destruct (infer_fuel k Γ t1) eqn:HA; try discriminate.
+          destruct w; try discriminate.
+          inversion H; subst. constructor. eapply IHk; eauto.
+
+        + (* VNil A *)
+          destruct (infer_fuel k Γ t0) eqn:HA; try discriminate.
+          destruct w; try discriminate.
+          destruct (evalk k (sem_env_of_ctx Γ) t0) eqn:EA; try discriminate.
+          inversion H; subst.
+          eapply I_VNil; eauto.
+          * eapply evalk_sound; eauto.
+    + (* VCons A n x xs *)
+      destruct (infer_fuel k Γ t0) eqn:HA; try discriminate.
+      destruct w; try discriminate.
+      destruct (check_fuel k Γ t1 VNat) eqn:Hn; try discriminate.
+      destruct (evalk k (sem_env_of_ctx Γ) t0) eqn:EA; try discriminate.
+      destruct (evalk k (sem_env_of_ctx Γ) t1) eqn:EN; try discriminate.
+      destruct (check_fuel k Γ t2 w) eqn:Hx; try discriminate.
+      destruct (check_fuel k Γ t3 (VVec w0 w)) eqn:Hxs; try discriminate.
+      simpl in H.
+      inversion H; subst.
+      eapply I_VCons with (vA:=w) (vn:=w0); eauto.
+      * eapply evalk_sound; eauto.          (* vA *)
+      * eapply evalk_sound; eauto.          (* vn *)
+    +
+
+
+      revert H.
+      simpl.  (* unfold the VecRec branch of infer_fuel *)
+
+      (* 1) A : ⋆, and its WHNF *)
+      destruct (infer_fuel k Γ t0) as [ATy|] eqn:HA0; [| now discriminate].
+      destruct ATy; try now discriminate.
+      pose proof (IHk Γ t0 VStar HA0) as I_A.  (* infer Γ t0 ⋆ *)
+
+      destruct (evalk k (sem_env_of_ctx Γ) t0) as [vA|] eqn:EA; [| now discriminate].
+      pose proof (evalk_sound _ _ _ _ EA) as EvA.
+
+      (* 2) Motive P has the expected type (checked, not inferred) *)
+      destruct (check_fuel k Γ t1
+                 (VPi VNat (Cl (sem_env_of_ctx Γ) (Pi (Vec (Var 0) t0) Star))))
+               eqn:HP; [| now discriminate].
+      pose proof (check_fuel_sound _ _ _ _ HP) as C_P.
+
+      (* 3) Evaluate P, n, xs *)
+      destruct (evalk k (sem_env_of_ctx Γ) t1) as [vP|] eqn:EP ; [| now discriminate].
+      pose proof (evalk_sound _ _ _ _ EP) as EvP.
+
+      destruct (evalk k (sem_env_of_ctx Γ) t4) as [vn|] eqn:En ; [| now discriminate].
+      pose proof (evalk_sound _ _ _ _ En) as Evn.
+
+      destruct (evalk k (sem_env_of_ctx Γ) t5) as [vxs|] eqn:Exs ; [| now discriminate].
+      pose proof (evalk_sound _ _ _ _ Exs) as Evxs.
+
+
+      (* name the two boolean checks *)
+      remember (check_fuel k Γ t4 VNat)                 as bn  eqn:Hbn.
+      remember (check_fuel k Γ t5 (VVec vn vA))         as bxs eqn:Hbxs.
+
+      intros H.
+      (* split the two boolean checks; kill the false branches using [H] *)
+      destruct bn  eqn:Ebn  ; [| now discriminate H].
+      destruct bxs eqn:Ebxs ; [| now discriminate H].
+      simpl in H.
+
+      (* from the booleans = true we get declarative checks *)
+      assert (C_t4 : check Γ t4 VNat).
+      { subst bn. apply check_fuel_sound with (k := k). easy. }
+      assert (C_t5 : check Γ t5 (VVec vn vA)).
+      { subst bxs. apply check_fuel_sound with (k := k). easy. }
+
+      (* first semantic application of the motive: P n *)
+      set (app1 :=
+             match vP with
+             | VPi _ c  => clos_eval_fuel k c  vn
+             | VLam cl  => clos_eval_fuel k cl vn
+             | _        => None
+             end) in *.
+      destruct app1 as [vPn|] eqn:Happ1 ; [| now discriminate H].
+
+
+      (* only function shapes can yield a final [Some A] *)
+      destruct vPn as
+             [ | | dom c1 | dom c1 | cl1
+               | | | | | | | ] ; try (simpl in H; now discriminate H).
+      * (* vPn = VPi dom c1 *)
+        destruct (clos_eval_fuel k c1 vxs) as [vTy|] eqn:Happ2 ; [| now discriminate H].
+        inversion H; subst A; clear H.
+          (* figure out which closure was used in the first app, and convert to [clos_eval'] *)
+        destruct vP as
+               [ | | A0 c0 | A0 c0 | cl0
+                 | | | | | | |  ] ; try (simpl in Happ1; discriminate Happ1).
+       
+         ** (* vP = VPi A0 c0, so app1 = clos_eval_fuel k c0 vn *)
+          simpl in Happ1.
+          (* clos_eval' (first step) *)
+          assert (CE1 : clos_eval' c0 vn (VPi dom c1)).
+          { destruct (clos_eval_fuel k c0 vn) eqn:HP1 ;
+              inversion Happ1; subst; eauto using clos_eval_fuel_sound. }
+          (* clos_eval' (second step) *)
+          assert (CE2 : clos_eval' c1 vxs vTy)
+            by (eapply clos_eval_fuel_sound; exact Happ2).
+
+          (* build the intended typing derivation *)
+          eapply I_VecRec
+            with (vA:=vA) (vP:=VPi A0 c0) (vn:=vn) (vxs:=vxs)
+                 (vPn:=VPi dom c1) (vTy_res:=vTy); eauto.
+            simpl. easy. simpl. easy.
+        ** eapply I_VecRec
+            with (vA:=vA) (vP:=(VLam cl0)) (vn:=vn) (vxs:=vxs)
+                 (vPn:=VPi dom c1) (vTy_res:=vTy) (cP := cl0) (c2 := c1); eauto.
+            unfold app1 in *.
+            apply clos_eval_fuel_sound with (k := k). easy.
+            simpl.
+            apply clos_eval_fuel_sound with (k := k). easy.
+            
+      * destruct cl1 as [ρ b].
+        destruct (clos_eval_fuel k (Cl ρ b) vxs) as [vTy|] eqn:Happ2 ; [| now discriminate H].
+        inversion H; subst A; clear H.
+
+        (* again, find which closure produced [app1] and convert it to [clos_eval'] *)
+        destruct vP as
+               [ | | | | cl0
+                 | | | | | | | ] ; try (simpl in Happ1; discriminate Happ1).
+         ** (* vP = VLam cl0, so app1 = clos_eval_fuel k cl0 vn *)
+          simpl in Happ1.
+          unfold app1 in *.
+          assert (CE1 : clos_eval' c vn (VLam (Cl ρ b))).
+          { destruct (clos_eval_fuel k c vn) eqn:HP1 ;
+              inversion Happ1; subst; eauto using clos_eval_fuel_sound. }
+          assert (CE2 : clos_eval' (Cl ρ b) vxs vTy)
+            by (eapply clos_eval_fuel_sound; exact Happ2).
+
+          eapply I_VecRec
+            with (vA:=vA) (vP:=(VPi vP c)) (vn:=vn) (vxs:=vxs)
+                 (vPn:=VLam (Cl ρ b)) (vTy_res:=vTy); eauto.
+           simpl. easy. simpl. easy.
+        ** eapply I_VecRec
+            with (vA:=vA) (vP:=(VLam cl0)) (vn:=vn) (vxs:=vxs)
+                 (vPn:=VLam (Cl ρ b)) (vTy_res:=vTy) (cP := cl0); eauto.
+           unfold app1 in *.
+           apply clos_eval_fuel_sound with (k := k). easy.
+           simpl. easy.
+           apply clos_eval_fuel_sound with (k := k). easy.
+           
+      - intro k.
+        induction k; intros.
+        + easy.
+        + simpl in H.
+          case_eq t; intros; subst.
+          17:{ 
+          case_eq(infer_fuel k Γ (VecRec t0 t1 t2 t3 t4 t5)); intros.
+          rewrite H0 in H.
+      eapply C_FromInfer.
+      - (* from the synthesis boolean to declarative inference *)
+        eapply infer_fuel_sound; eauto.      (* uses H0 : infer_fuel k Γ (VecRec …) = Some w *)
+      - (* from the conversion boolean to declarative convertibility *)
+        eapply conv_fuel_sound; eauto.
+      - rewrite H0 in H. easy.
+      }
+        12:{
+        case_eq(infer_fuel k Γ (App t0 t1)); intros.
+        rewrite H0 in H.
+        apply C_FromInfer with (A := A) (A' := w).
+        apply infer_fuel_sound with (k := k). easy.
+        apply conv_fuel_sound with (k := k). easy.
+        rewrite H0 in H. easy.
+      }
+
+      11:{ 
+      case_eq(evalk k (sem_env_of_ctx Γ) t0); intros.
+      rewrite H0 in H.
+      destruct A; try easy.
+      case_eq( conv_fuel k w A); intros.
+      rewrite H1 in H.
+      case_eq(clos_eval_fuel k c fresh); intros.
+      rewrite H2 in H.
+      apply C_Lam with (vA := w) (vBodyTy := w0).
+      apply evalk_sound with (k := k). easy.
+      apply conv_fuel_sound with (k := k). easy.
+      apply clos_eval_fuel_sound with (k := k). simpl.
+      unfold fresh in *. easy.
+      apply IHk. easy.
+      rewrite H2 in H. easy.
+      rewrite H1 in H. easy.
+      rewrite H0 in H. easy.
+      }
+
+      7:{
+          destruct A; try easy.
+          case_eq(check_fuel k Γ t0 VStar); intros.
+          rewrite H0 in H.
+          case_eq(evalk k (sem_env_of_ctx Γ) t0); intros.
+          rewrite H1 in H.
+          case_eq(conv_fuel k w A); intros.
+          rewrite H2 in H.
+          case_eq(check_fuel k Γ t2 w); intros.
+          rewrite H3 in H.
+          case_eq(evalk k (sem_env_of_ctx Γ) t2 ); intros.
+          rewrite H4 in H.
+          case_eq(clos_eval_fuel k c w0); intros.
+          rewrite H5 in H.
+      eapply C_Pair with (va:=w0) (vBsnd:=w1) (Bcl:=c) (vA_eval := w).
+      apply IHk. easy.
+      apply evalk_sound with (k := k). easy.
+      apply IHk. easy.
+      apply evalk_sound with (k := k). easy.
+      apply clos_eval_fuel_sound with (k := k). easy.
+      apply IHk. easy.
+      apply conv_fuel_sound with (k := k). easy.
+      rewrite H5 in H. easy.
+      rewrite H4 in H. easy.
+      rewrite H3 in H. easy.
+      rewrite H2 in H. easy.
+      rewrite H1 in H. easy.
+      rewrite H0 in H. easy.
+      }
+
+      9:{ case_eq( infer_fuel k Γ (Var n) ); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+          apply infer_fuel_sound with (k := k). easy.
+          apply conv_fuel_sound with (k := k). easy.
+          rewrite H0 in H. easy.
+        }
+
+      3:{ case_eq(infer_fuel k Γ (Pi t0 t1)); intros.
+          + rewrite H0 in H.
+            apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+       }
+       
+          
+
+      2:{ destruct (infer_fuel k Γ Nat) eqn:Hinfer
+        ; try (rewrite Hinfer in H; discriminate).
+
+      eapply C_FromInfer.
+      - eapply infer_fuel_sound; eauto.            (* infer Γ Nat w          *)
+      - eapply conv_fuel_sound;  eauto.
+      - easy.            (* conv  w       A        *)
+          }
+
+      2:{ case_eq(infer_fuel k Γ (Sigma t0 t1)); intros.
+          + rewrite H0 in H.
+            apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+       }
+
+      5:{ case_eq(infer_fuel k Γ (TSnd t0) ); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+        }
+
+      4:{ case_eq(infer_fuel k Γ (TFst t0) ); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+        }
+
+      5:{ case_eq(infer_fuel k Γ (Vec t0 t1)); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+        }
+
+      5:{ case_eq(infer_fuel k Γ (VNil t0) ); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+        }
+
+      5:{ case_eq(infer_fuel k Γ (VCons t0 t1 t2 t3)); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+        }
+
+      4:{ case_eq(infer_fuel k Γ (NatRec t0 t1 t2 t3)); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+        }
+
+      3:{ case_eq(infer_fuel k Γ (Succ t0)); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+        }
+
+      2:{ case_eq(infer_fuel k Γ Zero); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+          + rewrite H0 in H. easy.
+        }
+
+      case_eq(infer_fuel k Γ Star); intros.
+          rewrite H0 in H.
+          apply C_FromInfer with (A' := w).
+            apply infer_fuel_sound with (k := k). easy.
+            apply conv_fuel_sound with (k := k). easy.
+            rewrite H0 in H. easy.
+Qed.
+
+Theorem infer_check_fuel_monotone:
+  (forall Γ t A k k', 
+     k' >= k ->
+     infer_fuel k Γ t = Some A -> 
+     infer_fuel k' Γ t = Some A) /\
+  (forall Γ t A k k', 
+     k' >= k ->
+     check_fuel k Γ t A = true -> 
+     check_fuel k' Γ t A = true ).
+Proof. eapply typing_rect; intros.
+Admitted.
+
+
+
+Theorem infer_fuel_monotone:
+  (forall Γ t A k k', 
+     k' >= k ->
+     infer_fuel k Γ t = Some A -> 
+     infer_fuel k' Γ t = Some A).
+Proof. intros.
+       eapply infer_check_fuel_monotone with (k' := k') (k := k); try lia.
+       easy.
+Qed.
+
+Theorem check_fuel_monotone:
+  (forall Γ t A k k', 
+     k' >= k ->
+     check_fuel k Γ t A = true -> 
+     check_fuel k' Γ t A = true ).
+Proof. intros.
+       eapply infer_check_fuel_monotone with (k' := k') (k := k); try lia.
+       easy.
+Qed.
+
+Theorem infer_fuel_complete :
+  (forall Γ t A, infer Γ t A -> exists k, infer_fuel k Γ t = Some A) /\
+  (forall Γ t A, check Γ t A -> exists k, check_fuel k Γ t A = true).
+Proof.
+  eapply typing_rect; intros.
+  - exists 1. simpl. easy.
+  - exists 1. simpl. easy.
+  - exists 1. simpl. easy.
+  - destruct H0 as (k0, H0).
+    destruct H as (k, H).
+    apply evalk_complete in e.
+    destruct e as (k1, e1).
+    exists (S (Nat.max k (Nat.max k0 k1))). simpl.
+    rewrite evalk_monotone with (k := k1) (v := vA); try lia.
+    rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+    rewrite infer_fuel_monotone with (k := k0) (A := VStar); try lia.
+    easy.
+    easy. easy. easy.
+  - destruct H0 as (k0, H0).
+    destruct H as (k, H).
+    apply evalk_complete in e.
+    destruct e as (k1, e1).
+    exists (S (Nat.max k (Nat.max k0 k1))). simpl.
+    rewrite evalk_monotone with (k := k1) (v := vA); try lia.
+    rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+    rewrite infer_fuel_monotone with (k := k0) (A := VStar); try lia.
+    easy.
+    easy. easy. easy.
+  - destruct H0 as (k0, H0).
+    destruct H as (k, H).
+    apply evalk_complete in e.
+    destruct e as (k1, e1).
+    unfold clos_eval' in *.
+    destruct B.
+    apply evalk_complete in c0.
+    destruct c0 as (k2, c0).
+
+    exists (S (Nat.max k (Nat.max k0 (Nat.max k1 (S k2))))). simpl.
+    rewrite evalk_monotone with (k := k1) (v := vu); try lia.
+    rewrite infer_fuel_monotone with (k := k) (A := (VPi A (Cl l t0))); try lia.
+    rewrite check_fuel_monotone with (k := k0) (A := A); try lia.
+    simpl.
+    rewrite clos_eval_fuel_monotone with (k := S k2) (v := vB); try lia.
+    easy. unfold clos_eval_fuel. easy.
+    easy. easy. easy.
+Admitted.
+
+(** Preservation for synthesis *)
+Theorem preservation_infer_bigstep :
+  forall Γ t A v,
+    infer Γ t A ->
+    eval' (sem_env_of_ctx Γ) t v ->
+    exists A0, (* a type value for the result *)
+      (* either as an algorithmic type or via a value-typing judgement, see §2 *)
+      conv A0 A.
+Admitted.
 
 Lemma clos_eval'_det_eq B vu v1 v2 :
   clos_eval' B vu v1 -> 
@@ -3133,8 +4066,11 @@ Lemma check_of_infer :
   forall Γ t A, infer Γ t A -> check Γ t A.
 Proof.
   intros Γ t A Hin.
-  apply C_Sub with (A' := A).
+  apply C_FromInfer with (A' := A).
   easy.
+  apply conv_fuel_sound with (k := 1).
+  simpl.
+  destruct A; try easy.
   admit.
 Admitted.
 
