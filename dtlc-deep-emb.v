@@ -3959,18 +3959,967 @@ Proof. intro k.
 Qed.
 
 Theorem infer_check_fuel_monotone:
-  (forall Γ t A k k', 
-     k' >= k ->
-     infer_fuel k Γ t = Some A -> 
-     infer_fuel k' Γ t = Some A) /\
-  (forall Γ t A k k', 
-     k' >= k ->
-     check_fuel k Γ t A = true -> 
-     check_fuel k' Γ t A = true ).
-Proof. eapply typing_rect; intros.
-Admitted.
+  forall k k' Γ t A, 
+  k' >= k ->
+  infer_fuel k Γ t = Some A -> 
+  infer_fuel k' Γ t = Some A
+with check_fuel_monotone:
+  forall k k' Γ t A, 
+  k' >= k ->
+  check_fuel k Γ t A = true -> 
+  check_fuel k' Γ t A = true.
+Proof. intro k.
+       induction k; intros.
+       - easy.
+       - simpl in H0.
+         destruct t; subst.
+         + destruct k'. easy. simpl. easy.
+         + destruct k'. easy. simpl. easy.
+         + destruct k'. easy.
+           case_eq(infer_fuel k Γ t1); intros.
+           rewrite H1 in H0. 
+           destruct w; try easy.
+           case_eq(evalk k (sem_env_of_ctx Γ) t1); intros.
+           rewrite H2 in H0.
+           case_eq(infer_fuel k (w :: Γ) t2); intros.
+           rewrite H3 in H0. destruct w0; try easy.
+           inversion H0. subst.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia.
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia.
+           rewrite H2.
+           apply IHk with (k' := k') in H3; try lia.
+           rewrite H3. easy.
+           rewrite H3 in H0. easy.
+           rewrite H2 in H0. easy.
+           rewrite H1 in H0. easy.
+         + destruct k'. easy.
+           case_eq(infer_fuel k Γ t1); intros.
+           rewrite H1 in H0. 
+           destruct w; try easy.
+           case_eq(evalk k (sem_env_of_ctx Γ) t1); intros.
+           rewrite H2 in H0.
+           case_eq(infer_fuel k (w :: Γ) t2); intros.
+           rewrite H3 in H0. destruct w0; try easy.
+           inversion H0. subst.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia.
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia.
+           rewrite H2.
+           apply IHk with (k' := k') in H3; try lia.
+           rewrite H3. easy.
+           rewrite H3 in H0. easy.
+           rewrite H2 in H0. easy.
+           rewrite H1 in H0. easy.
+         + inversion H0. 
+           destruct k'. easy.
+           simpl. easy.
+         + case_eq(check_fuel k Γ t VNat ); intros.
+           destruct k'. easy.
+           simpl. rewrite H1 in H0.
+           apply check_fuel_monotone with (k' := k') in H1; try lia.
+           rewrite H1. easy.
+           rewrite H1 in H0. easy.
+         + easy.
+         + destruct k'. easy.
+           case_eq(infer_fuel k Γ t ); intros.
+           rewrite H1 in H0.
+           destruct w; try easy. inversion H0. subst.
+           apply IHk with (k' := k') in H1; try lia.
+           simpl. rewrite H1. easy.
+           rewrite H1 in H0. easy.
+         + destruct k'. easy.
+           case_eq(infer_fuel k Γ t ); intros.
+           rewrite H1 in H0.
+           destruct w; try easy. 
+           case_eq(evalk k (sem_env_of_ctx Γ) (TFst t)); intros.
+           rewrite H2 in H0.
+           case_eq(clos_eval_fuel k c w0 ); intros.
+           rewrite H3 in H0.
+           inversion H0. subst.
+           apply IHk with (k' := k') in H1; try lia.
+           simpl. rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia.
+           rewrite H2.
+           apply clos_eval_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3. easy.
+           rewrite H3 in H0. easy.
+           rewrite H2 in H0. easy.
+           rewrite H1 in H0. easy.
+         + destruct k'. easy.
+           simpl. easy.
+         + easy.
+         + destruct k'. easy.
+           case_eq(infer_fuel k Γ t1); intros.
+           rewrite H1 in H0.
+           destruct w; try easy.
+           case_eq(check_fuel k Γ t2 w); intros.
+           rewrite H2 in H0.
+           case_eq(evalk k (sem_env_of_ctx Γ) t2); intros.
+           rewrite H3 in H0.
+           case_eq(clos_eval_fuel k c w0); intros.
+           rewrite H4 in H0.
+           inversion H0. subst.
+           apply IHk with (k' := k') in H1; try lia.
+           simpl. rewrite H1.
+           apply check_fuel_monotone with (k' := k') in H2; try lia.
+           rewrite H2.
+           apply evalk_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply clos_eval_fuel_monotone with (k' := k') in H4; try lia.
+           rewrite H4. easy.
+           rewrite H4 in H0. easy.
+           rewrite H3 in H0. easy.
+           rewrite H2 in H0. easy.
+           rewrite H1 in H0. easy.
+         + destruct k'. easy.
+           case_eq(check_fuel k Γ t1 (VPi VNat (Cl (sem_env_of_ctx Γ) Star))); intros.
+           rewrite H1 in H0.
+           case_eq(evalk k (sem_env_of_ctx Γ) t1); intros.
+           rewrite H2 in H0.
+           case_eq (fn_closure_of w); intros.
+           rewrite H3 in H0.
+           case_eq(evalk k (sem_env_of_ctx Γ) t4); intros.
+           rewrite H4 in H0.
+           case_eq(clos_eval_fuel k c w0 ); intros.
+           rewrite H5 in H0.
+           case_eq(clos_eval_fuel k c VZero); intros.
+           rewrite H6 in H0.
+           case_eq(check_fuel k Γ t2 w2); intros.
+           rewrite H7 in H0.
+           case_eq(check_fuel k Γ t4 VNat); intros.
+           rewrite H8 in H0. simpl in H0. inversion H0. subst. simpl.
+           apply check_fuel_monotone with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia.
+           rewrite H2.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply clos_eval_fuel_monotone with (k' := k') in H5; try lia.
+           rewrite H5.
+           apply clos_eval_fuel_monotone with (k' := k') in H6; try lia.
+           rewrite H6. 
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7.
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. easy.
+           rewrite H8 in H0. easy.
+           rewrite H7 in H0. easy.
+           rewrite H6 in H0. easy.
+           rewrite H5 in H0. easy.
+           rewrite H4 in H0. easy.
+           rewrite H3 in H0. easy.
+           rewrite H2 in H0. easy.
+           rewrite H1 in H0. easy.
+         + destruct k'. easy.
+           case_eq(infer_fuel k Γ t2); intros.
+           rewrite H1 in H0.
+           destruct w; try easy.
+           inversion H0. subst. simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1. easy.
+           rewrite H1 in H0. easy.
+         + destruct k'. easy.
+           case_eq(infer_fuel k Γ t); intros.
+           rewrite H1 in H0.
+           destruct w; try easy.
+           case_eq(evalk k (sem_env_of_ctx Γ) t); intros.
+           rewrite H2 in H0. inversion H0. subst. simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia.
+           rewrite H2. easy.
+           rewrite H2 in H0. easy.
+           rewrite H1 in H0. easy.
+         + destruct k'. easy.
+           case_eq(infer_fuel k Γ t1); intros.
+           rewrite H1 in H0.
+           destruct w; try easy.
+           case_eq(check_fuel k Γ t2 VNat); intros.
+           rewrite H2 in H0.
+           case_eq(evalk k (sem_env_of_ctx Γ) t1); intros.
+           rewrite H3 in H0.
+           case_eq(evalk k (sem_env_of_ctx Γ) t2); intros.
+           rewrite H4 in H0.
+           case_eq(check_fuel k Γ t3 w); intros.
+           rewrite H5 in H0.
+           case_eq(check_fuel k Γ t4 (VVec w0 w)); intros.
+           rewrite H6 in H0.
+           simpl in H0. inversion H0. subst. simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply check_fuel_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply evalk_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply check_fuel_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply check_fuel_monotone with (k' := k') in H6; try lia. 
+           rewrite H6. simpl. easy.
+           rewrite H6 in H0. easy.
+           rewrite H5 in H0. easy.
+           rewrite H4 in H0. easy.
+           rewrite H3 in H0. easy.
+           rewrite H2 in H0. easy.
+           rewrite H1 in H0. easy.
+         + destruct k'. easy.
+           case_eq(infer_fuel k Γ t1); intros.
+           rewrite H1 in H0.
+           destruct w; try easy.
+           case_eq(evalk k (sem_env_of_ctx Γ) t1); intros.
+           rewrite H2 in H0.
+           case_eq(check_fuel k Γ t2 (VPi VNat (Cl (sem_env_of_ctx Γ) (Pi (Vec (Var 0) t1) Star)))); intros.
+           rewrite H3 in H0.
+           case_eq(evalk k (sem_env_of_ctx Γ) t2); intros.
+           rewrite H4 in H0.
+           case_eq(evalk k (sem_env_of_ctx Γ) t5); intros.
+           rewrite H5 in H0.
+           case_eq(evalk k (sem_env_of_ctx Γ) t6); intros.
+           rewrite H6 in H0.
+           case_eq(check_fuel k Γ t5 VNat); intros.
+           rewrite H7 in H0.
+           case_eq(check_fuel k Γ t6 (VVec w1 w)); intros.
+           rewrite H8 in H0. simpl in H0.
+           case_eq w0; intros; subst; try easy.
+           case_eq(clos_eval_fuel k c w1); intros.
+           rewrite H9 in H0.
+           destruct w3; try easy. simpl.
+           
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           case_eq w0; intros; subst; try easy.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           case_eq w0; intros; subst; try easy.
+           simpl.
 
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
 
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           case_eq w0; intros; subst; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           rewrite H9 in H0. easy.
+           
+           
+           case_eq(clos_eval_fuel k c w1); intros.
+           rewrite H9 in H0.
+           destruct w0; try easy.
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+
+           simpl.
+           apply IHk with (k' := k') in H1; try lia. 
+           rewrite H1.
+           apply evalk_monotone with (k' := k') in H2; try lia. 
+           rewrite H2.
+           apply check_fuel_monotone with (k' := k') in H3; try lia.
+           rewrite H3.
+           apply evalk_monotone with (k' := k') in H4; try lia.
+           rewrite H4.
+           apply evalk_monotone with (k' := k') in H5; try lia. 
+           rewrite H5.
+           apply evalk_monotone with (k' := k') in H6; try lia. 
+           rewrite H6.
+           apply check_fuel_monotone with (k' := k') in H7; try lia.
+           rewrite H7. 
+           apply check_fuel_monotone with (k' := k') in H8; try lia.
+           rewrite H8. simpl.
+           apply clos_eval_fuel_monotone with (k' := k') in H9; try lia.
+           rewrite H9.
+           apply clos_eval_fuel_monotone with (k' := k') in H0; try lia. easy.
+           
+           rewrite H9 in H0. easy.
+           rewrite H8 in H0. easy.
+           rewrite H7 in H0. easy.
+           rewrite H6 in H0. easy.
+           rewrite H5 in H0. easy.
+           rewrite H4 in H0. easy.
+           rewrite H3 in H0. easy.
+           rewrite H2 in H0. easy.
+           rewrite H1 in H0. easy.
+       - intro k.
+         induction k; intros.
+         + easy.
+         + simpl in H0.
+           destruct t; subst.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ Star); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ Nat); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (Pi t1 t2)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (Sigma t1 t2)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ Zero); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (Succ t)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq A; intros; subst; try easy.
+             case_eq(check_fuel k Γ t1 VStar); intros.
+             rewrite H1 in H0.
+             case_eq(evalk k (sem_env_of_ctx Γ) t1); intros.
+             rewrite H2 in H0.
+             case_eq(conv_fuel k w0 w); intros.
+             rewrite H3 in H0.
+             case_eq(check_fuel k Γ t3 w0); intros.
+             rewrite H4 in H0.
+             case_eq(evalk k (sem_env_of_ctx Γ) t3); intros.
+             rewrite H5 in H0.
+             case_eq(clos_eval_fuel k c w1); intros.
+             rewrite H6 in H0.
+             simpl.
+             apply IHk with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply evalk_monotone with (k' := k') in H2; try lia. 
+             rewrite H2.
+             apply conv_fuel_monotone with (k' := k') in H3; try lia. 
+             rewrite H3.
+             apply IHk with (k' := k') in H4; try lia. 
+             rewrite H4.
+             apply evalk_monotone with (k' := k') in H5; try lia. 
+             rewrite H5.
+             apply clos_eval_fuel_monotone with (k' := k') in H6; try lia. 
+             rewrite H6.
+             apply IHk; try lia. easy.
+             rewrite H6 in H0. easy.
+             rewrite H5 in H0. easy.
+             rewrite H4 in H0. easy.
+             rewrite H3 in H0. easy.
+             rewrite H2 in H0. easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (TFst t)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (TSnd t)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (Var n)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(evalk k (sem_env_of_ctx Γ) t1); intros.
+             rewrite H1 in H0.
+             case_eq A; intros; subst; try easy.
+             case_eq(conv_fuel k w w0); intros.
+             rewrite H2 in H0.
+             case_eq(clos_eval_fuel k c fresh); intros.
+             rewrite H3 in H0. simpl.
+             apply evalk_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H2; try lia. 
+             rewrite H2.
+             apply clos_eval_fuel_monotone with (k' := k') in H3; try lia. 
+             rewrite H3.
+             apply IHk; try lia. easy.
+             rewrite H3 in H0. easy.
+             rewrite H2 in H0. easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (App t1 t2)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (NatRec t1 t2 t3 t4)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (Vec t1 t2)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (VNil t)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (VCons t1 t2 t3 t4)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+           * destruct k'. easy.
+             case_eq(infer_fuel k Γ (VecRec t1 t2 t3 t4 t5 t6)); intros.
+             rewrite H1 in H0. simpl.
+             apply infer_check_fuel_monotone with (k' := k') in H1; try lia. 
+             rewrite H1.
+             apply conv_fuel_monotone with (k' := k') in H0; try lia. 
+             easy.
+             rewrite H1 in H0. easy.
+Qed.
 
 Theorem infer_fuel_monotone:
   (forall Γ t A k k', 
@@ -3981,17 +4930,6 @@ Proof. intros.
        eapply infer_check_fuel_monotone with (k' := k') (k := k); try lia.
        easy.
 Qed.
-
-Theorem check_fuel_monotone:
-  (forall Γ t A k k', 
-     k' >= k ->
-     check_fuel k Γ t A = true -> 
-     check_fuel k' Γ t A = true ).
-Proof. intros.
-       eapply infer_check_fuel_monotone with (k' := k') (k := k); try lia.
-       easy.
-Qed.
-
 
 Lemma max_ge_s_k5 :
   forall k k0 k1 k2 k3 k4 k5,
@@ -4401,7 +5339,6 @@ Proof.
       rewrite infer_fuel_monotone with (k := k) (A := A'); try lia.
       rewrite conv_fuel_monotone with (k := k5); try lia. easy. easy.
 Qed.
-
 
 (** Preservation for synthesis *)
 Theorem preservation_infer_bigstep :
