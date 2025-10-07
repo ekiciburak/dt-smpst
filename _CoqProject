@@ -1,8 +1,13 @@
 -R . DTSMPST
 
-sort/sort.v
+sort/term.v
 sort/subst.v
 sort/eval.v
-sort/sortcheck.v
+sort/closure.v
+sort/typecheck.v
+sort/soundness.v
+sort/monotonicity.v
+sort/completeness.v
+sort/valtyping.v
 
 

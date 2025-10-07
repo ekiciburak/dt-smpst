@@ -137,7 +137,7 @@ End ManualMutualInduction_Prop. *)
 (*    discipline when we extend environments.                        *)
 (* ---------------------------------------------------------------- *)
 
-Fixpoint shift_neutral (d c : nat) (n : neutral) : neutral :=
+(* Fixpoint shift_neutral (d c : nat) (n : neutral) : neutral :=
   match n with
   | NVar k               => NVar (if Nat.leb c k then k + d else k)
   | NApp n v             => NApp (shift_neutral d c n) (shift_whnf d c v)
@@ -164,7 +164,39 @@ with shift_whnf (d c : nat) (v : whnf) : whnf :=
   | VNilV A         => VNilV (shift_whnf d c A)
   | VConsV A n x xs => VConsV (shift_whnf d c A) (shift_whnf d c n) (shift_whnf d c x) (shift_whnf d c xs)
   end.
+ *)
+Fixpoint shift_neutral (d c : nat) (n : neutral) : neutral :=
+  match n with
+  | NVar k               => NVar (if Nat.leb c k then k + d else k)
+  | NApp n v             => NApp (shift_neutral d c n) (shift_whnf d c v)
+  | NFst n               => NFst (shift_neutral d c n)
+  | NSnd n               => NSnd (shift_neutral d c n)
+  | NNatRec P z s n0     => NNatRec (shift_whnf d c P) (shift_whnf d c z) (shift_whnf d c s) (shift_neutral d c n0)
+  | NVecRec A P z s n xs => NVecRec (shift_whnf d c A) (shift_whnf d c P) (shift_whnf d c z) (shift_whnf d c s) (shift_whnf d c n) (shift_neutral d c xs)
+  end
+with shift_whnf (d c : nat) (v : whnf) : whnf :=
+  match v with
+  | VStar           => VStar
+  | VNat            => VNat
 
+  | VPi A B         =>
+      VPi (shift_whnf d c A)
+          (match B with Cl ρ b => Cl (map (shift_whnf d (S c)) ρ) b end)
+  | VSigma A B      =>
+      VSigma (shift_whnf d c A)
+             (match B with Cl ρ b => Cl (map (shift_whnf d (S c)) ρ) b end)
+
+  | VLam (Cl ρ b)   => VLam (Cl (map (shift_whnf d (S c)) ρ) b)
+
+  | VPair A B a b   => VPair (shift_whnf d c A) (shift_whnf d c B)
+                             (shift_whnf d c a) (shift_whnf d c b)
+  | VZero           => VZero
+  | VSucc v1        => VSucc (shift_whnf d c v1)
+  | VNeutral n      => VNeutral (shift_neutral d c n)
+  | VVec n A        => VVec (shift_whnf d c n) (shift_whnf d c A)
+  | VNilV A         => VNilV (shift_whnf d c A)
+  | VConsV A n x xs => VConsV (shift_whnf d c A) (shift_whnf d c n) (shift_whnf d c x) (shift_whnf d c xs)
+  end.
 (* --------------------------------------------- *)
 (* Capture-avoiding shift on TERMS (de Bruijn)   *)
 (* shift_term d c t  : add d to any Var x with x >= c *)
@@ -781,7 +813,6 @@ Definition bigfuel := 500%nat.
 
 (* Expect: VConsV VNat (Succ (Succ Zero)) 1 (VConsV VNat (Succ Zero) 2 (VConsV VNat Zero 3 [])) *)
 Compute evalk bigfuel [] tm_append_v12_v3.
-
 
  (* mutual induction on the first derivation *)
 Lemma det_quintet :
@@ -1555,7 +1586,6 @@ Proof.
   - (* VConsV _ _ _ _ *) exfalso. eapply Hcons; reflexivity.
 Qed.
 
-
 Lemma evalk_complete:
   (* eval' *)
   (forall ρ t v, eval' ρ t v -> exists k, evalk k ρ t = Some v) /\
@@ -1954,12 +1984,10 @@ Definition clos_eval_fuel (fuel : nat) (cl : closure) (v : whnf) : option whnf :
   | 0 => None
   | S fuel' =>
     match cl with
-    | Cl ρ t =>
-        (* extend the environment ρ with v and evaluate the body t *)
-        evalk fuel' (env_cons v ρ) t
+    | Cl ρ t => evalk fuel' (env_cons v ρ) t
     end
   end.
-
+  
 Inductive conv_clo : closure -> closure -> Prop :=
 | ConvClo : forall B B' v v',
     clos_eval' B  fresh v ->
@@ -3510,7 +3538,6 @@ Compute check_fuel 1000 []
   (tm_append_v12_v3)
   (VVec (VSucc (VSucc (VSucc VZero))) VNat).
 
-
 Lemma fn_closure_of_sound_app :
   forall k vP vn vPn c,
     (match vP with
@@ -3524,7 +3551,6 @@ Proof.
   all: inversion H; subst; eexists; split; [reflexivity| eapply clos_eval_fuel_sound].
   exact H. exact H.
 Qed.
-
 
 Theorem infer_fuel_sound :
   forall k Γ t A, infer_fuel k Γ t = Some A -> infer Γ t A
@@ -5339,6 +5365,140 @@ Proof.
       rewrite infer_fuel_monotone with (k := k) (A := A'); try lia.
       rewrite conv_fuel_monotone with (k := k5); try lia. easy. easy.
 Qed.
+
+(** Value typing for WHNFs and neutrals *)
+
+(* Value typing and neutral typing *)
+
+
+(* Value typing and neutral typing (corrected) *)
+Inductive vty (Γ : list whnf) : whnf -> whnf -> Prop :=
+| VT_StarTy  : vty Γ VStar VStar
+| VT_NatTy   : vty Γ VNat  VStar
+
+(* Π-formation: codomain is checked by instantiating the closure at fresh *)
+| VT_PiTy : forall A B vB,
+    vty Γ A VStar ->
+    clos_eval' B fresh vB ->
+    vty (A :: Γ) vB VStar ->
+    vty Γ (VPi A B) VStar
+
+(* Σ-formation, same “fresh” trick; codomain lives under the extended context *)
+| VT_SigmaTy : forall A B vB,
+    vty Γ A VStar ->
+    clos_eval' B fresh vB ->
+    vty (A :: Γ) vB VStar ->
+    vty Γ (VSigma A B) VStar
+
+(* λ : instantiate both the body-closure and codomain at fresh;
+   body must be typed under the extended context *)
+| VT_Lam : forall A B cl r vB,
+    vty Γ (VPi A B) VStar ->
+    clos_eval' cl fresh r ->
+    clos_eval' B  fresh vB ->
+    vty (A :: Γ) r vB ->      (* <-- corrected: body types under A :: Γ *)
+    vty Γ (VLam cl) (VPi A B)
+
+(* Pair at a Σ-type: a : A and b : (B·a) *)
+| VT_Pair : forall (A : whnf) (Bcl : closure) (a b vB : whnf),
+    vty Γ A VStar ->
+    vty Γ a A ->
+    clos_eval' Bcl a vB ->
+    vty Γ b vB ->
+    vty Γ (VPair A vB a b) (VSigma A Bcl)
+
+| VT_Zero  : vty Γ VZero VNat
+| VT_Succ  : forall n, vty Γ n VNat -> vty Γ (VSucc n) VNat
+
+(* Neutrals lift to values with the same type *)
+| VT_Neutral : forall nx A, nty Γ nx A -> vty Γ (VNeutral nx) A
+
+with nty (Γ : list whnf) : neutral -> whnf -> Prop :=
+| NT_Var  : forall i A,
+    nth_error Γ i = Some A ->
+    nty Γ (NVar i) A
+
+| NT_App  : forall n A B v vB,
+    nty Γ n (VPi A B) ->
+    vty Γ v A ->
+    clos_eval' B v vB ->
+    nty Γ (NApp n v) vB
+
+| NT_Fst  : forall n A B,
+    nty Γ n (VSigma A B) ->
+    nty Γ (NFst n) A
+
+| NT_Snd  : forall n A B vB,
+    nty Γ n (VSigma A B) ->
+    clos_eval' B (VNeutral (NFst n)) vB ->
+    nty Γ (NSnd n) vB
+
+| NT_NatRec : forall P z s nx cP vTy,
+    vty Γ P (VPi VNat cP) ->
+    nty Γ nx VNat ->
+    clos_eval' cP (VNeutral nx) vTy ->
+    nty Γ (NNatRec P z s nx) vTy
+
+| NT_VecRec : forall A P z s n nx cP c2 vTy,
+    vty Γ A VStar ->
+    vty Γ P (VPi VNat cP) ->
+    nty Γ nx (VVec n A) ->
+    clos_eval' cP n (VPi (VVec n A) c2) ->
+    clos_eval' c2 (VNeutral nx) vTy ->
+    nty Γ (NVecRec A P z s n nx) vTy.
+
+Theorem preservation_infer_bigstep :
+  forall k Γ t A v,
+     infer_fuel k Γ t = Some A ->
+     evalk k (sem_env_of_ctx Γ) t = Some v ->
+     exists B, vty Γ v B /\ conv A B
+with preservation_check_bigstep:
+  forall k Γ t A v,
+     check_fuel k Γ t A = true ->
+     evalk k (sem_env_of_ctx Γ) t = Some v ->
+     exists B, vty Γ v B /\ conv A B.
+Proof. intro k.
+       induction k; intros.
+       - easy.
+       - simpl in H, H0.
+         case_eq t; intros.
+         * subst. inversion H. subst. inversion H0. subst.
+           exists VStar. split. constructor.
+           constructor.
+         * subst. inversion H. subst. inversion H0. subst.
+           exists VStar. split. constructor.
+           constructor.
+         * subst.
+           case_eq(evalk k (sem_env_of_ctx Γ) t0); intros.
+           rewrite H1 in H0.
+           case_eq(infer_fuel k Γ t0); intros.
+           rewrite H2 in H.
+           case_eq w0; intros; subst; try easy.
+           case_eq(evalk k (sem_env_of_ctx Γ) t0); intros.
+           rewrite H3 in H.
+           case_eq(infer_fuel k (w0 :: Γ) t1); intros.
+           rewrite H4 in H.
+           case_eq w1; intros; subst; try easy.
+           inversion H0. subst. inversion H. subst.
+           rewrite H1 in H3. inversion H3. subst.
+           specialize(IHk _ _ _ _ H2 H1).
+           destruct IHk as (B, (HB1, HB2)).
+           inversion HB2. subst.
+           exists VStar. split.
+           apply VT_PiTy with (vB := VStar).
+           easy. simpl.
+           apply infer_fuel_sound in H4.
+           inversion H4. subst.
+           constructor. unfold env_cons. unfold sem_env_of_ctx. simpl.
+           simpl. exists VStar. intros.
+           constructor. constructor.
+           rewrite H4 in H. easy.
+           rewrite H3 in H. easy.
+           rewrite H2 in H. easy.
+           rewrite H1 in H0. easy.
+         *
+           
+           unfold env_cons.
 
 (** Preservation for synthesis *)
 Theorem preservation_infer_bigstep :
