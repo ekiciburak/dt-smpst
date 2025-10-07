@@ -3992,6 +3992,78 @@ Proof. intros.
        easy.
 Qed.
 
+
+Lemma max_ge_s_k5 :
+  forall k k0 k1 k2 k3 k4 k5,
+    Nat.max k (Nat.max k0 (Nat.max k1 (Nat.max k2
+      (match Nat.max k4 (S k5) with
+       | 0 => S k3
+       | S m' => S (Nat.max k3 m')
+       end)))) >= S k5.
+Proof.
+  intros k k0 k1 k2 k3 k4 k5.
+  set (n := Nat.max k4 (S k5)).
+  assert (Hn : n >= S k5) by (unfold n; apply Nat.le_max_r).
+  destruct n as [|m'] eqn:En.
+  - (* impossible: n = 0 but n >= S k5 *)
+    simpl in Hn; lia.
+  - (* n = S m' *)
+    simpl.
+    lia.
+Qed.
+
+Lemma max_ge_k4 :
+  forall k k0 k1 k2 k3 k4 k5,
+    Nat.max k (Nat.max k0 (Nat.max k1 (Nat.max k2
+      (match Nat.max k4 (S k5) with
+       | 0 => S k3
+       | S m' => S (Nat.max k3 m')
+       end)))) >= k4.
+Proof.
+  intros k k0 k1 k2 k3 k4 k5.
+  set (n := Nat.max k4 (S k5)).
+  assert (Hn : n >= k4) by (unfold n; apply Nat.le_max_l).
+
+  destruct n as [|m'] eqn:En.
+  - (* n = 0 *)
+    simpl.                        (* match yields S k3 *)
+    repeat (apply Nat.le_trans with (m := Nat.max _ _); try apply Nat.le_max_l).
+    apply Nat.le_trans with (m := S k3).
+    + lia.
+    + (* S k3 >= k4 (but here n = 0 so k4 = 0) *)
+      simpl in Hn; lia.
+  - (* n = S m' *)
+    simpl. lia.
+Qed.
+
+Lemma max_ge_s_k2 :
+  forall k k1 k2 k3,
+    Nat.max k (Nat.max k1
+      (match k3 with
+       | 0 => S k2
+       | S m' => S (Nat.max k2 m')
+       end)) >= S k2.
+Proof.
+  intros k k1 k2 k3.
+  destruct k3 as [| m']; simpl.
+  - lia.
+  - lia.
+Qed.
+
+Lemma max_ge_k3 :
+  forall k k1 k2 k3,
+    Nat.max k (Nat.max k1
+      (match k3 with
+       | 0 => S k2
+       | S m' => S (Nat.max k2 m')
+       end)) >= k3.
+Proof.
+  intros k k1 k2 k3.
+  destruct k3 as [| m']; simpl.
+  - lia.
+  - lia.
+Qed.
+
 Theorem infer_fuel_complete :
   (forall Γ t A, infer Γ t A -> exists k, infer_fuel k Γ t = Some A) /\
   (forall Γ t A, check Γ t A -> exists k, check_fuel k Γ t A = true).
@@ -4037,7 +4109,299 @@ Proof.
     rewrite clos_eval_fuel_monotone with (k := S k2) (v := vB); try lia.
     easy. unfold clos_eval_fuel. easy.
     easy. easy. easy.
-Admitted.
+  - destruct H as (k, H).
+    exists (S k). simpl.
+    rewrite H. easy.
+  - destruct H as (k, H).
+    apply evalk_complete in e.
+    destruct e as (k1, e).
+    unfold clos_eval' in *.
+    destruct B.
+    apply evalk_complete in c.
+    destruct c as (k2, c).
+    exists (S (Nat.max k (Nat.max k1 (S k2)))). simpl.
+    rewrite infer_fuel_monotone with (k := k) (A := (VSigma A (Cl l t))); try lia.
+    rewrite evalk_monotone with (k := k1) (v := vfst); try lia.
+    rewrite clos_eval_fuel_monotone with (k := S k2) (v := vB); try lia.
+    easy. easy. easy. easy.
+  - exists 1. easy.
+  - destruct H as (k, H).
+    exists (S k). simpl. rewrite H. easy.
+  - destruct H0 as (k0, H0).
+    destruct H1 as (k1, H1).
+    destruct H as (k, H).
+    unfold clos_eval' in *.
+    destruct cP.
+    apply evalk_complete in e.
+    destruct e as (k2, e).
+    apply evalk_complete in c0.
+    destruct c0 as (k3, c0).
+    apply evalk_complete in e1.
+    destruct e1 as (k4, e1).
+    apply evalk_complete in c3.
+    destruct c3 as (k5, c3).
+    exists (S (Nat.max k (Nat.max k0 (Nat.max k1 (Nat.max k2 (Nat.max (S k3) (Nat.max k4 (S k5)))))))). simpl.
+    rewrite check_fuel_monotone with (k := k) (A := (VPi VNat (Cl (sem_env_of_ctx Γ) Star))); try lia.
+    rewrite evalk_monotone with (k := k2) (v := vP); try lia.
+    rewrite e0.
+    rewrite evalk_monotone with (k := k4) (v := vn); try lia.
+    rewrite clos_eval_fuel_monotone with (k := S k5) (v := vTy); try lia.
+    rewrite clos_eval_fuel_monotone with (k := S k3) (v := vP0); try lia.
+    rewrite check_fuel_monotone with (k := k0) (A := vP0); try lia.
+    rewrite check_fuel_monotone with (k := k1) (A := VNat); try lia.
+    simpl. easy. easy. easy.
+    destruct (Nat.max k4 (S k5)); lia. simpl. easy.
+    apply max_ge_s_k5. simpl. easy.
+    apply max_ge_k4. easy. easy. easy.
+  - destruct H as (k, H).
+    exists (S k). simpl. rewrite H.
+    easy.
+  - destruct H as (k, H).
+    apply evalk_complete in e.
+    destruct e as (k1, e).
+    exists (S (Nat.max k k1)). simpl.
+    rewrite evalk_monotone with (k := k1) (v := vA); try lia.
+    rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+    easy. easy. easy.
+  - destruct H as (k, H).
+    destruct H0 as (k0, H0).
+    destruct H1 as (k1, H1).
+    destruct H2 as (k2, H2).
+    apply evalk_complete in e, e0.
+    destruct e as (k3, e).
+    destruct e0 as (k4, e0).
+    exists (S (Nat.max k (Nat.max k0 (Nat.max k1 (Nat.max k2 (Nat.max k3 k4)))))). simpl.
+    rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+    rewrite check_fuel_monotone with (k := k0) (A := VNat); try lia.
+    rewrite evalk_monotone with (k := k3) (v := vA); try lia.
+    rewrite evalk_monotone with (k := k4) (v := vn); try lia.
+    rewrite check_fuel_monotone with (k := k2) (A := (VVec vn vA)); try lia.
+    rewrite check_fuel_monotone with (k := k1) (A :=vA); try lia. 
+    simpl. easy. easy. easy. easy. easy. easy. easy.
+  - destruct H as (k, H).
+    destruct H0 as (k0, H0).
+    destruct H1 as (k1, H1).
+    destruct H2 as (k2, H2).
+    apply evalk_complete in e, e0, e1, e2.
+    destruct e as (k3, e).
+    destruct e0 as (k4, e0).
+    destruct e1 as (k5, e1).
+    destruct e2 as (k6, e2).
+    unfold clos_eval' in *.
+    destruct cP, c2.
+    apply evalk_complete in c3, c4.
+    destruct c3 as (k7, c3).
+    destruct c4 as (k8, c4).
+    exists (S (Nat.max k (Nat.max k0 (Nat.max k1 (Nat.max k2 (Nat.max k3 (Nat.max k4 (Nat.max k5 (Nat.max k6 (Nat.max (S k7) (S k8))))))))))). simpl.
+    rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+    rewrite evalk_monotone with (k := k3) (v := vA); try lia.
+    rewrite check_fuel_monotone with (k := k0) (A := (VPi VNat (Cl (sem_env_of_ctx Γ) (Pi (Vec (Var 0) A) Star)))); try lia.
+    rewrite evalk_monotone with (k := k4) (v := vP); try lia.
+    rewrite evalk_monotone with (k := k5) (v := vn); try lia.
+    rewrite evalk_monotone with (k := k6) (v := vxs); try lia.
+    rewrite check_fuel_monotone with (k := k1) (A := VNat); try lia.
+    rewrite check_fuel_monotone with (k := k2) (A := (VVec vn vA)); try lia.
+    simpl.
+    destruct vP; try easy.
+    rewrite clos_eval_fuel_monotone with (k := S k7) (v := vPn); try lia. 
+    destruct vPn; try easy.
+    rewrite clos_eval_fuel_monotone with (k := S k8) (v := vTy_res); try lia.
+    easy. simpl. 
+    simpl in e4. inversion e4. easy.
+    rewrite clos_eval_fuel_monotone with (k := S k8) (v := vTy_res); try lia.
+    easy. simpl. simpl in e4. inversion e4. easy.
+    simpl. simpl in e3. inversion e3. easy.
+    rewrite clos_eval_fuel_monotone with (k := S k7) (v := vPn); try lia. 
+    destruct vPn; try easy.
+    rewrite clos_eval_fuel_monotone with (k := S k8) (v := vTy_res); try lia.
+    easy. simpl. 
+    simpl in e4. inversion e4. easy.
+    rewrite clos_eval_fuel_monotone with (k := S k8) (v := vTy_res); try lia.
+    easy. simpl. simpl in e4. inversion e4. easy.
+    simpl. simpl in e3. inversion e3. easy.
+    easy. easy. easy. easy. easy. easy. easy. easy.
+  - destruct H as (k, H).
+    apply evalk_complete in e.
+    destruct e as (k1, e).
+    unfold clos_eval' in *.
+    destruct B.
+    apply evalk_complete in c0.
+    destruct c0 as (k2, c0).
+    apply conv_complete_conv in c.
+    destruct c as (k3, c).
+    exists (S (Nat.max k (Nat.max k1 (Nat.max (S k2) k3)))). simpl.
+    rewrite evalk_monotone with (k := k1) (v := vA); try lia.
+    rewrite conv_fuel_monotone with (k := k3); try lia.
+    rewrite clos_eval_fuel_monotone with (k := S k2) (v := vBodyTy); try lia.
+    rewrite check_fuel_monotone with (k := k) (A := vBodyTy); try lia.
+    easy.
+    apply max_ge_s_k2. simpl. easy.
+    apply max_ge_k3. easy. easy.
+  - destruct H as (k, H).
+    destruct H0 as (k0, H0).
+    destruct H1 as (k1, H1).
+    apply evalk_complete in e, e0.
+    destruct e as (k2, e).
+    destruct e0 as (k3, e0).
+    apply conv_complete_conv in c3.
+    destruct c3 as (k4, c3).
+    unfold clos_eval' in *.
+    destruct Bcl.
+    apply evalk_complete in c1.
+    destruct c1 as (k5, c1).
+    exists (S (Nat.max k (Nat.max k0 (Nat.max k1 (Nat.max k2 (Nat.max k3 (Nat.max k4 (S k5)))))))).
+    simpl.
+    rewrite check_fuel_monotone with (k := k) (A := VStar); try lia.
+    rewrite evalk_monotone with (k := k2) (v := vA_eval); try lia.
+    rewrite conv_fuel_monotone with (k := k4); try lia.
+    rewrite check_fuel_monotone with (k := k0) (A := vA_eval); try lia.
+    rewrite evalk_monotone with (k := k3) (v := va); try lia.
+    rewrite clos_eval_fuel_monotone with (k := S k5) (v := vBsnd); try lia.
+    rewrite check_fuel_monotone with (k := k1) (A := vBsnd); try lia.
+    easy. simpl. easy. easy. easy. easy. easy. easy.
+  - destruct H as (k, H).
+    inversion i.
+    + subst. exists 2. simpl. rewrite H0. easy.
+    + subst. destruct k. easy. exists (S (S k)). simpl in *. rewrite H. easy.
+    + subst. destruct k. easy. exists (S (S k)). simpl in *. rewrite H. easy.
+    + subst. destruct k. easy. exists (S (S k)). simpl in *. rewrite H. easy.
+    + subst. destruct k. easy. exists (S (S k)). simpl in *. easy.
+    + subst. destruct k. easy. exists (S (S k)). simpl in *. rewrite H. easy.
+    + subst. destruct k. easy. exists (S (S k)). simpl in *. rewrite H. easy.
+    + subst. destruct k. easy. exists (S (S k)). simpl in *. rewrite H. easy.
+  - destruct H as (k, H).
+    inversion i.
+    + subst. 
+      apply conv_complete_conv in c.
+      destruct c as (k1, c).
+      exists (S (Nat.max k k1)). simpl in *.
+      rewrite infer_fuel_monotone with (k := k) (A := A'); try lia.
+      rewrite conv_fuel_monotone with (k := k1); try lia. easy. easy.
+    + subst. 
+      apply conv_complete_conv in c.
+      destruct c as (k1, c).
+      exists (S (Nat.max k k1)). simpl in *.
+      rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+      rewrite conv_fuel_monotone with (k := k1); try lia. easy. easy.
+    + subst. 
+      apply conv_complete_conv in c.
+      destruct c as (k1, c).
+      exists (S (Nat.max k k1)). simpl in *.
+      rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+      rewrite conv_fuel_monotone with (k := k1); try lia. easy. easy.
+    + subst.
+      apply evalk_complete in H1.
+      destruct H1 as (k1, H1).
+      apply conv_complete_conv in c.
+      destruct c as (k2, c).
+      exists (S (Nat.max k (Nat.max k1 k2))). simpl in *.
+      rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+      rewrite conv_fuel_monotone with (k := k2); try lia. easy. easy.
+    + subst.
+      apply evalk_complete in H1.
+      destruct H1 as (k1, H1).
+      apply conv_complete_conv in c.
+      destruct c as (k2, c).
+      exists (S (Nat.max k (Nat.max k1 k2))). simpl in *.
+      rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+      rewrite conv_fuel_monotone with (k := k2); try lia. easy. easy.
+    + subst.
+      apply evalk_complete in H2.
+      destruct H2 as (k1, H2).
+      apply conv_complete_conv in c.
+      destruct c as (k2, c).
+      unfold clos_eval' in *.
+      destruct B. 
+      apply evalk_complete in H3.
+      destruct H3 as (k3, H3).
+      exists (S (Nat.max k (Nat.max k1 (Nat.max k2 (S k3))))). simpl in *.
+      rewrite infer_fuel_monotone with (k := k) (A := A'); try lia.
+      rewrite conv_fuel_monotone with (k := k2); try lia. easy. easy.
+    + subst.
+      apply conv_complete_conv in c.
+      destruct c as (k1, c).
+      exists (S (Nat.max k k1)). simpl.
+      rewrite infer_fuel_monotone with (k := k) (A := A'); try lia.
+      rewrite conv_fuel_monotone with (k := k1); try lia. easy. easy.
+    + subst.
+      apply evalk_complete in H1.
+      destruct H1 as (k1, H1).
+      apply conv_complete_conv in c.
+      destruct c as (k2, c).
+      unfold clos_eval' in *.
+      destruct B. 
+      apply evalk_complete in H2.
+      destruct H2 as (k3, H2).
+      exists (S (Nat.max k (Nat.max k1 (Nat.max k2 (S k3))))). simpl in *.
+      rewrite infer_fuel_monotone with (k := k) (A := A'); try lia.
+      rewrite conv_fuel_monotone with (k := k2); try lia. easy. easy.
+    + subst. 
+      apply conv_complete_conv in c.
+      destruct c as (k1, c).
+      exists (S (Nat.max k k1)). simpl.
+      rewrite infer_fuel_monotone with (k := k) (A := VNat); try lia.
+      rewrite conv_fuel_monotone with (k := k1); try lia. easy. easy.
+    + subst.
+      apply conv_complete_conv in c.
+      destruct c as (k1, c).
+      exists (S (Nat.max k k1)). simpl.
+      rewrite infer_fuel_monotone with (k := k) (A := VNat); try lia.
+      rewrite conv_fuel_monotone with (k := k1); try lia. easy. easy.
+    + subst.
+      apply evalk_complete in H1, H6.
+      destruct H1 as (k1, H1).
+      destruct H6 as (k2, H6).
+      apply conv_complete_conv in c.
+      destruct c as (k3, c).
+      unfold clos_eval' in *.
+      destruct cP.
+      apply evalk_complete in H3, H7.
+      destruct H3 as (k4, H3).
+      destruct H7 as (k5, H7).
+      exists (S (Nat.max k (Nat.max k1 (Nat.max k2 (Nat.max k3 (Nat.max (S k4) (S k5))))))). simpl in *.
+      rewrite infer_fuel_monotone with (k := k) (A := A'); try lia.
+      rewrite conv_fuel_monotone with (k := k3); try lia. easy. easy.
+    + subst.
+      apply conv_complete_conv in c.
+      destruct c as (k1, c).
+      exists (S (Nat.max k k1)). simpl.
+      rewrite infer_fuel_monotone with (k := k) (A := VStar); try lia.
+      rewrite conv_fuel_monotone with (k := k1); try lia. easy. easy.
+    + subst. 
+      apply evalk_complete in H1.
+      destruct H1 as (k1, H1).
+      apply conv_complete_conv in c.
+      destruct c as (k2, c).
+      exists (S (Nat.max k (Nat.max k1 k2))). simpl.
+      rewrite infer_fuel_monotone with (k := k) (A := (VVec VZero vA)); try lia.
+      rewrite conv_fuel_monotone with (k := k2); try lia. easy. easy.
+    + subst.
+      apply evalk_complete in H2, H3.
+      destruct H2 as (k1, H2).
+      destruct H3 as (k2, H3).
+      apply conv_complete_conv in c.
+      destruct c as (k3, c).
+      exists (S (Nat.max k (Nat.max k1 (Nat.max k2 k3)))). simpl.
+      rewrite infer_fuel_monotone with (k := k) (A := (VVec (VSucc vn) vA)); try lia.
+      rewrite conv_fuel_monotone with (k := k3); try lia. easy. easy.
+    + subst.
+      apply evalk_complete in H1, H3, H5, H7.
+      destruct H1 as (k1, H1).
+      destruct H3 as (k2, H3).
+      destruct H5 as (k3, H5).
+      destruct H7 as (k4, H7).
+      apply conv_complete_conv in c.
+      destruct c as (k5, c).
+      unfold clos_eval' in *.
+      destruct cP, c2.
+      apply evalk_complete in H9, H11.
+      destruct H9 as (k6, H9).
+      destruct H11 as (k7, H11).
+      exists (S (Nat.max k (Nat.max k1 (Nat.max k2 (Nat.max k3 (Nat.max k4 (Nat.max k5 (Nat.max (S k6) (S k7))))))))). simpl.
+      rewrite infer_fuel_monotone with (k := k) (A := A'); try lia.
+      rewrite conv_fuel_monotone with (k := k5); try lia. easy. easy.
+Qed.
+
 
 (** Preservation for synthesis *)
 Theorem preservation_infer_bigstep :
