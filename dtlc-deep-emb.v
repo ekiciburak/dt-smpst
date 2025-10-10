@@ -26,7 +26,7 @@ Inductive term : Type :=
 
 (* ---------- Semantic domain: weak-head normal forms ---------- *)
 
-Inductive whnf : Type :=
+Inductive whnf: Type :=
 | VStar    : whnf
 | VNat     : whnf
 | VPi      : whnf -> closure -> whnf
@@ -36,101 +36,112 @@ Inductive whnf : Type :=
 | VZero    : whnf
 | VSucc    : whnf -> whnf
 | VNeutral : neutral -> whnf
-| VVec    : whnf -> whnf -> whnf                 (* the family at (n, A) *)
-| VNilV   : whnf -> whnf                         (* empty vector at A *)
-| VConsV  : whnf -> whnf -> whnf -> whnf -> whnf (* cons A n x xs *)
+| VVec     : whnf -> whnf -> whnf                 (* the family at (n, A) *)
+| VNilV    : whnf -> whnf                         (* empty vector at A *)
+| VConsV   : whnf -> whnf -> whnf -> whnf -> whnf (* cons A n x xs *)
 
-with neutral : Type :=
+with neutral: Type :=
 | NVar     : nat -> neutral
 | NApp     : neutral -> whnf -> neutral
 | NFst     : neutral -> neutral
 | NSnd     : neutral -> neutral
 | NNatRec  : whnf -> whnf -> whnf -> neutral -> neutral
-| NVecRec : whnf (*A*) -> whnf (*P*) -> whnf (*z*) -> whnf (*s*) -> whnf (*n*) -> neutral (*xs*) -> neutral
+| NVecRec  : whnf (*A*) -> whnf (*P*) -> whnf (*z*) -> whnf (*s*) -> whnf (*n*) -> neutral (*xs*) -> neutral
 
-with closure : Type :=
-| Cl : list whnf -> term -> closure.
+with closure: Type :=
+| Cl       : list whnf -> term -> closure.
+
+(* -------- Manual mutual induction (Prop-valued) section -------- *)
+
+Section ManualMutualInduction_Prop.
+
+  Variable Pw : whnf -> Prop.
+  Variable Pn : neutral -> Prop.
+  Variable Pc : closure -> Prop.
+
+  (* Hypotheses for each constructor (one hypothesis per constructor) *)
+  Hypotheses
+    (H_VStar    : Pw VStar)
+    (H_VNat     : Pw VNat)
+    (H_VPi      : forall A B, Pw A -> Pc B -> Pw (VPi A B))
+    (H_VSigma   : forall A B, Pw A -> Pc B -> Pw (VSigma A B))
+    (H_VLam     : forall cl, Pc cl -> Pw (VLam cl))
+    (H_VPair    : forall A B a b, Pw A -> Pw B -> Pw a -> Pw b -> Pw (VPair A B a b))
+    (H_VZero    : Pw VZero)
+    (H_VSucc    : forall n, Pw n -> Pw (VSucc n))
+    (H_VNeutral : forall n, Pn n -> Pw (VNeutral n))
+    (H_VVec     : forall n A, Pw n -> Pw A -> Pw (VVec n A))
+    (H_VNilV    : forall A, Pw A -> Pw (VNilV A))
+    (H_VConsV   : forall A n x xs, Pw A -> Pw n -> Pw x -> Pw xs -> Pw (VConsV A n x xs))
+
+    (H_NVar    : forall i, Pn (NVar i))
+    (H_NApp    : forall n v, Pn n -> Pw v -> Pn (NApp n v))
+    (H_NFst    : forall n, Pn n -> Pn (NFst n))
+    (H_NSnd    : forall n, Pn n -> Pn (NSnd n))
+    (H_NNatRec : forall P z s n, Pw P -> Pw z -> Pw s -> Pn n -> Pn (NNatRec P z s n))
+    (H_NVecRec : forall A P z s n xs, Pw A -> Pw P -> Pw z -> Pw s -> Pw n -> Pn xs -> Pn (NVecRec A P z s n xs))
+
+    (H_Cl     : forall ρ t, Forall Pw ρ -> Pc (Cl ρ t)).
+
+  (* Helper: build a Forall Pw ρ by structural recursion over the list ρ,
+     using the mutual whnf_proof function for elements. *)
+
+(* ---- mutual Fixpoint: whnf_proof, neutral_proof, closure_proof ---- *)
+  Fixpoint whnf_proof (v : whnf) {struct v} : Pw v :=
+    match v with
+    | VStar            => H_VStar
+    | VNat             => H_VNat
+    | VPi A B          => H_VPi A B (whnf_proof A) (closure_proof B)
+    | VSigma A B       => H_VSigma A B (whnf_proof A) (closure_proof B)
+    | VLam cl          => H_VLam cl (closure_proof cl)
+    | VPair A B a b    => H_VPair A B a b (whnf_proof A) (whnf_proof B) (whnf_proof a) (whnf_proof b)
+    | VZero            => H_VZero
+    | VSucc n          => H_VSucc n (whnf_proof n)
+    | VNeutral n       => H_VNeutral n (neutral_proof n)
+    | VVec n A         => H_VVec n A (whnf_proof n) (whnf_proof A)
+    | VNilV A          => H_VNilV A (whnf_proof A)
+    | VConsV A n x xs  => H_VConsV A n x xs (whnf_proof A) (whnf_proof n) (whnf_proof x) (whnf_proof xs)
+    end
+
+  with neutral_proof (n : neutral) {struct n} : Pn n :=
+    match n with
+    | NVar i           => H_NVar i
+    | NApp n' v        => H_NApp n' v (neutral_proof n') (whnf_proof v)
+    | NFst n'          => H_NFst n' (neutral_proof n')
+    | NSnd n'          => H_NSnd n' (neutral_proof n')
+    | NNatRec P z s n' => H_NNatRec P z s n' (whnf_proof P) (whnf_proof z) (whnf_proof s) (neutral_proof n')
+    | NVecRec A P z s n' xs => H_NVecRec A P z s n' xs
+                                    (whnf_proof A) (whnf_proof P) (whnf_proof z) (whnf_proof s)
+                                    (whnf_proof n') (neutral_proof xs)
+    end
+
+  with closure_proof (c : closure) {struct c} : Pc c :=
+    match c with
+    | Cl ρ t =>
+        (* local structural recursion over ρ that may call whnf_proof for each head *)
+        let fix build (ρ0 : list whnf) : Forall Pw ρ0 :=
+            match ρ0 with
+            | []     => @Forall_nil whnf Pw
+            | v :: r => @Forall_cons whnf Pw v r (whnf_proof v) (build r)
+            end
+        in H_Cl ρ t (build ρ)
+    end.
+
+  Theorem whnf_mutind :
+    (forall v, Pw v) /\ (forall n, Pn n) /\ (forall c, Pc c).
+  Proof.
+    split.
+    - intro v; exact (whnf_proof v).
+    - split.
+      + intro n; exact (neutral_proof n).
+      + intro c; exact (closure_proof c).
+  Qed.
+
+End ManualMutualInduction_Prop.
 
 Coercion VNeutral : neutral >-> whnf.
 
 Definition env := list whnf.
-
-(* Section ManualMutualInduction_Prop.
-
-Variable Pw : whnf -> Prop.
-Variable Pn : neutral -> Prop.
-Variable Pc : closure -> Prop.
-
-(* Hypotheses for each constructor — exactly the premises you’d expect *)
-Hypotheses
- (H_VStar   : Pw VStar)
- (H_VNat    : Pw VNat)
- (H_VPi     : forall A B, Pw A -> Pc B -> Pw (VPi A B))
- (H_VSigma  : forall A B, Pw A -> Pc B -> Pw (VSigma A B))
- (H_VLam    : forall cl, Pc cl -> Pw (VLam cl))
- (H_VPair   : forall A B a b, Pw A -> Pw B -> Pw a -> Pw b -> Pw (VPair A B a b))
- (H_VZero   : Pw VZero)
- (H_VSucc   : forall n, Pw n -> Pw (VSucc n))
- (H_VNeutral: forall n, Pn n -> Pw (VNeutral n))
-
- (H_NVar    : forall i, Pn (NVar i))
- (H_NApp    : forall n v, Pn n -> Pw v -> Pn (NApp n v))
- (H_NFst    : forall n, Pn n -> Pn (NFst n))
- (H_NSnd    : forall n, Pn n -> Pn (NSnd n))
- (H_NNatRec : forall P z s n, Pw P -> Pw z -> Pw s -> Pn n -> Pn (NNatRec P z s n))
-
- (* closure needs the semantic env list handled: we require [Forall Pw ρ] *)
- (H_Cl      : forall ρ t, Forall Pw ρ -> Pc (Cl ρ t)).
-
-(* Helper to produce [Forall Pw ρ] by recursion over the list *)
-
-(* Mutually recursive proofs for whnf / neutral / closure *)
-Fixpoint whnf_proof (v : whnf) {struct v} : Pw v :=
-  match v with
-  | VStar            => H_VStar
-  | VNat             => H_VNat
-  | VPi A B          => H_VPi A B (whnf_proof A) (closure_proof B)
-  | VSigma A B       => H_VSigma A B (whnf_proof A) (closure_proof B)
-  | VLam cl          => H_VLam cl (closure_proof cl)
-  | VPair A B a b    => H_VPair A B a b
-                              (whnf_proof A) (whnf_proof B)
-                              (whnf_proof a) (whnf_proof b)
-  | VZero            => H_VZero
-  | VSucc n          => H_VSucc n (whnf_proof n)
-  | VNeutral n       => H_VNeutral n (neutral_proof n)
-  end
-
-with neutral_proof (n : neutral) {struct n} : Pn n :=
-  match n with
-  | NVar i           => H_NVar i
-  | NApp n v         => H_NApp n v (neutral_proof n) (whnf_proof v)
-  | NFst n           => H_NFst n (neutral_proof n)
-  | NSnd n           => H_NSnd n (neutral_proof n)
-  | NNatRec P z s n' => H_NNatRec P z s n'
-                          (whnf_proof P) (whnf_proof z) (whnf_proof s)
-                          (neutral_proof n')
-  end
-
-with closure_proof (c : closure) {struct c} : Pc c :=
-  match c with
-  | Cl ρ t =>
-      (* Local list recursion to build [Forall Pw ρ] without adding
-         a new mutually-recursive definition. *)
-      let fix build (ρ0 : list whnf) : Forall Pw ρ0 :=
-          match ρ0 with
-          | []     => Forall_nil _
-          | v :: r => Forall_cons _ (whnf_proof v) (build r)
-          end
-      in H_Cl ρ t (build ρ)
-  end.
-
-Theorem whnf_mutind :
-  (forall v, Pw v) /\ (forall n, Pn n) /\ (forall c, Pc c).
-Proof.
-  split; [exact whnf_proof | split; [exact neutral_proof | exact closure_proof]].
-Qed.
-
-End ManualMutualInduction_Prop. *)
 
 (* ---------------------------------------------------------------- *)
 (* 0) Shifting for semantic neutrals/values, to maintain de Bruijn   *)
@@ -165,6 +176,7 @@ with shift_whnf (d c : nat) (v : whnf) : whnf :=
   | VConsV A n x xs => VConsV (shift_whnf d c A) (shift_whnf d c n) (shift_whnf d c x) (shift_whnf d c xs)
   end.
  *)
+
 Fixpoint shift_neutral (d c : nat) (n : neutral) : neutral :=
   match n with
   | NVar k               => NVar (if Nat.leb c k then k + d else k)
@@ -196,7 +208,65 @@ with shift_whnf (d c : nat) (v : whnf) : whnf :=
   | VVec n A        => VVec (shift_whnf d c n) (shift_whnf d c A)
   | VNilV A         => VNilV (shift_whnf d c A)
   | VConsV A n x xs => VConsV (shift_whnf d c A) (shift_whnf d c n) (shift_whnf d c x) (shift_whnf d c xs)
-  end.
+end.
+(*    (* shift_closure *)
+with shift_closure (d c : nat) (cl : closure) : closure :=
+  match cl with
+  | Cl ρ t => Cl (map (shift_whnf d c) ρ) t
+end.
+ *)
+
+Lemma shift_compose_mut :
+    (forall v,  forall d1 d2 c, shift_whnf d1 c (shift_whnf d2 c v) = shift_whnf (d1 + d2) c v) /\
+    (forall n,  forall d1 d2 c, shift_neutral d1 c (shift_neutral d2 c n) = shift_neutral (d1 + d2) c n) /\
+    (forall cl, forall d1 d2 c,
+                match cl with
+                  | Cl ρ t => map (shift_whnf d1 c) (map (shift_whnf d2 c) ρ) = map (shift_whnf (d1 + d2) c) ρ
+                end).
+Proof.
+  apply (whnf_mutind
+           (fun v  => forall d1 d2 c, shift_whnf d1 c (shift_whnf d2 c v) = shift_whnf (d1 + d2) c v)
+           (fun n  => forall d1 d2 c, shift_neutral d1 c (shift_neutral d2 c n) = shift_neutral (d1 + d2) c n)
+           (fun cl => forall d1 d2 c, 
+                      match cl with
+                        | Cl ρ _ => map (shift_whnf d1 c) (map (shift_whnf d2 c) ρ) = map (shift_whnf (d1 + d2) c) ρ
+                      end)
+        ); intros.
+  - simpl. easy.
+  - simpl. easy.
+  - simpl. destruct B.
+    rewrite H. simpl. rewrite H0. easy.
+  - simpl. destruct B.
+    rewrite H, H0. easy.
+  - simpl. destruct cl. rewrite <- H.
+    simpl. easy.
+  - simpl. rewrite H, H0, H1, H2. easy.
+  - simpl. easy.
+  - simpl. rewrite H. easy.
+  - simpl. rewrite H. easy.
+  - simpl. rewrite H, H0. easy.
+  - simpl. rewrite H. easy.
+  - simpl. rewrite H, H0, H1, H2. easy.
+  - simpl.
+    case_eq( c <=? i); intros.
+    assert(c <= i + d2).
+    { apply Nat.leb_le in H. lia. }
+    apply Nat.leb_le in H0. rewrite H0.
+    assert((i + d2 + d1) = (i + (d1 + d2))).
+    { lia. } 
+    rewrite H1. easy.
+    rewrite H. easy.
+  - simpl. rewrite H, H0. easy.
+  - simpl. rewrite H. easy.
+  - simpl. rewrite H. easy.
+  - simpl. rewrite H, H0, H1, H2. easy.
+  - simpl. rewrite H, H0, H1, H2, H3, H4. easy.
+  - simpl.
+    induction H; intros.
+    + simpl. easy.
+    + simpl. rewrite H, IHForall. easy.
+Qed.
+
 (* --------------------------------------------- *)
 (* Capture-avoiding shift on TERMS (de Bruijn)   *)
 (* shift_term d c t  : add d to any Var x with x >= c *)
@@ -1866,6 +1936,90 @@ Proof.
   apply Ha. easy.
 Qed.
 
+Require Import Coq.Wellfounded.Inverse_Image.
+Require Import Coq.Arith.Wf_nat.
+Require Import Lia.
+
+Fixpoint size_term (t : term) : nat :=
+  match t with
+  | Star | Nat | Zero | Var _ => 1
+  | Pi A B | Sigma A B => 1 + size_term A + size_term B
+  | Lam A b => 1 + size_term A + size_term b
+  | App f a => 1 + size_term f + size_term a
+  | Pair A B a b => 1 + size_term A + size_term B + size_term a + size_term b
+  | TFst p => 1 + size_term p
+  | TSnd p => 1 + size_term p
+  | Succ n => 1 + size_term n
+  | NatRec P z s n => 1 + size_term P + size_term z + size_term s + size_term n
+  | Vec n A => 1 + size_term n + size_term A
+  | VNil A => 1 + size_term A
+  | VCons A n x xs => 1 + size_term A + size_term n + size_term x + size_term xs
+  | VecRec A P z s n xs =>
+      1 + size_term A + size_term P + size_term z + size_term s + size_term n + size_term xs
+  end.
+
+Theorem eval'_total : forall ρ t, exists v, eval' ρ t v.
+Proof.
+  apply (well_founded_induction_type
+           (wf_inverse_image term nat lt (fun x => size_term x) lt_wf)); intros.
+  destruct t.
+  12:{ destruct t1.
+        11:{ 
+        
+       - exists VStar. apply  constructor.
+  
+  intros tm IH rho.    (* <- tm is fresh and unambiguous *)
+  destruct tm; simpl in *.
+  
+  
+  Lemma evalk_total : forall t env, exists v, eval' env t v.
+Proof. intro t.
+       induction t; intros.
+       12:{ destruct (IHt1 env0) as (v1,H1).
+            destruct (IHt2 env0) as (v2,H2).
+            destruct t1.
+            11:{ inversion H1. subst.
+                 
+                 exists v2.
+                 apply E'_App with (vt := (VLam (Cl env0 t1_2))) (vu := v2).
+                 easy. easy. 
+                 constructor.
+            
+            
+            3:{ inversion H1.
+                subst.
+                exists (VPi vA (Cl env0 t1_2)).
+                apply E'_App with (vt :=  (VPi vA (Cl env0 t1_2))) (vu := v2).
+                easy. easy. constructor; easy.
+            + inversion H1. subst.
+              exists VStar.
+              apply E'_App with (vt := VStar) (vu := v2).
+              constructor. easy. constructor; easy.
+            +
+            
+            
+               constructor.
+            pose proof H1 as H1a.
+            pose proof H2 as H2a.
+
+            exists (S (Nat.max k1 k2)). simpl.
+            rewrite evalk_monotone with (k := k1) (v := v1); try lia.
+            rewrite evalk_monotone with (k := k2) (v := v2); try lia.
+            destruct v1.
+
+            
+            exists (vappk (Nat.max k1 k2) v1 v2). easy. easy.
+         
+       - exists 1, VStar. easy.
+       - exists 1, VNat. easy.
+       - destruct (IHt1 env0) as (k1,(v1,H1)).
+         destruct (IHt2 env0) as (k2,(v2,H2)).
+         exists (S (Nat.max k1 k2)). simpl.
+         rewrite evalk_monotone with (k := k1) (v := v1); try lia.
+         exists (VPi v1 (Cl env0 t2)). easy. easy.
+       
+         
+
 (* Bidirectional Typing *)
 
 (* ---------------------------------------------------------------- *)
@@ -1979,6 +2133,114 @@ Scheme whnf_recta := Induction for whnf Sort Prop.
 
 (* -- algorithmic convertibility on WHNFs (non-mutual) ------------------- *)
 
+
+
+(* (* generalised, argument-parametric fuelled convertibility family
+   - every function now takes [x : whnf] describing the argument to evaluate closures at *)
+Fixpoint conv_fuel_x (fuel : nat) (x : whnf) (v w : whnf) : bool :=
+  match fuel with
+  | 0 => false
+  | S fuel' =>
+    match v, w with
+    | VStar, VStar => true
+    | VNat, VNat => true
+
+    | VPi A B, VPi A' B' =>
+        if conv_fuel_x fuel' x A A' then conv_clo_fuel_x fuel' x B B' else false
+
+    | VSigma A B, VSigma A' B' =>
+        if conv_fuel_x fuel' x A A' then conv_clo_fuel_x fuel' x B B' else false
+
+    | VLam cl1, VLam cl2 =>
+        conv_clo_fuel_x fuel' x cl1 cl2
+
+    | VPair A B a b, VPair A' B' a' b' =>
+        andb (conv_fuel_x fuel' x A A')
+             (andb (conv_fuel_x fuel' x B B')
+                   (andb (conv_fuel_x fuel' x a a') (conv_fuel_x fuel' x b b')))
+
+    | VZero, VZero => true
+    | VSucc n0, VSucc n0' => conv_fuel_x fuel' x n0 n0'
+
+    | VNeutral n0, VNeutral n0' => conv_neutral_fuel_x fuel' x n0 n0'
+
+    | VVec n0 A0, VVec n0' A0' =>
+        andb (conv_fuel_x fuel' x n0 n0') (conv_fuel_x fuel' x A0 A0')
+
+    | VNilV A0, VNilV A0' => conv_fuel_x fuel' x A0 A0'
+
+    | VConsV A0 n0 x0 xs, VConsV A0' n0' x0' xs' =>
+        andb (conv_fuel_x fuel' x A0 A0')
+             (andb (conv_fuel_x fuel' x n0 n0')
+                   (andb (conv_fuel_x fuel' x x0 x0') (conv_fuel_x fuel' x xs xs')))
+
+    | _, _ => false
+    end
+  end
+
+with conv_neutral_fuel_x (fuel : nat) (x : whnf) (n n' : neutral) : bool :=
+  match fuel with
+  | 0 => false
+  | S fuel' =>
+    match n, n' with
+    | NVar i, NVar j => Nat.eqb i j
+
+    | NApp n0 v, NApp n0' v' =>
+        andb (conv_neutral_fuel_x fuel' x n0 n0') (conv_fuel_x fuel' x v v')
+
+    | NFst n0, NFst n0' => conv_neutral_fuel_x fuel' x n0 n0'
+    | NSnd n0, NSnd n0' => conv_neutral_fuel_x fuel' x n0 n0'
+
+    | NNatRec P z s n0, NNatRec P' z' s' n0' =>
+        andb (conv_fuel_x fuel' x P P')
+             (andb (conv_fuel_x fuel' x z z')
+                   (andb (conv_fuel_x fuel' x s s') (conv_neutral_fuel_x fuel' x n0 n0')))
+
+    | NVecRec A P z s n nx, NVecRec A' P' z' s' n' nx' =>
+        andb (conv_fuel_x fuel' x A A')
+             (andb (conv_fuel_x fuel' x P P')
+                   (andb (conv_fuel_x fuel' x z z')
+                         (andb (conv_fuel_x fuel' x s s')
+                               (andb (conv_fuel_x fuel' x n n')
+                                     (conv_neutral_fuel_x fuel' x nx nx')))))
+
+    | _, _ => false
+    end
+  end
+
+with conv_clo_fuel_x (fuel : nat) (x : whnf) (c1 c2 : closure) : bool :=
+  match fuel with
+  | 0 => false
+  | S fuel' =>
+    match c1, c2 with
+    | Cl ρ t, Cl ρ' t' =>
+        andb (envs_conv_fuel_x fuel' x ρ ρ')
+             (clos_body_conv_fuel_x fuel' x (Cl ρ t) (Cl ρ' t'))
+    end
+  end
+
+with envs_conv_fuel_x (fuel : nat) (x : whnf) (ρ ρ' : list whnf) : bool :=
+  match fuel with
+  | 0 => false
+  | S fuel' =>
+    match ρ, ρ' with
+    | [], [] => true
+    | v :: rs, v' :: rs' => andb (conv_fuel_x fuel' x v v') (envs_conv_fuel_x fuel' x rs rs')
+    | _, _ => false
+    end
+  end
+
+with clos_body_conv_fuel_x (fuel : nat) (x : whnf) (c1 c2 : closure) : bool :=
+  match fuel with
+  | 0 => false
+  | S fuel' =>
+    match clos_eval_fuel fuel' c1 x, clos_eval_fuel fuel' c2 x with
+    | Some v1, Some v2 => conv_fuel_x fuel' x v1 v2
+    | _, _ => false
+    end
+  end. *)
+
+
 Definition clos_eval_fuel (fuel : nat) (cl : closure) (v : whnf) : option whnf :=
   match fuel with
   | 0 => None
@@ -1987,30 +2249,39 @@ Definition clos_eval_fuel (fuel : nat) (cl : closure) (v : whnf) : option whnf :
     | Cl ρ t => evalk fuel' (env_cons v ρ) t
     end
   end.
-  
-Inductive conv_clo : closure -> closure -> Prop :=
-| ConvClo : forall B B' v v',
-    clos_eval' B  fresh v ->
-    clos_eval' B' fresh v' ->
-    conv v v' ->
-    conv_clo B B'
 
-with conv : whnf -> whnf -> Prop :=
+(* Inductive conv_clo : closure -> closure -> Prop :=
+| ConvClo : forall c1 c2
+    (Hext : forall (x v1 v2 : whnf),
+              clos_eval' c1 x v1 ->
+              clos_eval' c2 x v2 ->
+              conv v1 v2),
+    conv_clo c1 c2 *)
+Inductive conv : whnf -> whnf -> Prop :=
 | CoV_Star  : conv VStar VStar
 | CoV_Nat   : conv VNat  VNat
 
 | CoV_Pi : forall A A' B B',
     conv A A' ->
-    conv_clo B B' ->
+    (forall (x v1 v2 : whnf),
+              clos_eval' B x v1 ->
+              clos_eval' B' x v2 ->
+              conv v1 v2) ->
     conv (VPi A B) (VPi A' B')
 
 | CoV_Sigma : forall A A' B B',
     conv A A' ->
-    conv_clo B B' ->
+    (forall (x v1 v2 : whnf),
+              clos_eval' B x v1 ->
+              clos_eval' B' x v2 ->
+              conv v1 v2) ->
     conv (VSigma A B) (VSigma A' B')
 
 | CoV_Lam : forall cl1 cl2,
-    conv_clo cl1 cl2 ->
+    (forall (x v1 v2 : whnf),
+              clos_eval' cl1 x v1 ->
+              clos_eval' cl2 x v2 ->
+              conv v1 v2) ->
     conv (VLam cl1) (VLam cl2)
 
 | CoV_Pair : forall A B a b A' B' a' b',
@@ -2056,95 +2327,132 @@ with conv : whnf -> whnf -> Prop :=
     conv (VNeutral (NVecRec A P z s n nx))
          (VNeutral (NVecRec A' P' z' s' n' nx')).
 
+Lemma conv_refl: forall v, conv v v.
+Proof.
 
-Scheme conv_ind'      := Induction for conv      Sort Prop
+ apply (whnf_mutind (fun v  => conv v v)). 
+       induction v; intros.
+       - constructor.
+       - constructor.
+       - constructor. easy.
+         intros.
+         
+
+(* Scheme conv_ind'      := Induction for conv      Sort Prop
 with conv_clo_ind'  := Induction for conv_clo  Sort Prop.
 Combined Scheme conv_mutind from conv_ind', conv_clo_ind'.
+ *)
+ 
+Require Import Coq.Program.Equality.
+Lemma shift_whnf_conv_compat :
+  forall v v', conv v v' -> conv (shift_whnf 1 0 v) (shift_whnf 1 0 v').
+Proof.  intros v v' Hconv.
+       dependent induction Hconv; intros.
+       - simpl. constructor.
+       - simpl. constructor.
+       - simpl.
+         destruct B, B'.
+         simpl.
+         constructor. easy.
+         intros.
+         apply Hext with (x := x).
+       
+       
 
+Lemma conv'_inj: (forall w1 w2 v1 v2, conv w1 v1 -> conv w2 v2 -> conv v1 v2) /\
+ 
+.
 
-Fixpoint conv_fuel (fuel:nat) (v w:whnf) : bool :=
-  match fuel with
-  | 0 => false
-  | S fuel' =>
-    match v, w with
-    | VStar, VStar => true
-    | VNat,  VNat  => true
-    | VPi A B, VPi A' B' =>
-        if conv_fuel fuel' A A' then
-          match clos_eval_fuel fuel' B fresh,
-                clos_eval_fuel fuel' B' fresh with
-          | Some vB, Some vB' => conv_fuel fuel' vB vB'
-          | _, _ => false
-          end
-        else false
-    | VSigma A B, VSigma A' B' =>
-        if conv_fuel fuel' A A' then
-          match clos_eval_fuel fuel' B fresh,
-                clos_eval_fuel fuel' B' fresh with
-          | Some vB, Some vB' => conv_fuel fuel' vB vB'
-          | _, _ => false
-          end
-        else false
-    | VLam cl1, VLam cl2 =>
-        match clos_eval_fuel fuel' cl1 fresh,
-              clos_eval_fuel fuel' cl2 fresh with
-        | Some v1, Some v2 => conv_fuel fuel' v1 v2
-        | _, _ => false
-        end
-    | VPair A B a b, VPair A' B' a' b' =>
-        andb (conv_fuel fuel' A A')
-             (andb (conv_fuel fuel' B B')
-                   (andb (conv_fuel fuel' a a') (conv_fuel fuel' b b')))
-    | VZero, VZero => true
-    | VSucc n, VSucc n' => conv_fuel fuel' n n'
-    | VNeutral n, VNeutral n' => conv_neutral_fuel fuel' n n'
-    | VVec n A, VVec n' A' => andb (conv_fuel fuel' n n') (conv_fuel fuel' A A')
+(* Mutual fuelled checker: conv_fuel + conv_neutral_fuel
+   plus structural helpers conv_clo_fuel, envs_conv_fuel, clos_body_conv_fuel.
+   All recursion is on [fuel] and decreases to [fuel'] in the recursive calls. *)
 
-    | VNilV A, VNilV A' =>
-        conv_fuel fuel' A A'
-
-    | VConsV A n x xs, VConsV A' n' x' xs' =>
-        andb (conv_fuel fuel' A A')
-             (andb (conv_fuel fuel' n n')
-                   (andb (conv_fuel fuel' x x')
-                         (conv_fuel fuel' xs xs')))
-    | _, _ => false
-    end
+Fixpoint conv_fuel (fuel : nat) (v w : whnf) : bool :=
+match fuel with
+| 0 => false
+| S fuel' =>
+  match v, w with
+  | VStar, VStar => true
+  | VNat, VNat => true
+  | VPi A B, VPi A' B' =>
+      if conv_fuel fuel' A A' then conv_clo_fuel fuel' B B' else false
+  | VSigma A B, VSigma A' B' =>
+      if conv_fuel fuel' A A' then conv_clo_fuel fuel' B B' else false
+  | VLam cl1, VLam cl2 =>
+      conv_clo_fuel fuel' cl1 cl2
+  | VPair A B a b, VPair A' B' a' b' =>
+      andb (conv_fuel fuel' A A')
+           (andb (conv_fuel fuel' B B')
+                 (andb (conv_fuel fuel' a a') (conv_fuel fuel' b b')))
+  | VZero, VZero => true
+  | VSucc n0, VSucc n0' => conv_fuel fuel' n0 n0'
+  | VNeutral n0, VNeutral n0' => conv_neutral_fuel fuel' n0 n0'
+  | VVec n0 A0, VVec n0' A0' =>
+      andb (conv_fuel fuel' n0 n0') (conv_fuel fuel' A0 A0')
+  | VNilV A0, VNilV A0' => conv_fuel fuel' A0 A0'
+  | VConsV A0 n0 x xs, VConsV A0' n0' x' xs' =>
+      andb (conv_fuel fuel' A0 A0')
+           (andb (conv_fuel fuel' n0 n0')
+                 (andb (conv_fuel fuel' x x') (conv_fuel fuel' xs xs')))
+  | _, _ => false
   end
+end
+
 with conv_neutral_fuel (fuel : nat) (n n' : neutral) : bool :=
-  match fuel with
-  | 0 => false
-  | S fuel' =>
-    match n, n' with
-    | NVar i, NVar j => Nat.eqb i j
+match fuel with
+| 0 => false
+| S fuel' =>
+  match n, n' with
+  | NVar i, NVar j => Nat.eqb i j
+  | NApp n0 v, NApp n0' v' =>
+      andb (conv_neutral_fuel fuel' n0 n0') (conv_fuel fuel' v v')
+  | NFst n0, NFst n0' => conv_neutral_fuel fuel' n0 n0'
+  | NSnd n0, NSnd n0' => conv_neutral_fuel fuel' n0 n0'
+  | NNatRec P z s n0, NNatRec P' z' s' n0' =>
+      andb (conv_fuel fuel' P P')
+           (andb (conv_fuel fuel' z z')
+                 (andb (conv_fuel fuel' s s') (conv_neutral_fuel fuel' n0 n0')))
+  | NVecRec A P z s n nx, NVecRec A' P' z' s' n' nx' =>
+      andb (conv_fuel fuel' A A')
+           (andb (conv_fuel fuel' P P')
+                 (andb (conv_fuel fuel' z z')
+                       (andb (conv_fuel fuel' s s')
+                             (andb (conv_fuel fuel' n n')
+                                   (conv_neutral_fuel fuel' nx nx')))))
+  | _, _ => false
+  end
+end
 
-    | NApp n v, NApp n' v' =>
-        andb (conv_neutral_fuel fuel' n n') (conv_fuel fuel' v v')
+with conv_clo_fuel (fuel : nat) (c1 c2 : closure) : bool :=
+match fuel with
+| 0 => false
+| S fuel' =>
+  match c1, c2 with
+  | Cl ρ t, Cl ρ' t' =>
+      andb (envs_conv_fuel fuel' ρ ρ') (clos_body_conv_fuel fuel' (Cl ρ t) (Cl ρ' t'))
+  end
+end
 
-    | NFst n, NFst n' =>
-        conv_neutral_fuel fuel' n n'
+with envs_conv_fuel (fuel : nat) (ρ ρ' : list whnf) : bool :=
+match fuel with
+| 0 => false
+| S fuel' =>
+  match ρ, ρ' with
+  | [], [] => true
+  | v :: rs, v' :: rs' => andb (conv_fuel fuel' v v') (envs_conv_fuel fuel' rs rs')
+  | _, _ => false
+  end
+end
 
-    | NSnd n, NSnd n' =>
-        conv_neutral_fuel fuel' n n'
-
-    | NNatRec P z s n, NNatRec P' z' s' n' =>
-        andb (conv_fuel          fuel' P P')
-         (andb (conv_fuel        fuel' z z')
-          (andb (conv_fuel       fuel' s s')
-                (conv_neutral_fuel fuel' n n')))
-
-    (* NEW: VecRec neutral congruence *)
-    | NVecRec A P z s n nx, NVecRec A' P' z' s' n' nx' =>
-        andb (conv_fuel          fuel' A A')
-         (andb (conv_fuel        fuel' P P')
-          (andb (conv_fuel       fuel' z z')
-           (andb (conv_fuel      fuel' s s')
-            (andb (conv_fuel     fuel' n n')
-                  (conv_neutral_fuel fuel' nx nx')))))
-
-    | _, _ => false
-    end
-  end.
+with clos_body_conv_fuel (fuel : nat) (c1 c2 : closure) : bool :=
+match fuel with
+| 0 => false
+| S fuel' =>
+  match clos_eval_fuel fuel' c1 fresh, clos_eval_fuel fuel' c2 fresh with
+  | Some v1, Some v2 => conv_fuel fuel' v1 v2
+  | _, _ => false
+  end
+end.
 
 Lemma clos_eval_fuel_sound :
   forall k B x v,
@@ -2191,16 +2499,48 @@ Proof.
    easy.
 Qed.
 
+(* B(n) := Vec (S n) Nat  where n is Var 0 *)
+Definition ClVecSuccNat : closure :=
+  Cl [] (Vec (Succ (Var 0)) Nat).
+
+(* Π(n:Nat). Vec (S n) Nat  as a semantic WHNF *)
+Definition VPi_Nat_VecSuccNat : whnf :=
+  VPi VNat ClVecSuccNat.
+
+Compute (clos_eval_fuel 20 ClVecSuccNat fresh).
+(* Expected:  Some (VVec (VSucc fresh) VNat) *)
+
+Definition v5 : whnf :=
+  VSucc (VSucc (VSucc (VSucc (VSucc VZero)))).
+
+Compute (clos_eval_fuel 20 ClVecSuccNat v5).
+(* Expected:  Some (VVec (VSucc v5) VNat)    i.e., Vec (S 5) Nat *)
+
 Lemma conv_fuel_monotone :
-  forall k k' v w,
+  forall (k k' : nat) (v w : whnf),
     k' >= k ->
     conv_fuel k v w = true ->
     conv_fuel k' v w = true
 with conv_neutral_fuel_monotone :
-  forall k k' n n',
+  forall (k k' : nat) (n n' : neutral),
     k' >= k ->
     conv_neutral_fuel k n n' = true ->
-    conv_neutral_fuel k' n n' = true.
+    conv_neutral_fuel k' n n' = true
+with conv_clo_fuel_monotone :
+  forall (k k' : nat) (c1 c2 : closure),
+    k' >= k ->
+    conv_clo_fuel k c1 c2 = true ->
+    conv_clo_fuel k' c1 c2 = true
+with envs_conv_fuel_monotone :
+  forall (k k' : nat) (ρ ρ' : list whnf),
+    k' >= k ->
+    envs_conv_fuel k ρ ρ' = true ->
+    envs_conv_fuel k' ρ ρ' = true
+with clos_body_conv_fuel_monotone :
+  forall (k k' : nat) (c1 c2 : closure),
+    k' >= k ->
+    clos_body_conv_fuel k c1 c2 = true ->
+    clos_body_conv_fuel k' c1 c2 = true.
 Proof. intro k.
        induction k; intros.
        + easy.
@@ -2220,26 +2560,28 @@ Proof. intro k.
           (* from Ht we know conv_fuel k v0 v1 = true *)
           apply IHk with (k' := k'') in HA; try lia.
           rewrite HA.
-          rewrite clos_eval_fuel_monotone with (k := k) (v := w0); try lia.
-          rewrite clos_eval_fuel_monotone with (k := k) (v := w1); try lia.
-          apply IHk; try lia. easy. easy. easy.
-
-        * (* VPi A B, VPi A' B' *)
-          destruct (conv_fuel k v w)   eqn:HA; try discriminate.
+          apply conv_clo_fuel_monotone with (k := k); try lia. easy.
+          apply IHk with (k' := k'') in HA; try lia.
+          rewrite HA.
+          apply conv_clo_fuel_monotone with (k := k); try lia. easy.
+          apply IHk with (k' := k'') in HA; try lia.
+          rewrite HA.
+          apply conv_clo_fuel_monotone with (k := k); try lia. easy.
+        * destruct (conv_fuel k v w)   eqn:HA; try discriminate.
           destruct (clos_eval_fuel k c  fresh) eqn:HB; try discriminate.
           destruct (clos_eval_fuel k c0 fresh) eqn:HB'; try discriminate.
           (* from Ht we know conv_fuel k v0 v1 = true *)
           apply IHk with (k' := k'') in HA; try lia.
           rewrite HA.
-          rewrite clos_eval_fuel_monotone with (k := k) (v := w0); try lia.
-          rewrite clos_eval_fuel_monotone with (k := k) (v := w1); try lia.
-          apply IHk; try lia. easy. easy. easy.
+          apply conv_clo_fuel_monotone with (k := k); try lia. easy.
+          apply IHk with (k' := k'') in HA; try lia.
+          rewrite HA.
+          apply conv_clo_fuel_monotone with (k := k); try lia. easy.
+          apply IHk with (k' := k'') in HA; try lia.
+          rewrite HA.
+          apply conv_clo_fuel_monotone with (k := k); try lia. easy.
         * (* VLam cl1, VLam cl2 *)
-          destruct (clos_eval_fuel k c  fresh) eqn:HC; try discriminate.
-          destruct (clos_eval_fuel k c0 fresh) eqn:HC'; try discriminate.
-          rewrite clos_eval_fuel_monotone with (k := k) (v := w); try lia.
-          rewrite clos_eval_fuel_monotone with (k := k) (v := w0); try lia.
-          apply IHk; try lia. easy. easy. easy.
+          apply conv_clo_fuel_monotone with (k := k); try lia. easy.
 
         * (* VPair A B a b, VPair A' B' a' b' *)
           apply Bool.andb_true_iff in Ht as [HAB Hab].
@@ -2321,16 +2663,135 @@ Proof. intro k.
           apply conv_fuel_monotone with (k' := k'') in Hv; try lia.
           apply IH with (k' := k'') in Hn; try lia.
           rewrite HP, Hz, Hs, Hn, Hv, Hu. reflexivity.
+    + intro k.
+      induction k; intros.
+      * easy.
+      * simpl in H0.
+        destruct c1, c2.
+        apply Bool.andb_true_iff in H0 as [HP Htail].
+        destruct k'. easy.
+        simpl. 
+        apply envs_conv_fuel_monotone with (k' := k') in HP; try lia.
+        rewrite HP.
+        apply clos_body_conv_fuel_monotone with (k' := k') in Htail; try lia.
+        rewrite Htail. easy.
+     + intro k.
+       induction k; intros.
+       * easy.
+       * destruct k'. easy.
+         simpl.
+         simpl in H0.
+         destruct ρ; destruct ρ'; try discriminate. easy.
+         apply Bool.andb_true_iff in H0 as [HP Htail].
+         apply conv_fuel_monotone with (k' := k') in HP; try lia.
+         rewrite HP.
+         apply IHk with (k' := k') in Htail; try lia.
+         rewrite Htail. easy.
+      + intro k.
+        induction k; intros.
+        * easy.
+        * simpl in H0.
+          destruct k'. easy.
+          simpl.
+          case_eq(clos_eval_fuel k c1 fresh ); intros.
+          rewrite H1 in H0.
+          case_eq(clos_eval_fuel k c2 fresh); intros.
+          rewrite H2 in H0.
+          apply clos_eval_fuel_monotone  with (k' := k') in H1; try lia.
+          apply clos_eval_fuel_monotone  with (k' := k') in H2; try lia.
+          rewrite H1, H2.
+          apply conv_fuel_monotone with (k := k); try lia. easy.
+          rewrite H2 in H0. easy.
+          rewrite H1 in H0. easy.
 Qed.
 
-Lemma conv_fuel_sound :
-  forall k v w,
-    conv_fuel k v w = true ->
-    conv v w
-with conv_neutral_fuel_sound :
-  forall k n n',
-    conv_neutral_fuel k n n' = true ->
-    conv (VNeutral n) (VNeutral n').
+(* Lemma conv_fuel_x_monotone :
+  forall (k k' : nat) x (v w : whnf),
+    k' >= k ->
+    conv_fuel_x k x v w = true ->
+    conv_fuel_x k' x v w = true
+with conv_neutral_x_fuel_monotone :
+  forall (k k' : nat) x (n n' : neutral),
+    k' >= k ->
+    conv_neutral_fuel_x k x n n' = true ->
+    conv_neutral_fuel_x k' x n n' = true
+with conv_clo_fuel_x_monotone :
+  forall (k k' : nat) x (c1 c2 : closure),
+    k' >= k ->
+    conv_clo_fuel_x k x c1 c2 = true ->
+    conv_clo_fuel_x k' x c1 c2 = true
+with envs_conv_fuel_x_monotone :
+  forall (k k' : nat) x (ρ ρ' : list whnf),
+    k' >= k ->
+    envs_conv_fuel_x k x ρ ρ' = true ->
+    envs_conv_fuel_x k' x ρ ρ' = true
+with clos_body_conv_fuel_x_monotone :
+  forall (k k' : nat) x (c1 c2 : closure),
+    k' >= k ->
+    clos_body_conv_fuel_x k x c1 c2 = true ->
+    clos_body_conv_fuel_x k' x c1 c2 = true.
+Proof. Admitted.
+ *)
+
+Lemma conv_clo_app :
+  forall c1 c2 x v1 v2,
+    conv_clo c1 c2 ->
+    clos_eval' c1 x v1 ->
+    clos_eval' c2 x v2 ->
+    conv v1 v2.
+Proof.
+(*    intros. inversion H. subst. apply Hext; easy. *)
+intros c1 c2 x v1 v2 [c1' c2' Hext] H1 H2. apply Hext with (x := x); assumption.
+Qed.
+
+
+
+(* Lemma envs_conv_fuel_sound :
+  forall k ρ ρ',
+    envs_conv_fuel k ρ ρ' = true ->
+    forall i vi v'i, nth_error ρ i = Some vi ->
+                     nth_error ρ' i = Some v'i ->
+                     conv vi v'i.
+Proof. intro k.
+       induction k; intros.
+       - easy.
+       - simpl in H.
+         destruct ρ; destruct ρ'; try discriminate.
+         simpl in *. destruct i; easy.
+         
+         apply IHk with (ρ := w :: ρ) (ρ' := w0 :: ρ') (i := 0).
+         simpl.
+           
+ *)
+
+Lemma conv_fuel_sound: forall (k : nat) (v w : whnf),
+  conv_fuel k v w = true ->
+  conv v w
+with conv_neutral_fuel_sound: forall k n n',
+  conv_neutral_fuel k n n' = true ->
+  conv (VNeutral n) (VNeutral n')
+with conv_clo_fuel_sound: forall (k : nat) (c1 c2 : closure),
+  conv_clo_fuel k c1 c2 = true ->
+  conv_clo c1 c2
+with envs_conv_fuel_sound: forall (k : nat) (ρ ρ' : list whnf),
+  envs_conv_fuel k ρ ρ' = true ->
+  forall i vi v'i,
+    nth_error ρ i = Some vi ->
+    nth_error ρ' i = Some v'i ->
+    conv vi v'i
+with clos_body_conv_fuel_fresh :
+  forall (k: nat) (c1 c2 : closure),
+    clos_body_conv_fuel k c1 c2 = true ->
+    exists v1 v2,
+      clos_eval' c1 fresh v1 /\
+      clos_eval' c2 fresh v2 /\
+      conv v1 v2.
+(* with clos_body_conv_fuel_sound: forall (k : nat) (c1 c2 : closure),
+  clos_body_conv_fuel k c1 c2 = true ->
+  (forall v1 v2,
+    clos_eval' c1 fresh v1 ->
+    clos_eval' c2 fresh v2 ->
+    conv v1 v2). *)
 Proof.
   (* === conv_fuel_sound === *)
   intros k; induction k as [|k IH] using nat_ind; intros; simpl in H; try discriminate.
@@ -2348,58 +2809,21 @@ Proof.
       cbn in H.
       destruct (conv_fuel k v w) eqn:HA; try discriminate.
       apply IH in HA as HAA.
-      destruct (clos_eval_fuel k c fresh) eqn:HB; try discriminate.
-      destruct (clos_eval_fuel k c0 fresh) eqn:HB'; try discriminate.
-      apply clos_eval_fuel_sound in HB.
-      apply clos_eval_fuel_sound in HB'.
-      apply IH in H as HBB.
-      eapply CoV_Pi; [exact HAA|].
-      apply ConvClo with (v := w0) (v' := w1).
-      easy. easy. easy.
-      
-      
-(*       intros vB vB'.
-      intros HvB HvB'.
-      unfold clos_eval' in *.
-      destruct c, c0.
-      specialize (eval'_det _ _ _ _ HvB HB); intros. subst.
-      specialize (eval'_det _ _ _ _ HvB' HB'); intros. subst.
-      easy. *)
+      constructor.
+      easy.
+      apply conv_clo_fuel_sound with (k := k); try lia. easy.
     + (* VSigma ... *)
       cbn in H.
       destruct (conv_fuel k v w) eqn:HA; try discriminate.
       apply IH in HA as HAA.
-      destruct (clos_eval_fuel k c fresh) eqn:HB; try discriminate.
-      destruct (clos_eval_fuel k c0 fresh) eqn:HB'; try discriminate.
-      apply clos_eval_fuel_sound in HB.
-      apply clos_eval_fuel_sound in HB'.
-      apply IH in H as HBB.
-      eapply CoV_Sigma; [exact HAA|].
-      apply ConvClo with (v := w0) (v' := w1).
-      easy. easy. easy.
-(*       intros vB vB'.
-      intros HvB HvB'.
-      unfold clos_eval' in *.
-      destruct c, c0.
-      specialize (eval'_det _ _ _ _ HvB HB); intros. subst.
-      specialize (eval'_det _ _ _ _ HvB' HB'); intros. subst.
-      easy. *)
+      constructor.
+      easy.
+      apply conv_clo_fuel_sound with (k := k); try lia. easy.
 
     + (* VLam cl1, VLam cl2 *)
       cbn in H.
-      destruct (clos_eval_fuel k c fresh) eqn:HC; try discriminate.
-      destruct (clos_eval_fuel k c0 fresh) eqn:HC'; try discriminate.
-      apply clos_eval_fuel_sound in HC.
-      apply clos_eval_fuel_sound in HC'.
-      apply IH in H.
       constructor.
-      apply ConvClo with (v := w) (v' := w0).
-      easy. easy. easy.
-(*       intros.
-      destruct c, c0. simpl in *.
-      specialize (eval'_det _ _ _ _ H0 HC); intros. subst.
-      specialize (eval'_det _ _ _ _ H1 HC'); intros. subst.
-      easy. *)
+      apply conv_clo_fuel_sound with (k := k); try lia. easy.
 
     + (* VPair ... *)
       apply Bool.andb_true_iff in H as [H12 H34].
@@ -2475,7 +2899,57 @@ Proof.
       apply conv_fuel_sound in Hv. 
       (* Order was P, z, s, then n; adjust if your andb nesting differs *)
       econstructor; eauto.
+  - (* start neutral branch *)
+    intros k; induction k as [|k IH] using nat_ind; intros; simpl in H; try discriminate.
+    destruct c1, c2.
+    apply Bool.andb_true_iff in H as [H Htail].
+    constructor.
+    intros.
+    destruct k. easy.
+    simpl in Htail.
+    case_eq(clos_eval_fuel k (Cl l t) fresh); intros.
+    rewrite H2 in Htail.
+    apply clos_eval_fuel_sound in H2.
+    simpl in H.
+    specialize(clos_eval'_det _ _ _ _ H0 H2); intro HH.
+    subst.
+    case_eq(clos_eval_fuel k (Cl l0 t0) fresh); intros.
+    rewrite H3 in Htail.
+    apply clos_eval_fuel_sound in H3.
+    specialize(clos_eval'_det _ _ _ _ H1 H3); intro HH.
+    subst.
+    apply conv_fuel_sound with (k := k). easy.
+    rewrite H3 in Htail. easy.
+    rewrite H2 in Htail. easy.
+  - intros k; induction k as [|k IH] using nat_ind; intros; simpl in H; try discriminate.
+    destruct ρ; destruct ρ'; try discriminate.
+    rewrite nth_error_nil in H0. easy.
+    destruct i.
+    simpl in *.
+    inversion H0. subst. inversion H1. subst.
+    apply Bool.andb_true_iff in H as [H Htail].
+    apply conv_fuel_sound with (k := k) in H; try lia.
+    easy.
+    simpl in H0, H1.
+    apply Bool.andb_true_iff in H as [H Htail].
+    apply IH with (ρ := ρ) (ρ' := ρ') (i := i); easy.
+  - intros k; induction k as [|k IH] using nat_ind; intros; simpl in H; try discriminate. 
+    case_eq(clos_eval_fuel k c1 fresh); intros.
+    rewrite H0 in H.
+    case_eq(clos_eval_fuel k c2 fresh); intros.
+    rewrite H1 in H.
+    apply clos_eval_fuel_sound in H0, H1.
+    apply conv_fuel_sound in H.
+    exists w, w0. easy.
+    rewrite H1 in H. easy.
+    rewrite H0 in H. easy.
 Qed.
+
+Definition clos_body_conv (ρ ρ' : list whnf) (t t' : term) : Prop :=
+  forall (x : whnf) (v1 v2 : whnf),
+    eval' (env_cons x ρ) t v1 ->
+    eval' (env_cons x ρ') t' v2 ->
+    conv v1 v2.
 
 (* If not already present: fuelled closure-eval and its facts *)
 Definition clos_evalk (k:nat) (cl:closure) : option whnf :=
@@ -2486,6 +2960,15 @@ Lemma clos_evalk_complete :
 Proof.
   intros [ρ body] v H; simpl in *.
   now eapply evalk_complete in H.
+Qed.
+
+Lemma clos_evalk_sound :
+  forall k cl v, clos_evalk k cl = Some v -> clos_eval' cl fresh v.
+Proof.
+  intros; simpl in *.
+  unfold clos_evalk in *.
+  destruct cl.
+  eapply evalk_sound in H. easy.
 Qed.
 
 Lemma clos_evalk_monotone :
@@ -2510,19 +2993,30 @@ Lemma lift_clos_eval :
 Proof. intros; eapply clos_eval_fuel_monotone; eauto. Qed.
 
 Lemma conv_complete :
-  (forall v w, conv v w -> exists k, conv_fuel k v w = true) /\
-  (forall B B', conv_clo B B' -> exists k v v', clos_eval_fuel k B  fresh = Some v /\ clos_eval_fuel k B' fresh = Some v' /\ conv_fuel k v v' = true).
+  (forall v w, conv v w -> exists k, conv_fuel k v w = true)
+  /\
+  (forall B B',
+     conv_clo B B' ->
+     (forall k v v',
+       clos_eval_fuel k B  fresh = Some v ->
+       clos_eval_fuel k B' fresh = Some v' ->
+       (* there exists some larger fuel k' >= k making the boolean conv true *)
+       exists k', k' >= k /\ conv_fuel k' v v' = true)).
 Proof.
-  apply (conv_mutind
-    (* P: depends on the derivation (3rd arg). *)
-    (fun v w _ =>
-       exists k, conv_fuel k v w = true)
-    (* Q: ***also*** depends on the derivation h *)
-    (fun B B' h =>
-       exists k, exists v v',
-         clos_eval_fuel k B  fresh = Some v /\
-         clos_eval_fuel k B' fresh = Some v' /\
-         conv_fuel k v v' = true)); intros.
+apply (conv_mutind
+  (* P : for conv v w proofs produce an existential conv_fuel witness *)
+  (fun (v w : whnf) (_h : conv v w) =>
+     exists k, conv_fuel k v w = true)
+  (* Q : for conv_clo B B' proofs produce the desired statement that
+         given SAME-fuel evaluations of both closures we can find some k' >= k
+         with conv_fuel k' v v' = true. *)
+  (fun (B B' : closure) (_h : conv_clo B B') =>
+       forall (k : nat) (v v' : whnf),
+       clos_eval_fuel k B fresh = Some v ->
+       clos_eval_fuel k B' fresh = Some v' ->
+       exists k', k' >= k /\ conv_fuel k' v v' = true)
+);
+intros.
    10:{
      destruct H as (kA, HA).
      destruct H0 as (kB, HB).
@@ -2539,22 +3033,26 @@ Proof.
          exists (S (S k)). simpl.
          simpl in H. easy.
      }
-     15:{ intros.
-          destruct H as (k3, H).
-
-          destruct (clos_eval_fuel_complete B  fresh v  c) as [k1 HK1].
-          destruct (clos_eval_fuel_complete B' fresh v' c0) as [k2 HK2].
-
-          (* pick a large enough fuel *)
-          set (K := Nat.max k3 (Nat.max k1 k2)).
-          exists K, v, v'. repeat split.
-
-          rewrite clos_eval_fuel_monotone with (k := k1) (v := v); try lia.
-          easy. apply HK1. lia. apply HK2. lia.
-          rewrite conv_fuel_monotone with (k := k3); try lia. easy.
+     15:{ apply clos_eval_fuel_sound in H0, H1.
+          specialize(H _ _ H0 H1).
+          destruct H as (k', H).
+          exists (Nat.max k k'). split. lia.
+          apply conv_fuel_monotone with (k' := (Nat.max k k')) in H.
+          easy.
+          lia.
      }
    - exists 1. easy.
    - exists 1. easy.
+   - destruct H as (kA, HA).
+     inversion c0. subst.
+     exists (S kA).
+     simpl. rewrite HA.
+     destruct kA. easy.
+     simpl.
+     unfold conv_clo_fuel.
+     destruct H0 as (kB, (v1, (v2, (Hb1, (Hb2, Hc))))).
+     exists (S (Nat.max kA kB)).
+   
    - destruct H as (kA, HA).
      destruct H0 as (kB, (v1, (v2, (Hb1, (Hb2, Hc))))).
      exists (S (Nat.max kA kB)).
@@ -5377,18 +5875,20 @@ Inductive vty (Γ : list whnf) : whnf -> whnf -> Prop :=
 | VT_NatTy   : vty Γ VNat  VStar
 
 (* Π-formation: codomain is checked by instantiating the closure at fresh *)
-| VT_PiTy : forall A B vB,
-    vty Γ A VStar ->
-    clos_eval' B fresh vB ->
-    vty (A :: Γ) vB VStar ->
-    vty Γ (VPi A B) VStar
+(* Replace old VT_Pi / VT_Sigma with these *)
+| VT_Pi : forall (Aterm Bterm : term) (vA : whnf),
+    (* syntactic judgments about the term-level domain and codomain *)
+    infer Γ Aterm VStar ->                        (* Aterm : ⋆ under Γ *)
+    eval' (sem_env_of_ctx Γ) Aterm vA ->         (* Aterm ⇓ vA *)
+    infer (vA :: Γ) Bterm VStar ->               (* Bterm : ⋆ under vA :: Γ *)
+    (* conclusion: the semantic PI-type built from vA and the closure of Bterm is a type *)
+    vty Γ (VPi vA (Cl (sem_env_of_ctx Γ) Bterm)) VStar
 
-(* Σ-formation, same “fresh” trick; codomain lives under the extended context *)
-| VT_SigmaTy : forall A B vB,
-    vty Γ A VStar ->
-    clos_eval' B fresh vB ->
-    vty (A :: Γ) vB VStar ->
-    vty Γ (VSigma A B) VStar
+| VT_Sigma : forall (Aterm Bterm : term) (vA : whnf),
+    infer Γ Aterm VStar ->
+    eval' (sem_env_of_ctx Γ) Aterm vA ->
+    infer (vA :: Γ) Bterm VStar ->
+    vty Γ (VSigma vA (Cl (sem_env_of_ctx Γ) Bterm)) VStar
 
 (* λ : instantiate both the body-closure and codomain at fresh;
    body must be typed under the extended context *)
@@ -5451,7 +5951,7 @@ Theorem preservation_infer_bigstep :
   forall k Γ t A v,
      infer_fuel k Γ t = Some A ->
      evalk k (sem_env_of_ctx Γ) t = Some v ->
-     exists B, vty Γ v B /\ conv A B
+     exists B, vty Γ v B /\ conv B A
 with preservation_check_bigstep:
   forall k Γ t A v,
      check_fuel k Γ t A = true ->
@@ -5484,10 +5984,48 @@ Proof. intro k.
            specialize(IHk _ _ _ _ H2 H1).
            destruct IHk as (B, (HB1, HB2)).
            inversion HB2. subst.
+           inversion HB1. subst.
            exists VStar. split.
-           apply VT_PiTy with (vB := VStar).
-           easy. simpl.
+           eapply VT_Pi with (Aterm := Star).
+           constructor.
+           
+           
+
+           constructor.
+           apply infer_fuel_sound with (k := k). easy.
+           constructor.
+           
+           subst.
+           exists VStar. split.
+           eapply VT_Pi with (Aterm := Nat).
+           constructor.
+           
+           
+
+           constructor.
+           apply infer_fuel_sound with (k := k). easy.
+           constructor.
+           
+           
+           
+           subst.
+           exists VStar. split.
+           eapply VT_Pi with (Aterm := (Pi Aterm Bterm)).
+           apply I_Pi with (vA := vA). easy.
+           easy.
+           easy.
+           constructor. easy.
+           
+           
+           
            apply infer_fuel_sound in H4.
+           easy.
+           constructor.
+           
+           subst.
+           here...
+           admit.
+           subst.
            inversion H4. subst.
            constructor. unfold env_cons. unfold sem_env_of_ctx. simpl.
            simpl. exists VStar. intros.

@@ -4,39 +4,6 @@ Require Import Coq.Bool.Bool Lia.
 From DTSMPST Require Import sort.term.
 
 Definition env := list whnf.
-
-Fixpoint shift_neutral (d c : nat) (n : neutral) : neutral :=
-  match n with
-  | NVar k               => NVar (if Nat.leb c k then k + d else k)
-  | NApp n v             => NApp (shift_neutral d c n) (shift_whnf d c v)
-  | NFst n               => NFst (shift_neutral d c n)
-  | NSnd n               => NSnd (shift_neutral d c n)
-  | NNatRec P z s n0     => NNatRec (shift_whnf d c P) (shift_whnf d c z) (shift_whnf d c s) (shift_neutral d c n0)
-  | NVecRec A P z s n xs => NVecRec (shift_whnf d c A) (shift_whnf d c P) (shift_whnf d c z) (shift_whnf d c s) (shift_whnf d c n) (shift_neutral d c xs)
-  end
-with shift_whnf (d c : nat) (v : whnf) : whnf :=
-  match v with
-  | VStar           => VStar
-  | VNat            => VNat
-
-  | VPi A B         =>
-      VPi (shift_whnf d c A)
-          (match B with Cl ρ b => Cl (map (shift_whnf d (S c)) ρ) b end)
-  | VSigma A B      =>
-      VSigma (shift_whnf d c A)
-             (match B with Cl ρ b => Cl (map (shift_whnf d (S c)) ρ) b end)
-
-  | VLam (Cl ρ b)   => VLam (Cl (map (shift_whnf d (S c)) ρ) b)
-
-  | VPair A B a b   => VPair (shift_whnf d c A) (shift_whnf d c B)
-                             (shift_whnf d c a) (shift_whnf d c b)
-  | VZero           => VZero
-  | VSucc v1        => VSucc (shift_whnf d c v1)
-  | VNeutral n      => VNeutral (shift_neutral d c n)
-  | VVec n A        => VVec (shift_whnf d c n) (shift_whnf d c A)
-  | VNilV A         => VNilV (shift_whnf d c A)
-  | VConsV A n x xs => VConsV (shift_whnf d c A) (shift_whnf d c n) (shift_whnf d c x) (shift_whnf d c xs)
-  end.
 (* --------------------------------------------- *)
 (* Capture-avoiding shift on TERMS (de Bruijn)   *)
 (* shift_term d c t  : add d to any Var x with x >= c *)

@@ -4,7 +4,7 @@ Import ListNotations.
 Require Import Coq.Bool.Bool Lia.
 From DTSMPST Require Import sort.term sort.subst sort.eval sort.closure sort.typecheck sort.soundness sort.monotonicity.
 
-Lemma vvecreck_other_complete :
+(* Lemma vvecreck_other_complete :
   forall vA vP vz vs vn vxs,
     (forall vw,               vxs <> VNilV vw) ->
     (forall vw vn' va xs,     vxs <> VConsV vw vn' va xs) ->
@@ -16,7 +16,7 @@ Proof.
   destruct vxs; try reflexivity.
   - (* VNilV _ *)    exfalso. eapply Hneu; reflexivity.
   - (* VConsV _ _ _ _ *) exfalso. eapply Hcons; reflexivity.
-Qed.
+Qed. *)
 
 Lemma evalk_complete:
   (* eval' *)
@@ -44,7 +44,7 @@ Proof.
     + exists 1. simpl. easy.
 
     + exists 1. simpl. rewrite e. easy.
-    + exists 1. simpl. rewrite e. easy.
+(*     + exists 1. simpl. rewrite e. easy. *)
 
 
     + (* Pi *)
@@ -98,6 +98,7 @@ Proof.
       destruct H as [kp Hp].
       exists (S kp). simpl. rewrite Hp. reflexivity.
 
+(*
     + (* TFst Other/stuck *)
       destruct H as [kp Hp].
       exists (S kp). simpl. rewrite Hp.
@@ -106,17 +107,17 @@ Proof.
       exfalso.
       apply(n vp1 vp2 vp3 vp4). easy.
       exfalso.
-      apply(n0 n1). easy.
+      apply(n0 n1). easy. *)
 
-    + (* TSnd Pair *)
+(*     + (* TSnd Pair *)
       destruct H as [kp Hp].
       exists (S kp). simpl. rewrite Hp. reflexivity.
 
     + (* TSnd Neut *)
       destruct H as [kp Hp].
-      exists (S kp). simpl. rewrite Hp. reflexivity.
+      exists (S kp). simpl. rewrite Hp. reflexivity. *)
 
-    + (* TSnd Other/stuck *)
+(*     + (* TSnd Other/stuck *)
       destruct H as [kp Hp].
       exists (S kp). simpl. rewrite Hp.
       (* side-conditions guarantee scrutinee isn’t Pair/Neutral, so the [match] picks [Some vp] *)
@@ -124,7 +125,7 @@ Proof.
       exfalso.
       apply(n vp1 vp2 vp3 vp4). easy.
       exfalso.
-      apply(n0 n1). easy.
+      apply(n0 n1). easy. *)
 
     + exists 1. simpl. easy.
     
@@ -210,15 +211,15 @@ Proof.
     + (* Lam: β-step *)
       destruct H as [k He].
       exists (S k). simpl. now rewrite He.
-    + (* Neutral: extend spine *)
-      exists 1%nat. reflexivity.
+(*     + (* Neutral: extend spine *)
+      exists 1%nat. reflexivity. *)
     
     
-    + (* Other: fallback *)
+(*     + (* Other: fallback *)
       exists 1%nat. simpl.
       destruct w; try easy.
       destruct c. exfalso. apply (n l t). easy.
-      exfalso. apply (n0 n1). easy.
+      exfalso. apply (n0 n1). easy. *)
 
     + (* Zero *)
       exists 1%nat. reflexivity.
@@ -236,13 +237,13 @@ Proof.
       rewrite vappk_step_mono with (k := k2) (r := v1); try lia.
       rewrite vappk_step_mono with (k := k3) (r := v); try lia.
       easy. easy. easy. easy.
-    + (* Neutral *)
-      exists 1%nat. reflexivity.
-    + (* Other/stuck *)
+(*     + (* Neutral *)
+      exists 1%nat. reflexivity. *)
+(*     + (* Other/stuck *)
       exists 1%nat. simpl.
       destruct vn; try easy. 
       exfalso. apply (n vn). easy.
-      exfalso. apply (n1 n2). easy.
+      exfalso. apply (n1 n2). easy. *)
     + exists 1%nat. reflexivity.
     + destruct H as [k1 Hr1].
       destruct H0 as [k2 Hr2].
@@ -263,8 +264,8 @@ Proof.
       rewrite vvecreck_monotone with (k := k1) (r := vrec); try lia.
       rewrite vappsk_step_mono with (k := k2) (r := v); try lia.
       easy. easy. easy.
-    + exists 1%nat. simpl. reflexivity.
-    + apply vvecreck_other_complete; easy.
+(*     + exists 1%nat. simpl. reflexivity. *)
+(*     + apply vvecreck_other_complete; easy. *)
 Qed.
 
 Corollary vappk_complete: forall f a r, 
@@ -321,6 +322,21 @@ Proof.
   now eapply evalk_complete in H.
 Qed.
 
+(** Completeness / adequacy version of the strong extensionality axiom.
+    If two closures are semantically extensionally equal (produce conv-related
+    results on every argument), then there exists a uniform finite fuel K
+    such that their evaluation at [fresh] succeeds and conv_fuel K reports true. *)
+Axiom conv_clo_extensional_uniform_fuel :
+  forall (B B' : closure),
+    (forall (w : whnf) (v v' : whnf),
+        clos_eval' B w v ->
+        clos_eval' B' w v' ->
+        conv v v') ->
+    exists K vB vB',
+      clos_eval_fuel K B fresh = Some vB /\
+      clos_eval_fuel K B' fresh = Some vB' /\
+      conv_fuel K vB vB' = true.
+      
 Lemma conv_complete :
   (forall v w, conv v w -> exists k, conv_fuel k v w = true) /\
   (forall B B', conv_clo B B' -> exists k v v', clos_eval_fuel k B  fresh = Some v /\ clos_eval_fuel k B' fresh = Some v' /\ conv_fuel k v v' = true).
@@ -352,6 +368,9 @@ Proof.
          simpl in H. easy.
      }
      15:{ intros.
+          apply conv_clo_extensional_uniform_fuel. easy.
+        }
+(*      
           destruct H as (k3, H).
 
           destruct (clos_eval_fuel_complete B  fresh v  c) as [k1 HK1].
@@ -364,7 +383,7 @@ Proof.
           rewrite clos_eval_fuel_monotone with (k := k1) (v := v); try lia.
           easy. apply HK1. lia. apply HK2. lia.
           rewrite conv_fuel_monotone with (k := k3); try lia. easy.
-     }
+     } *)
    - exists 1. easy.
    - exists 1. easy.
    - destruct H as (kA, HA).

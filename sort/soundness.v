@@ -16,9 +16,9 @@ Proof.
 - inversion H. easy.
 - inversion H. easy.
 - inversion H. subst. rewrite H2 in e. inversion e. easy.
-  subst. rewrite H2 in e. easy.
-- inversion H. subst. rewrite H2 in e. easy.
-  subst. easy.
+(*   subst. rewrite H2 in e. easy. *)
+(* - inversion H. subst. rewrite H2 in e. easy.
+  subst. easy. *)
 - inversion H0. subst.
   f_equal. apply H. easy.
 - inversion H0. subst.
@@ -35,38 +35,38 @@ Proof.
   apply H2 in H13. subst. easy.
 - inversion H0. subst.
   apply H in H3. inversion H3. easy.
-  subst. apply H in H3. easy.
-  subst. apply H in H2.
-  subst. exfalso. apply (H3 A B va vb). reflexivity.
-- inversion H0. subst.
+(*   subst. apply H in H3. easy. *)
+(*   subst. apply H in H2.
+  subst. exfalso. apply (H3 A B va vb). reflexivity. *)
+(* - inversion H0. subst.
   apply H in H3. easy.
   subst.
-  apply H in H3. inversion H3. easy.
-  subst. apply H in H2.
-  subst. exfalso. apply (H5 n). reflexivity.
-- inversion H0. subst.
+  apply H in H3. inversion H3. easy. *)
+(*   subst. apply H in H2.
+  subst. exfalso. apply (H5 n). reflexivity. *)
+(* - inversion H0. subst.
   apply H in H3. subst.
   exfalso. apply (n A B v2 vb). reflexivity.
   subst. apply H in H3. subst.
   exfalso. apply (n0 n1). reflexivity.
-  subst. apply H. easy.
+  subst. apply H. easy. *)
 - inversion H0. subst.
   apply H in H3. inversion H3. easy.
-  subst. apply H in H3. easy.
-  subst. apply H in H2.
-  subst. exfalso. apply (H3 A B va vb). reflexivity.
-- inversion H0. subst.
+(*   subst. apply H in H3. easy. *)
+(*   subst. apply H in H2.
+  subst. exfalso. apply (H3 A B va vb). reflexivity. *)
+(* - inversion H0. subst.
   apply H in H3. easy.
   subst.
-  apply H in H3. inversion H3. easy.
-  subst. apply H in H2.
-  subst. exfalso. apply (H5 n). reflexivity.
-- inversion H0. subst.
+  apply H in H3. inversion H3. easy. *)
+(*   subst. apply H in H2.
+  subst. exfalso. apply (H5 n). reflexivity. *)
+(* - inversion H0. subst.
   apply H in H3. subst.
   exfalso. apply (n A B va v2). reflexivity.
   subst. apply H in H3. subst.
   exfalso. apply (n0 n1). reflexivity.
-  subst. apply H. easy.
+  subst. apply H. easy. *)
 - inversion H. easy.
 - inversion H0. subst.
   apply H in H3. subst. easy.
@@ -100,48 +100,48 @@ Proof.
   apply H5 in H21. subst. easy.
 - inversion H0; subst.
  + (* VApp_Lam *) eapply H; eauto.
- + exfalso. apply (H1 ρ' b). reflexivity.
+(*  + exfalso. apply (H1 ρ' b). reflexivity. *)
 - inversion H. easy.
-  exfalso. apply (H1 n). reflexivity.
-- inversion H.
-  + subst. exfalso. apply (n ρ' b). reflexivity.
-  + subst. exfalso. apply (n0 n1). reflexivity.
-  + subst. easy.
-- inversion H. easy.
-  easy.
+(*   exfalso. apply (H1 n). reflexivity. *)
+(* - inversion H.
+(*   + subst. exfalso. apply (n ρ' b). reflexivity.
+  + subst. exfalso. apply (n0 n1). reflexivity. *)
+  + subst. easy. *)
+(* - inversion H. easy. *)
+(*   easy. *)
 - inversion H2. subst.
   apply H in H4. subst.
   apply H0 in H5. subst.
   apply H1 in H9. easy.
-  subst. exfalso. apply (H3 vn). easy.
+(*   subst. exfalso. apply (H3 vn). easy. *)
 - inversion H. subst.
   easy.
-  subst. exfalso. apply (H2 nn). easy.
-- inversion H. subst.
-  easy. 
-  subst. exfalso. apply (n vn0). easy.
+(*   subst. exfalso. apply (H2 nn). easy. *)
+(* - inversion H. subst.
+  easy.  *)
+(*   subst. exfalso. apply (n vn0). easy.
   subst. exfalso. apply (n1 nn). easy.
-  easy.
-- inversion H.
-  easy.
+  easy. *)
+(* - inversion H.
+  easy. *)
 - inversion H1. subst. apply H0. apply H in H5. subst. easy.
-- inversion H. easy. easy.
+- inversion H. easy. (*  easy. *)
 - inversion H1. subst.
   apply H0.
   apply H in H12. subst. easy.
-  subst.
-  exfalso. apply (H3 vw vn' va vxs). easy.
- - inversion H. subst.
-   easy.
-   subst. exfalso.
-   apply (H2 nx). easy.
-- inversion H.
+(*   subst.
+  exfalso. apply (H3 vw vn' va vxs). easy. *)
+(*  - inversion H. subst.
+   easy. *)
+(*    subst. exfalso.
+   apply (H2 nx). easy. *)
+(* - inversion H.
   subst. easy. subst.
   exfalso. apply (n0 vw vn' va vxs0). easy.
   subst.
   exfalso.
   apply (n1 nx). easy.
-  easy.
+  easy. *)
 Qed.
 
 (* Determinism corollaries for the three relations *)
@@ -249,77 +249,78 @@ Proof. intro k.
            destruct (evalk k ρ t0) eqn:Ep; try discriminate.
            case_eq w; intros.
            * subst. inversion H. 
-             apply IHk in Ep.
+(*              apply IHk in Ep.
              apply E'_TFst_Other. easy.
              easy.
-             easy.
+             easy. *)
            * subst. inversion H. 
-             apply IHk in Ep.
+(*              apply IHk in Ep.
              apply E'_TFst_Other. easy.
              easy.
-             easy.
+             easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H. subst.
              apply IHk in Ep. 
              apply E'_TFst_Pair with (A := w0) (B := w1) (vb:= w3). easy.
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H. 
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H. 
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H. 
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
          + subst.
            destruct (evalk k ρ t0) eqn:Ep; try discriminate.
            case_eq w; intros.
            * subst. inversion H. 
-             apply IHk in Ep.
+(*              apply IHk in Ep.
              apply E'_TSnd_Other. easy.
              easy.
-             easy.
+             easy. *)
            * subst. inversion H. 
-             apply IHk in Ep.
+(*              apply IHk in Ep.
              apply E'_TSnd_Other. easy.
              easy.
-             easy.
+             easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H. subst.
              apply IHk in Ep. 
              apply E'_TSnd_Pair with (A := w0) (B := w1) (va:= w2). easy.
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H.
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H. 
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
            * subst. inversion H. 
-             apply IHk in Ep. constructor; easy.
+(*              apply IHk in Ep. constructor; easy. *)
          + subst.
            case_eq(nth_error ρ n); intros.
            * rewrite H0 in H. inversion H. subst.
              constructor. easy.
            * rewrite H0 in H.
-             inversion H. subst.
-             apply E'_Var_None. easy.
+             inversion H.
+(*              subst.
+             apply E'_Var_None. easy. *)
          + subst. inversion H. constructor.
          + subst. 
            case_eq(evalk k ρ t0); intros.
@@ -416,8 +417,11 @@ Proof. intro k.
          induction k; intros. 
          + simpl in H. easy.
          + simpl in H.
-           destruct vf.
-           * inversion H; subst. constructor; intros; try discriminate; try congruence.
+           destruct vf; try easy.
+           inversion H; subst. destruct c. apply evalk_sound in H. constructor. easy.
+(*            inversion H; subst. constructor; intros; try discriminate; try congruence. *)
+           
+(*            * inversion H; subst. constructor; intros; try discriminate; try congruence.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
@@ -429,20 +433,20 @@ Proof. intro k.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
-           * inversion H; subst. constructor; intros; try discriminate; try congruence.
+           * inversion H; subst. constructor; intros; try discriminate; try congruence. *)
        - intro k.
          induction k; intros.
          + simpl in H. easy.
          + simpl in H.
-           case_eq vn; intros; subst.
+           case_eq vn; intros; subst; try easy.
+           * inversion H; subst. constructor; intros; try discriminate; try congruence.
+(*            * inversion H; subst. constructor; intros; try discriminate; try congruence.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
-           * inversion H; subst. constructor; intros; try discriminate; try congruence.
-           * inversion H; subst. constructor; intros; try discriminate; try congruence.
-           * inversion H; subst. constructor; intros; try discriminate; try congruence.
-           * inversion H. subst.
-             constructor.
+           * inversion H; subst. constructor; intros; try discriminate; try congruence. *)
+(*            * inversion H. subst.
+             constructor. *)
            * case_eq(vnatreck k vP vz vs w); intros.
              ** rewrite H0 in H.
                 apply IHk in H0.
@@ -452,11 +456,11 @@ Proof. intro k.
                     apply ENR_Succ with (vrec := w0) (v1 := w1); easy.
                 *** rewrite H1 in H. easy.
              ** rewrite H0 in H. easy.
-           * inversion H. subst.
-             constructor.
+(*            * inversion H. subst.
+             constructor. *)
+(*            * inversion H; subst. constructor; intros; try discriminate; try congruence.
            * inversion H; subst. constructor; intros; try discriminate; try congruence.
-           * inversion H; subst. constructor; intros; try discriminate; try congruence.
-           * inversion H; subst. constructor; intros; try discriminate; try congruence.
+           * inversion H; subst. constructor; intros; try discriminate; try congruence. *)
        - intro k.
          induction k; intros.
          + simpl in H. easy.
@@ -476,7 +480,10 @@ Proof. intro k.
          + simpl in H.
            case_eq vxs; intros; subst; try easy.
            * inversion H. subst.
-             constructor. easy. easy. easy.
+             constructor. 
+(*             easy. easy. easy. *)
+(*            * inversion H. subst. constructor; easy. *)
+(*            * inversion H. subst. constructor; easy.
            * inversion H. subst. constructor; easy.
            * inversion H. subst. constructor; easy.
            * inversion H. subst. constructor; easy.
@@ -484,9 +491,7 @@ Proof. intro k.
            * inversion H. subst. constructor; easy.
            * inversion H. subst. constructor; easy.
            * inversion H. subst. constructor; easy.
-           * inversion H. subst. constructor; easy.
-           * inversion H. subst. constructor; easy.
-           * inversion H. subst. constructor; easy.
+           * inversion H. subst. constructor; easy. *)
            * case_eq(vvecreck k vA vP vz vs w0 w2); intros.
              ** rewrite H0 in H.
                 simpl.
@@ -510,6 +515,19 @@ Proof.
   apply evalk_sound in H.
   apply H.
 Qed.
+
+
+(** Strong (untyped) extensionality axiom: behavior at [fresh] determines
+    behavior on all arguments. *)
+Axiom conv_fuel_implies_conv_clo_ext :
+  forall (K : nat) (B B' : closure) (vB vB' : whnf),
+    clos_eval_fuel K B fresh = Some vB ->
+    clos_eval_fuel K B' fresh = Some vB' ->
+    conv_fuel K vB vB' = true ->
+    forall (w : whnf) (v v' : whnf),
+      clos_eval' B w v ->
+      clos_eval' B' w v' ->
+      conv v v'.
 
 Lemma conv_fuel_sound :
   forall k v w,
@@ -538,14 +556,11 @@ Proof.
       apply IH in HA as HAA.
       destruct (clos_eval_fuel k c fresh) eqn:HB; try discriminate.
       destruct (clos_eval_fuel k c0 fresh) eqn:HB'; try discriminate.
-      apply clos_eval_fuel_sound in HB.
-      apply clos_eval_fuel_sound in HB'.
-      apply IH in H as HBB.
-      eapply CoV_Pi; [exact HAA|].
-      apply ConvClo with (v := w0) (v' := w1).
-      easy. easy. easy.
-      
-      
+      constructor. easy.
+      constructor.
+      specialize(conv_fuel_implies_conv_clo_ext _ _ _ _ _ HB HB' H); intro HH.
+      easy.
+
 (*       intros vB vB'.
       intros HvB HvB'.
       unfold clos_eval' in *.
@@ -559,35 +574,20 @@ Proof.
       apply IH in HA as HAA.
       destruct (clos_eval_fuel k c fresh) eqn:HB; try discriminate.
       destruct (clos_eval_fuel k c0 fresh) eqn:HB'; try discriminate.
-      apply clos_eval_fuel_sound in HB.
-      apply clos_eval_fuel_sound in HB'.
-      apply IH in H as HBB.
-      eapply CoV_Sigma; [exact HAA|].
-      apply ConvClo with (v := w0) (v' := w1).
-      easy. easy. easy.
-(*       intros vB vB'.
-      intros HvB HvB'.
-      unfold clos_eval' in *.
-      destruct c, c0.
-      specialize (eval'_det _ _ _ _ HvB HB); intros. subst.
-      specialize (eval'_det _ _ _ _ HvB' HB'); intros. subst.
-      easy. *)
+      constructor. easy.
+      constructor.
+      specialize(conv_fuel_implies_conv_clo_ext _ _ _ _ _ HB HB' H); intro HH.
+      easy.
 
     + (* VLam cl1, VLam cl2 *)
       cbn in H.
       destruct (clos_eval_fuel k c fresh) eqn:HC; try discriminate.
       destruct (clos_eval_fuel k c0 fresh) eqn:HC'; try discriminate.
-      apply clos_eval_fuel_sound in HC.
-      apply clos_eval_fuel_sound in HC'.
-      apply IH in H.
+(*       apply IH in H. *)
       constructor.
-      apply ConvClo with (v := w) (v' := w0).
-      easy. easy. easy.
-(*       intros.
-      destruct c, c0. simpl in *.
-      specialize (eval'_det _ _ _ _ H0 HC); intros. subst.
-      specialize (eval'_det _ _ _ _ H1 HC'); intros. subst.
-      easy. *)
+      constructor.
+      specialize(conv_fuel_implies_conv_clo_ext _ _ _ _ _ HC HC' H); intro HH.
+      easy.
 
     + (* VPair ... *)
       apply Bool.andb_true_iff in H as [H12 H34].

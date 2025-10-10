@@ -28,9 +28,9 @@ Inductive eval' : env -> term -> whnf -> Prop :=
 | E'_Var_Some : forall ρ x v,
     nth_error ρ x = Some v ->
     eval' ρ (Var x) v
-| E'_Var_None : forall ρ x,
+(* | E'_Var_None : forall ρ x,
     nth_error ρ x = None ->
-    eval' ρ (Var x) (VNeutral (NVar x))
+    eval' ρ (Var x) (VNeutral (NVar x)) *)
 | E'_Pi : forall ρ A B vA,
     eval' ρ A vA ->
     eval' ρ (Pi A B) (VPi vA (Cl ρ B))
@@ -51,25 +51,25 @@ Inductive eval' : env -> term -> whnf -> Prop :=
 | E'_TFst_Pair : forall ρ p A B va vb,
     eval' ρ p (VPair A B va vb) ->
     eval' ρ (TFst p) va
-| E'_TFst_Neut : forall ρ p n,
+(* | E'_TFst_Neut : forall ρ p n,
     eval' ρ p (VNeutral n) ->
-    eval' ρ (TFst p) (VNeutral (NFst n))
-| E'_TFst_Other : forall ρ p vp,
+    eval' ρ (TFst p) (VNeutral (NFst n)) *)
+(* | E'_TFst_Other : forall ρ p vp,
     eval' ρ p vp ->
     (forall A B va vb, vp <> VPair A B va vb) ->
     (forall n, vp <> VNeutral n) ->
-    eval' ρ (TFst p) vp
+    eval' ρ (TFst p) vp *)
 | E'_TSnd_Pair : forall ρ p A B va vb,
     eval' ρ p (VPair A B va vb) ->
     eval' ρ (TSnd p) vb
-| E'_TSnd_Neut : forall ρ p n,
+(* | E'_TSnd_Neut : forall ρ p n,
     eval' ρ p (VNeutral n) ->
-    eval' ρ (TSnd p) (VNeutral (NSnd n))
-| E'_TSnd_Other : forall ρ p vp,
+    eval' ρ (TSnd p) (VNeutral (NSnd n)) *)
+(* | E'_TSnd_Other : forall ρ p vp,
     eval' ρ p vp ->
     (forall A B va vb, vp <> VPair A B va vb) ->
     (forall n, vp <> VNeutral n) ->
-    eval' ρ (TSnd p) vp
+    eval' ρ (TSnd p) vp *)
 | E'_Zero : forall ρ,
     eval' ρ Zero VZero
 | E'_Succ : forall ρ n vn,
@@ -111,12 +111,12 @@ with vapp : whnf -> whnf -> whnf -> Prop :=
 | VApp_Lam : forall ρ' b v v',
     eval' (env_cons v ρ') b v' ->
     vapp (VLam (Cl ρ' b)) v v'
-| VApp_Neut : forall n v,
-    vapp (VNeutral n) v (VNeutral (NApp n v))
-| VApp_Other : forall w v,
+(* | VApp_Neut : forall n v,
+    vapp (VNeutral n) v (VNeutral (NApp n v)) *)
+(* | VApp_Other : forall w v,
     (forall ρ' b, w <> VLam (Cl ρ' b)) ->
     (forall n,   w <> VNeutral n) ->
-    vapp w v w
+    vapp w v w *)
 
 (* semantic Nat recursion on an already evaluated argument *)
 with eval_natrec : whnf -> whnf -> whnf -> whnf -> whnf -> Prop :=
@@ -127,14 +127,14 @@ with eval_natrec : whnf -> whnf -> whnf -> whnf -> whnf -> Prop :=
     vapp vs vn v1 ->
     vapp v1 vrec v ->
     eval_natrec vP vz vs (VSucc vn) v
-| ENR_Neut : forall vP vz vs nn,
-    eval_natrec vP vz vs (VNeutral nn) (VNeutral (NNatRec vP vz vs nn))
-| ENR_Other : forall vP vz vs vn,
+(* | ENR_Neut : forall vP vz vs nn,
+    eval_natrec vP vz vs (VNeutral nn) (VNeutral (NNatRec vP vz vs nn)) *)
+(* | ENR_Other : forall vP vz vs vn,
     (forall w, vn <> VSucc w) ->
     vn <> VZero ->
     (forall n, vn <> VNeutral n) ->
     eval_natrec vP vz vs vn vz
-
+ *)
 (* multi-argument semantic application (for specs of vappsk) *)
 with vapps : whnf -> list whnf -> whnf -> Prop :=
 | vapps_nil  : forall f, vapps f [] f
@@ -152,18 +152,19 @@ with eval_vecrec : whnf -> whnf -> whnf -> whnf -> whnf -> whnf -> whnf -> Prop 
     forall vA vP vz vs vn vn' va vxs vrec v vw,
       eval_vecrec vA vP vz vs vn' vxs vrec ->
       vapps vs [vn'; va; vxs; vrec] v ->     (* <— use vapps *)
-      eval_vecrec vA vP vz vs vn (VConsV vw vn' va vxs) v
-| EVR_Neut :
+      eval_vecrec vA vP vz vs vn (VConsV vw vn' va vxs) v.
+(* | EVR_Neut :
     forall vA vP vz vs vn nx,
       eval_vecrec vA vP vz vs vn (VNeutral nx)
-                  (VNeutral (NVecRec vA vP vz vs vn nx))
-(* Add this to eval_vecrec to make it total on arbitrary vxs *)
+                  (VNeutral (NVecRec vA vP vz vs vn nx)) *)
+                  
+(* (* Add this to eval_vecrec to make it total on arbitrary vxs *)
 | EVR_Other :
     forall vA vP vz vs vn vxs,
       (forall vw, vxs <> VNilV vw) ->
       (forall vw vn' va xs, vxs <> VConsV vw vn' va xs) ->
       (forall nx, vxs <> VNeutral nx) ->
-      eval_vecrec vA vP vz vs vn vxs vz.
+      eval_vecrec vA vP vz vs vn vxs vz. *)
 
 Scheme eval'_rect      := Induction for eval'        Sort Prop
 with vapp_rect         := Induction for vapp         Sort Prop
@@ -186,7 +187,7 @@ Fixpoint evalk (fuel : nat) (ρ : env) (t : term) : option whnf :=
     | Var x =>
         match nth_error ρ x with
         | Some v => Some v
-        | None   => Some (VNeutral (NVar x))
+        | None   => None (* Some (VNeutral (NVar x)) *)
         end
 
     | Pi A B =>
@@ -235,17 +236,17 @@ Fixpoint evalk (fuel : nat) (ρ : env) (t : term) : option whnf :=
     | TFst p =>
         match evalk fuel' ρ p with
         | Some (VPair _ _ va _) => Some va
-        | Some (VNeutral np)    => Some (VNeutral (NFst np))
-        | Some vp               => Some vp  (* ill-typed/stuck head *)
-        | None                  => None
+(*         | Some (VNeutral np)    => Some (VNeutral (NFst np)) *)
+(*        | Some vp               => Some vp  (* ill-typed/stuck head *) *)
+        | _                     => None
         end
 
     | TSnd p =>
         match evalk fuel' ρ p with
         | Some (VPair _ _ _ vb) => Some vb
-        | Some (VNeutral np)    => Some (VNeutral (NSnd np))
-        | Some vp               => Some vp
-        | None                  => None
+(*         | Some (VNeutral np)    => Some (VNeutral (NSnd np)) *)
+(*         | Some vp               => Some vp *)
+        | _                     => None
         end
 
     | Zero     => Some VZero
@@ -313,8 +314,8 @@ with vappk (fuel : nat) (vf vu : whnf) : option whnf :=
   | S fuel' =>
     match vf with
     | VLam (Cl ρ' body) => evalk fuel' (env_cons vu ρ') body
-    | VNeutral nf       => Some (VNeutral (NApp nf vu))
-    | _                 => Some vf                  (* IMPORTANT: not [Some vf] *)
+(*     | VNeutral nf       => Some (VNeutral (NApp nf vu)) *)
+    | _                 => None (* Some vf *)                  (* IMPORTANT: not [Some vf] *)
     end
   end
 
@@ -337,8 +338,8 @@ with vnatreck (fuel : nat) (vP vz vs vn : whnf) : option whnf :=
           end
         | None => None
         end
-    | VNeutral nn => Some (VNeutral (NNatRec vP vz vs nn))
-    | _           => Some vz  (* unreachable in well-typed terms *)
+(*     | VNeutral nn => Some (VNeutral (NNatRec vP vz vs nn)) *)
+    | _           => None (* Some vz *)  (* unreachable in well-typed terms *)
     end
   end
 
@@ -373,13 +374,13 @@ with vvecreck
         | None => None
         end
 
-    | VNeutral nx =>
+(*     | VNeutral nx =>
         (* stuck on a neutral scrutinee *)
-        Some (VNeutral (NVecRec vA vP vz vs vn nx))
+        Some (VNeutral (NVecRec vA vP vz vs vn nx)) *)
 
-    | _ =>
+    | _ => None
         (* ill-typed shape shouldn't happen at runtime *)
-         Some vz  
+         (* Some vz   *)
     end
   end.
 

@@ -355,11 +355,11 @@ Fixpoint infer_fuel (k:nat) (Γ:list whnf) (t:term) : option whnf :=
     else None
 
 
-| Vec n A =>
-    match infer_fuel k' Γ A with
-    | Some VStar => Some VStar
-    | _ => None
-    end
+  | Vec n A =>
+      match infer_fuel k' Γ A with
+      | Some VStar => Some VStar
+      | _ => None
+      end
 
 
     | VNil A =>
