@@ -4,36 +4,36 @@ Import ListNotations.
 Require Import Coq.Bool.Bool Lia.
 From DTSMPST Require Import sort.term sort.subst sort.eval sort.closure sort.typecheck sort.soundness sort.monotonicity sort.completeness.
 
-
-(* Corrected vty / nty: neutrals use type `neutral` where needed *)
-
+(* semantic typing of values (WHNFs) *)
 Inductive vty (Γ : list whnf) : whnf -> whnf -> Prop :=
-| VT_StarTy  : vty Γ VStar VStar
-| VT_NatTy   : vty Γ VNat  VStar
+| VT_Star  : vty Γ VStar VStar
+| VT_Nat   : vty Γ VNat  VStar
 
-(* Pi formation *)
 | VT_Pi : forall (Aterm Bterm : term) (vA : whnf),
+    (* Aterm is a type and evaluates to vA *)
     infer Γ Aterm VStar ->
     eval' (sem_env_of_ctx Γ) Aterm vA ->
+    (* Bterm is well-formed under Γ, vA *)
     infer (vA :: Γ) Bterm VStar ->
     vty Γ (VPi vA (Cl (sem_env_of_ctx Γ) Bterm)) VStar
 
-(* Sigma formation *)
 | VT_Sigma : forall (Aterm Bterm : term) (vA : whnf),
     infer Γ Aterm VStar ->
     eval' (sem_env_of_ctx Γ) Aterm vA ->
     infer (vA :: Γ) Bterm VStar ->
     vty Γ (VSigma vA (Cl (sem_env_of_ctx Γ) Bterm)) VStar
 
-(* Lambda *)
-| VT_Lam : forall (Aterm Bterm : term) (cl : closure) (r vB vA : whnf),
-    vty Γ (VPi vA (Cl (sem_env_of_ctx Γ) Bterm)) VStar ->
+(* Lam: A lambda value has Pi-type when its closure behaves as expected *)
+| VT_Lam : forall (Aterm Bterm : term) (cl : closure) (vA vBodyTy : whnf) r,
+    infer Γ Aterm VStar ->
+    eval' (sem_env_of_ctx Γ) Aterm vA ->
+    (* the closure behaves as codomain closure: Cl · fresh ⇓ vBodyTy is the type of the body *)
+    clos_eval' (Cl (sem_env_of_ctx Γ) Bterm) fresh vBodyTy ->
+    (* the closure itself when applied to fresh yields some body r with type vBodyTy *)
     clos_eval' cl fresh r ->
-    clos_eval' (Cl (sem_env_of_ctx Γ) Bterm) fresh vB ->
-    vty (vA :: Γ) r vB ->
+    vty (vA :: Γ) r vBodyTy ->
     vty Γ (VLam cl) (VPi vA (Cl (sem_env_of_ctx Γ) Bterm))
 
-(* Pair *)
 | VT_Pair : forall (Aterm Bterm : term) (a b vA vBsnd : whnf),
     infer Γ Aterm VStar ->
     eval' (sem_env_of_ctx Γ) Aterm vA ->
@@ -42,66 +42,62 @@ Inductive vty (Γ : list whnf) : whnf -> whnf -> Prop :=
     vty Γ b vBsnd ->
     vty Γ (VPair vA vBsnd a b) (VSigma vA (Cl (sem_env_of_ctx Γ) Bterm))
 
-| VT_Zero  : vty Γ VZero VNat
-| VT_Succ  : forall n, vty Γ n VNat -> vty Γ (VSucc n) VNat
+| VT_Zero : vty Γ VZero VNat
+| VT_Succ : forall n, vty Γ n VNat -> vty Γ (VSucc n) VNat
 
-(* VEC: formation and constructors *)
-(* VVec n A is a type when A is a type and n is Nat *)
-| VT_Vec : forall (Aterm : term) (vA vn : whnf),
-    infer Γ Aterm VStar ->                       (* Aterm : ⋆ *)
-    eval' (sem_env_of_ctx Γ) Aterm vA ->        (* Aterm ⇓ vA *)
-    vty Γ vn VNat ->                             (* vn is a natural WHNF *)
+| VT_Vec : forall (Aterm : term) vA vn,
+    infer Γ Aterm VStar ->
+    eval' (sem_env_of_ctx Γ) Aterm vA ->
+    vty Γ vn VNat ->
     vty Γ (VVec vn vA) VStar
 
-(* empty vector at A : Vec 0 A *)
-| VT_VNil : forall (Aterm : term) (vA : whnf),
+| VT_VNil : forall (Aterm : term) vA,
     infer Γ Aterm VStar ->
     eval' (sem_env_of_ctx Γ) Aterm vA ->
     vty Γ (VNilV vA) (VVec VZero vA)
 
-(* cons: A, n, x, xs are already semantic WHNFs *)
-| VT_VCons : forall (vA vn vx vxs : whnf),
-    vty Γ vA VStar ->                         (* A is a type *)
-    vty Γ vn VNat ->                          (* n : Nat (semantic) *)
-    vty Γ vx vA ->                            (* x : A *)
-    vty Γ vxs (VVec vn vA) ->                 (* xs : Vec n A *)
+| VT_VCons : forall vA vn vx vxs,
+    vty Γ vA VStar ->
+    vty Γ vn VNat ->
+    vty Γ vx vA ->
+    vty Γ vxs (VVec vn vA) ->
     vty Γ (VConsV vA vn vx vxs) (VVec (VSucc vn) vA)
 
-| VT_Neutral : forall nx A, nty Γ nx A -> vty Γ (VNeutral nx) A
+(* neutrals (nty) lifted into vty *)
+| VT_Neutral : forall nx A,
+    nty Γ nx A -> vty Γ (VNeutral nx) A
 
 with nty (Γ : list whnf) : neutral -> whnf -> Prop :=
-| NT_Var  : forall i A,
-    nth_error Γ i = Some A ->
-    nty Γ (NVar i) A
+| NT_Var : forall i A, nth_error Γ i = Some A -> nty Γ (NVar i) A
 
-| NT_App : forall (n : neutral) (vA : whnf) (Bcl : closure) (v vB : whnf),
+| NT_App : forall n vA Bcl v vB,
     nty Γ n (VPi vA Bcl) ->
     vty Γ v vA ->
     clos_eval' Bcl v vB ->
     nty Γ (NApp n v) vB
 
-| NT_Fst  : forall (n : neutral) (vA : whnf) (Bcl : closure),
-    nty Γ n (VSigma vA Bcl) ->
-    nty Γ (NFst n) vA
+| NT_Fst : forall n vA Bcl,
+    nty Γ n (VSigma vA Bcl) -> nty Γ (NFst n) vA
 
-| NT_Snd : forall (n : neutral) (vA : whnf) (Bcl : closure) (vB : whnf),
+| NT_Snd : forall n vA Bcl vB,
     nty Γ n (VSigma vA Bcl) ->
     clos_eval' Bcl (VNeutral (NFst n)) vB ->
     nty Γ (NSnd n) vB
 
-| NT_NatRec : forall (vP : whnf) z s (nx : neutral) (cP : closure) vTy,
+| NT_NatRec : forall vP z s nx cP vTy,
     vty Γ vP (VPi VNat cP) ->
-    nty Γ nx VNat ->                               (* nx is a neutral *)
+    nty Γ nx VNat ->
     clos_eval' cP (VNeutral nx) vTy ->
     nty Γ (NNatRec vP z s nx) vTy
 
-| NT_VecRec : forall (vA vP vz vs vn : whnf) (nx : neutral) (cP c2 : closure) vTy,
+| NT_VecRec : forall vA vP vz vs vn nx cP c2 vTy,
     vty Γ vA VStar ->
     vty Γ vP (VPi VNat cP) ->
     nty Γ nx (VVec vn vA) ->
     clos_eval' cP vn (VPi (VVec vn vA) c2) ->
     clos_eval' c2 (VNeutral nx) vTy ->
     nty Γ (NVecRec vA vP vz vs vn nx) vTy.
+
 
 Lemma clos_evalk_sound :
   forall k cl v, clos_evalk k cl = Some v -> clos_eval' cl fresh v.
@@ -256,6 +252,42 @@ Proof. intros.
        case_eq c2; intros.
        subst.
        inversion H. subst. *)
+
+(* Lemma env_lookup_vty :
+  forall Γ n A v,
+    nth_error Γ n = Some A ->
+    nth_error (sem_env_of_ctx Γ) n = Some v ->
+    vty Γ v A.
+Proof.
+  induction Γ as [|hd Γ IH]; simpl; intros n A v Hnth Henv.
+  - destruct n; simpl in Hnth; discriminate.
+  - destruct n as [|n']; simpl in *.
+    + (* head case *)
+      revert Hnth. simpl.
+      (* sem_env_of_ctx (hd :: Γ) = id_env (S _) *)
+      simpl in Henv. (* nth_error (id_env (S _)) 0 = Some (VNeutral (NVar 0)) *)
+      destruct v; try (simpl in Henv; discriminate).
+      intros.
+      (* now v = VNeutral (NVar 0) *)
+      apply VT_Neutral. inversion Henv. subst. eapply NT_Var. simpl. easy.
+    + (* tail case *)
+      constructor.
+      apply IH with (v := v); assumption.
+Qed. *)
+
+Lemma closure_preserves_vty :
+  forall Γ (vA vBodyTy w v : whnf) (cl : closure) (Bcl : closure),
+    (* cl has function type Π vA. Bcl at Γ *)
+    vty Γ (VLam cl) (VPi vA Bcl) ->
+    (* evaluating cl at argument w produces value v *)
+    clos_eval' cl w v ->
+    (* instantiating the codomain closure Bcl at the same w yields vBodyTy *)
+    clos_eval' Bcl w vBodyTy ->
+    (* conclusion: v has semantic type vBodyTy at Γ *)
+    vty Γ v vBodyTy.
+Proof. intros.
+       
+       inversion H. subst.
 
 Theorem preservation_infer_bigstep :
   forall k Γ t A v,
@@ -545,9 +577,13 @@ Proof. intro k.
            destruct HB2 as (k2, HB2).
            apply conv_fuel_sound in HB2.
            inversion HB2. subst.
-           inversion H16. subst.
-           unfold clos_eval' in H9.
+           unfold clos_eval' in *.
+           inversion H8.
            admit.
            
+           eval' (env_cons fresh ρ') b r ->
+           vty (vA :: Γ) r vBodyTy ->
+           eval' (env_cons w0 ρ') b v ->
+           vty Γ v vBodyTy
 Admitted.
 

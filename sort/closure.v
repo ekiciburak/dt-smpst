@@ -3,6 +3,177 @@ Import ListNotations.
 Require Import Coq.Bool.Bool Lia.
 From DTSMPST Require Import sort.term sort.subst sort.eval.
 
+Lemma det_quintet :
+  (forall ρ t v1, eval' ρ t v1 -> forall v2, eval' ρ t v2 -> v1 = v2) /\
+  (forall f a r1, vapp f a r1 -> forall r2, vapp f a r2 -> r1 = r2) /\
+  (forall vP vz vs vn r1, eval_natrec vP vz vs vn r1 -> forall r2, eval_natrec vP vz vs vn r2 -> r1 = r2) /\
+  (forall f as_ r1, vapps f as_ r1 -> forall r2, vapps f as_ r2 -> r1 = r2) /\
+  (forall vA vP vz vs vn vxs r1, eval_vecrec vA vP vz vs vn vxs r1 -> forall r2, eval_vecrec vA vP vz vs vn vxs r2 -> r1 = r2).
+Proof.
+  apply evalsys_mutind; intros.
+- inversion H. easy.
+- inversion H. easy.
+- inversion H. subst. rewrite H2 in e. inversion e. easy.
+   subst. rewrite H2 in e. easy.
+ - inversion H. subst. rewrite H2 in e. easy.
+  subst. easy. 
+- inversion H0. subst.
+  f_equal. apply H. easy.
+- inversion H0. subst.
+  f_equal. apply H. easy.
+- inversion H. easy.
+- inversion H2. subst.
+  apply H in H5. subst.
+  apply H0 in H7. subst.
+  apply H1. easy.
+- inversion H3. subst.
+  apply H in H9. subst.
+  apply H0 in H11. subst.
+  apply H1 in H12. subst.
+  apply H2 in H13. subst. easy.
+- inversion H0. subst.
+  apply H in H3. inversion H3. easy.
+  subst. apply H in H3. easy. *)
+  subst. apply H in H2.
+  subst. exfalso. apply (H3 A B va vb). reflexivity. *)
+ - inversion H0. subst.
+  apply H in H3. easy.
+  subst.
+  apply H in H3. inversion H3. easy. *)
+(*   subst. apply H in H2.
+  subst. exfalso. apply (H5 n). reflexivity. *)
+(* - inversion H0. subst.
+  apply H in H3. subst.
+  exfalso. apply (n A B v2 vb). reflexivity.
+  subst. apply H in H3. subst.
+  exfalso. apply (n0 n1). reflexivity.
+  subst. apply H. easy. *)
+- inversion H0. subst.
+  apply H in H3. inversion H3. easy.
+(*   subst. apply H in H3. easy. *)
+(*   subst. apply H in H2.
+  subst. exfalso. apply (H3 A B va vb). reflexivity. *)
+(* - inversion H0. subst.
+  apply H in H3. easy.
+  subst.
+  apply H in H3. inversion H3. easy. *)
+(*   subst. apply H in H2.
+  subst. exfalso. apply (H5 n). reflexivity. *)
+(* - inversion H0. subst.
+  apply H in H3. subst.
+  exfalso. apply (n A B va v2). reflexivity.
+  subst. apply H in H3. subst.
+  exfalso. apply (n0 n1). reflexivity.
+  subst. apply H. easy. *)
+- inversion H. easy.
+- inversion H0. subst.
+  apply H in H3. subst. easy.
+- inversion H4. subst.
+  apply H in H9. subst.
+  apply H0 in H11. subst.
+  apply H1 in H13. subst.
+  apply H2 in H14. subst.
+  apply H3 in H15. subst. easy.
+- inversion H1. subst.
+  apply H in H5.
+  apply H0 in H7. subst.
+  easy.
+- inversion H0; subst.
+  apply H in H3. subst. easy.
+- inversion H3. subst.
+  apply H in H9. subst.
+  apply H0 in H11. subst.
+  apply H1 in e1. subst.
+  apply H2 in e2. subst.
+  apply H2 in H13. subst.
+  apply H1 in H12. subst. easy.
+- inversion H6. subst.
+  apply H5.
+  apply H in H13. subst.
+  apply H0 in H15. subst.
+  apply H1 in H17. subst.
+  apply H2 in H18. subst.
+  apply H3 in H19. subst.
+  apply H4 in H20. subst.
+  apply H5 in H21. subst. easy.
+- inversion H0; subst.
+ + (* VApp_Lam *) eapply H; eauto.
+(*  + exfalso. apply (H1 ρ' b). reflexivity. *)
+- inversion H. easy.
+(*   exfalso. apply (H1 n). reflexivity. *)
+(* - inversion H.
+(*   + subst. exfalso. apply (n ρ' b). reflexivity.
+  + subst. exfalso. apply (n0 n1). reflexivity. *)
+  + subst. easy. *)
+(* - inversion H. easy. *)
+(*   easy. *)
+- inversion H2. subst.
+  apply H in H4. subst.
+  apply H0 in H5. subst.
+  apply H1 in H9. easy.
+(*   subst. exfalso. apply (H3 vn). easy. *)
+- inversion H. subst.
+  easy.
+(*   subst. exfalso. apply (H2 nn). easy. *)
+(* - inversion H. subst.
+  easy.  *)
+(*   subst. exfalso. apply (n vn0). easy.
+  subst. exfalso. apply (n1 nn). easy.
+  easy. *)
+(* - inversion H.
+  easy. *)
+- inversion H1. subst. apply H0. apply H in H5. subst. easy.
+- inversion H. easy. (*  easy. *)
+- inversion H1. subst.
+  apply H0.
+  apply H in H12. subst. easy.
+(*   subst.
+  exfalso. apply (H3 vw vn' va vxs). easy. *)
+(*  - inversion H. subst.
+   easy. *)
+(*    subst. exfalso.
+   apply (H2 nx). easy. *)
+(* - inversion H.
+  subst. easy. subst.
+  exfalso. apply (n0 vw vn' va vxs0). easy.
+  subst.
+  exfalso.
+  apply (n1 nx). easy.
+  easy. *)
+Qed.
+
+(* Determinism corollaries for the three relations *)
+Theorem eval'_det :
+  forall ρ t v1 v2, eval' ρ t v1 -> eval' ρ t v2 -> v1 = v2.
+Proof. intros. 
+       specialize det_quintet; intros (Ha,(Hb,Hc)).
+       apply Ha with (ρ := ρ) (t := t); easy.
+Qed.
+
+Theorem vapp_det :
+  forall f a r1 r2, vapp f a r1 -> vapp f a r2 -> r1 = r2.
+Proof. intros. 
+       specialize det_quintet; intros (Ha,(Hb,Hc)).
+       apply Hb with (f := f) (a := a); easy.
+Qed.
+
+Theorem eval_natrec_det :
+  forall vP vz vs vn r1 r2,
+    eval_natrec vP vz vs vn r1 -> eval_natrec vP vz vs vn r2 -> r1 = r2.
+Proof. intros. 
+       specialize det_quintet; intros (Ha,(Hb,Hc)).
+       apply Hc with (vP := vP) (vz := vz) (vs := vs) (vn := vn); easy.
+Qed.
+
+Lemma eval'_Lam_inv ρ A b v: eval' ρ (Lam A b) v -> v = VLam (Cl ρ b).
+Proof. intros H. inversion H; subst; reflexivity. Qed.
+
+Lemma eval'_Pi_inv ρ A B v: eval' ρ (Pi A B) v -> exists vA, v = VPi vA (Cl ρ B) /\ eval' ρ A vA.
+Proof. intros H; inversion H; subst; eauto. Qed.
+
+Lemma eval'_Sigma_inv ρ A B v: eval' ρ (Sigma A B) v -> exists vA, v = VSigma vA (Cl ρ B) /\ eval' ρ A vA.
+Proof. intros H; inversion H; subst; eauto. Qed.
+
 (* ---------------------------------------------------------------- *)
 (* 1) Closure application (relational wrapper around eval').         *)
 (* ---------------------------------------------------------------- *)
@@ -21,7 +192,17 @@ Definition cl_body (c : closure) : term :=
 Definition clos_eval' (cl : closure) (v v' : whnf) : Prop :=
   match cl with
     | Cl ρ body => eval' (env_cons v ρ) body v' 
-  end. 
+  end.
+
+
+Lemma clos_eval'_det (c:closure) (v x y:whnf) :
+  clos_eval' c v x -> 
+  clos_eval' c v y -> 
+  x = y.
+Proof.
+  destruct c as [ρ body]; simpl; eauto using eval'_det.
+Qed.
+
 
 (* You already had this combined scheme for eval/vapp/natrec *)
 (* Scheme eval'_rect ... with vapp_rect ... with eval_natrec_rect ...
@@ -50,9 +231,6 @@ Definition clos_eval_fuel (fuel : nat) (cl : closure) (v : whnf) : option whnf :
 Inductive conv_clo : closure -> closure -> Prop :=
 | ConvClo : forall B B',
     (forall w v v', clos_eval' B w v -> clos_eval' B' w v' -> conv v v') ->
-(*     clos_eval' B  fresh v ->
-    clos_eval' B' fresh v' ->
-    conv v v' -> *)
     conv_clo B B'
 
 with conv : whnf -> whnf -> Prop :=
@@ -116,7 +294,7 @@ with conv : whnf -> whnf -> Prop :=
     conv (VNeutral (NVecRec A P z s n nx))
          (VNeutral (NVecRec A' P' z' s' n' nx')).
 
-Scheme conv_ind'      := Induction for conv      Sort Prop
+Scheme conv_ind'    := Induction for conv      Sort Prop
 with conv_clo_ind'  := Induction for conv_clo  Sort Prop.
 Combined Scheme conv_mutind from conv_ind', conv_clo_ind'.
 
@@ -204,10 +382,52 @@ with conv_neutral_fuel (fuel : nat) (n n' : neutral) : bool :=
     end
   end.
 
-Scheme eval'_recta      := Induction for eval'       Sort Prop
+Scheme eval'_recta       := Induction for eval'       Sort Prop
 with   vapp_recta        := Induction for vapp        Sort Prop
 with   eval_natrec_recta := Induction for eval_natrec Sort Prop.
 Combined Scheme evalsys_rect from eval'_rect, vapp_rect, eval_natrec_rect.
+
+Lemma conv_refl_mut: 
+  (forall v, conv v v) /\ 
+  (forall n, conv (VNeutral n) (VNeutral n)) /\
+  (forall B w v v', clos_eval' B w v -> clos_eval' B w v' -> conv v v').
+Proof. 
+  apply (whnf_mutind_listIH
+    (fun v => conv v v)
+    (fun n => conv (VNeutral n) (VNeutral n))
+    (fun c => forall w v v', clos_eval' c w v -> clos_eval' c w v' -> conv v v')
+    (fun ρ => Forall (fun x => conv x x) ρ)                   (* Pr: Forall conv over ρ *)
+  ); intros.
+(* destruct Hmut as [Hwhnf [Hneutral Hclosure]]. *)
+  - constructor.
+  - constructor.
+  - intros.
+    constructor. easy. easy.
+  - intros.
+    constructor. easy. easy.
+  - intros.
+    constructor. easy.
+  - intros.
+    constructor; easy.
+  - constructor.
+  - intros. constructor. easy.
+  - intros. easy.
+  - intros. constructor; easy.
+  - intros. constructor. easy.
+  - intros. constructor; easy.
+  - intros. constructor.
+  - intros. constructor; easy.
+  - intros. constructor; easy.
+  - intros. constructor; easy.
+  - intros. constructor; easy.
+  - intros. constructor; easy.
+  - constructor.
+  - constructor. easy. easy.
+  - unfold clos_eval' in *.
+    specialize(eval'_det _ _ _ _ H0 H1); intros.
+    symmetry in H2. subst.
+    apply (proj1 conv_refl_mut).
+Admitted.
 
 Definition clos_evalk (k:nat) (cl:closure) : option whnf :=
   match cl with Cl ρ body => evalk k (env_cons fresh ρ) body end.

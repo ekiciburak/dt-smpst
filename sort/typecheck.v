@@ -59,19 +59,6 @@ Inductive infer : list whnf -> term -> whnf -> Prop :=
     clos_eval' B vu vB ->
     infer Γ (App t u) vB
 
-(* (* Lambda *synthesizes* a Pi when you also provide a codomain closure B
-   such that the body checks against B·fresh under Γ extended by vA. *)
-| I_Lam : forall Γ A b vA B vBodyTy,
-    (* domain is a type *)
-    infer Γ A VStar ->
-    eval' (sem_env_of_ctx Γ) A vA ->
-    (* instantiate codomain at a fresh neutral; this *defines* what the body’s type is *)
-    clos_eval' B fresh vBodyTy ->
-    (* body checks against that instantiated codomain *)
-    check (vA :: Γ) b vBodyTy ->
-    (* result: the lambda synthesizes Π vA. B *)
-    infer Γ (Lam A b) (VPi vA B)
- *)
 | I_Fst : forall Γ p A B,
     infer Γ p (VSigma A B) ->
     infer Γ (TFst p) A
@@ -201,24 +188,6 @@ with check : list whnf -> term -> whnf -> Prop :=
 
     check Γ (Pair Aty Btm a b) (VSigma Aexp Bcl)
 
-
-(* | C_Pair : forall Γ A Btm a b vA va vBsnd Bcl,
-    (* We are checking [Pair A Btm a b] against the expected Sigma type [VSigma vA Bcl] *)
-    (* 1) A : Star and evaluate it to vA (domain of the Sigma) *)
-    check Γ A VStar ->
-    eval' (sem_env_of_ctx Γ) A vA ->
-
-    (* 2) a : vA and evaluate it to va (to instantiate the codomain) *)
-    check Γ a vA ->
-    eval' (sem_env_of_ctx Γ) a va ->
-
-    (* 3) the type of b is Bcl · va *)
-    clos_eval' Bcl va vBsnd ->
-    check Γ b vBsnd ->
-
-    (* Conclusion: the pair checks against the expected Sigma *)
-    check Γ (Pair A Btm a b) (VSigma vA Bcl)
- *)
 | C_AnnoNat : forall Γ n,
     infer Γ n VNat -> check Γ n VNat
 
