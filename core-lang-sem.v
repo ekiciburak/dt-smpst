@@ -181,6 +181,19 @@ Inductive vapp : whnf -> whnf -> whnf -> Prop :=
     (forall n, w <> VNeutral n) ->
     (forall A cl, w <> VPi A cl) ->
     vapp w arg w
+| VApp_ConvFromPi : forall ρ' b ρB b2 A w arg vres,
+    vconv (VPi A (Cl ρB b2)) w ->
+    closure_conv (Cl ρ' b) (Cl ρB b2) ->
+    eval' (arg :: ρ') b vres ->
+    vapp w arg vres
+(* | VApp_ConvLam : forall A cl w arg res,
+    vconv (VLam A cl) w ->
+    vapp (VLam A cl) arg res ->
+    vapp w arg res *)
+(* | VApp_ConvHead : forall w w' arg res,
+    vconv w' w ->
+    vapp w' arg res ->
+    vapp w arg res *)
 
 with eval_natrec : whnf -> whnf -> whnf -> whnf -> whnf -> Prop :=
 | ENR_Zero : forall vP vz vs,
@@ -556,31 +569,29 @@ Proof.
          eval_natrec vP2 vz2 vs2 vn2 v2 ->
          vconv v v2)
   ); intros.
+  19:{
+  inversion H3.
+  + subst. inversion H2. subst. easy.
+  + subst. inversion H2.
+    subst.
+    specialize(n v0). easy.
+  + subst. inversion H2.
+    subst. specialize(n1 n2). easy.
+  + subst.
+    easy.
+  }
   18:{
   inversion H3.
   + subst. easy.
+  + subst. inversion H2.
   + subst.
-    inversion H2. subst.
-    specialize(n v0). easy.
-  + subst.
-    inversion H2. subst.
-    specialize(n1 n2). easy.
-  + subst. easy.
-  }
-  
-  17:{
-  inversion H3.
-  + subst. easy.
-  + subst. easy.
-  + subst. constructor.
-    inversion H2.
-    constructor; try easy.
+    constructor. inversion H2. constructor; easy.
   + subst.
     inversion H2. subst.
     specialize(H6 n2). easy.
   }
-  
-  16:{
+
+  17:{
   inversion H6.
   + subst.
     inversion H5.
@@ -594,8 +605,8 @@ Proof.
   + subst. inversion H5. subst.
     specialize(H7 v5). easy.
    }
-   
-   15:{
+
+  16:{
    inversion H3.
    + subst. easy.
    + subst. easy.
@@ -605,31 +616,273 @@ Proof.
      easy.
    }
    
+  15:{
+(*    apply H with (ρ2 := (arg :: ρ')).
+   apply Forall2_refl.
+   apply vconv_refl. *)
+   inversion v.
+   + subst.
+     inversion H0. 
+     * subst.
+       inversion H2.
+       ** subst.
+          inversion H8. subst.
+          inversion H7. subst.
+          inversion H9. subst.
+          inversion c. subst.
+
+          assert(Forall2 vconv (arg :: ρ')  (arg2 :: ρ'0)).
+          { constructor. easy.
+            assert(Forall2 vconv ρ' ρB0).
+            { assert(Forall2 vconv ρ' ρ2).
+              { apply Forall2_trans with (l2 := ρB); try easy.
+                apply vconv_trans.
+            }
+            apply Forall2_trans with (l2 := ρ2); try easy.
+            apply vconv_trans.
+          }
+          apply Forall2_sym in H11.
+          apply Forall2_trans with (l2 := ρB0); try easy.
+          apply vconv_trans.
+          apply vconv_sym.
+          }
+          apply H with (ρ2 := (arg2 :: ρ'0)); try easy.
+
+        ** subst.
+           inversion H7. subst.
+           inversion H9. subst.
+           specialize(H11 ρ0 t0).
+           unfold not in *.
+           contradiction H11.
+           apply vconv_refl.
+
+        ** subst.
+           specialize(H8 vA0 cl0). easy.
+        ** subst. 
+           inversion H3. subst.
+           inversion H7. subst.
+           inversion H9. subst.
+           inversion H4. subst.
+           inversion c. subst.
+           inversion H15. subst.
+
+          assert(Forall2 vconv (arg :: ρ')  (arg2 :: ρ'0)).
+          { constructor. easy.
+            assert(Forall2 vconv  ρ'0 ρB).
+            { assert(Forall2 vconv ρ'0 ρ0).
+              { apply Forall2_trans with (l2 := ρB0); try easy.
+                apply vconv_trans.
+            }
+            { assert(Forall2 vconv ρ'0 ρ2).
+              { apply Forall2_sym in H14.
+                apply Forall2_trans with (l2 := ρ0); try easy.
+                apply vconv_trans.
+                apply vconv_sym.
+              }
+             apply Forall2_sym in H12.
+             apply Forall2_trans with (l2 := ρ2); try easy.
+             apply vconv_trans.
+             apply vconv_sym.
+            }
+           }
+           apply Forall2_sym in H10.
+           apply Forall2_trans with (l2 := ρB); try easy.
+           apply vconv_trans.
+           apply vconv_sym.
+          }
+          apply H with (ρ2 := (arg2 :: ρ'0)); try easy.
+
+      * subst.
+        inversion H2.
+        ** subst.
+           inversion H7. subst.
+           inversion H9. subst.
+           specialize(H3 A' ρ0 t0). easy.
+        ** subst.
+           inversion H3. subst.
+           inversion H4. subst.
+           inversion H15. subst.
+           inversion H9. subst.
+           inversion H7. subst.
+           inversion c. subst.
+
+
+          assert(Forall2 vconv (arg :: ρ')  (arg2 :: ρ'0)).
+          { constructor. easy.
+            assert(Forall2 vconv  ρ'0 ρB).
+            { assert(Forall2 vconv ρ'0 ρ2).
+              { apply Forall2_trans with (l2 := ρB0); try easy.
+                apply vconv_trans.
+            }
+            { assert(Forall2 vconv ρ'0 ρ1).
+              { apply Forall2_sym in H17.
+                apply Forall2_trans with (l2 := ρ2); try easy.
+                apply vconv_trans.
+                apply vconv_sym.
+              }
+             apply Forall2_sym in H18.
+             apply Forall2_trans with (l2 := ρ1); try easy.
+             apply vconv_trans.
+             apply vconv_sym.
+            }
+           }
+           apply Forall2_sym in H10.
+           apply Forall2_trans with (l2 := ρB); try easy.
+           apply vconv_trans.
+           apply vconv_sym.
+          }
+          apply H with (ρ2 := (arg2 :: ρ'0)); try easy.
+
+   + subst.
+     inversion H0.
+     * subst.
+       inversion H2.
+       ** subst. inversion H7. subst.
+          inversion H9. subst.
+          specialize(H3 vA2 ρ0 t0). easy.
+       ** subst.
+          inversion H3. subst.
+          inversion H4. subst.
+          inversion H15. subst.
+          inversion H9. subst.
+          inversion H7. subst.
+          inversion c. subst.
+
+          assert(Forall2 vconv (arg :: ρ')  (arg2 :: ρ'0)).
+          { constructor. easy.
+            assert(Forall2 vconv  ρ'0 ρB).
+            { assert(Forall2 vconv ρ'0 ρ2).
+              { apply Forall2_trans with (l2 := ρB0); try easy.
+                apply vconv_trans.
+            }
+            { assert(Forall2 vconv ρ'0 ρ1).
+              { apply Forall2_sym in H17.
+                apply Forall2_trans with (l2 := ρ2); try easy.
+                apply vconv_trans.
+                apply vconv_sym.
+              }
+             apply Forall2_sym in H18.
+             apply Forall2_trans with (l2 := ρ1); try easy.
+             apply vconv_trans.
+             apply vconv_sym.
+            }
+           }
+           apply Forall2_sym in H10.
+           apply Forall2_trans with (l2 := ρB); try easy.
+           apply vconv_trans.
+           apply vconv_sym.
+          }
+          apply H with (ρ2 := (arg2 :: ρ'0)); try easy.
+
+     * subst.
+       inversion H2.
+       ** subst.
+          inversion H8. subst.
+          inversion H7. subst.
+          inversion H9. subst.
+          inversion c. subst.
+
+          assert(Forall2 vconv (arg :: ρ')  (arg2 :: ρ'0)).
+          { constructor. easy.
+            assert(Forall2 vconv  ρ'0 ρ2).
+            { apply Forall2_sym in H14.
+              apply Forall2_trans with (l2 := ρB0); try easy.
+              apply vconv_trans.
+              apply vconv_sym.
+            }
+            { assert(Forall2 vconv ρ'0 ρB).
+              { apply Forall2_sym in H10.
+                apply Forall2_trans with (l2 := ρ2); try easy.
+                apply vconv_trans.
+                apply vconv_sym.
+              }
+             apply Forall2_sym in H4.
+             apply Forall2_trans with (l2 := ρB); try easy.
+             apply vconv_trans.
+             apply vconv_sym.
+            }
+           }
+          apply H with (ρ2 := (arg2 :: ρ'0)); try easy.
+
+        ** subst.
+           inversion H7. subst.
+           inversion H9. subst.
+           specialize(H11 ρ0 t0).
+           unfold not in *.
+           contradiction H11.
+           apply vconv_refl.
+        ** subst.
+           specialize(H8 A'0 cl'). easy.
+        ** subst. 
+           inversion H3. subst.
+           inversion H7. subst.
+           inversion H9. subst.
+           inversion H4. subst.
+           inversion c. subst.
+           inversion H15. subst.
+
+          assert(Forall2 vconv (arg :: ρ')  (arg2 :: ρ'0)).
+          { constructor. easy.
+            assert(Forall2 vconv ρ'0 ρ0).
+            { apply Forall2_trans with (l2 := ρB0); try easy.
+              apply vconv_trans.
+            }
+            assert(Forall2 vconv ρ'0 ρ2).
+            { apply Forall2_sym in H14.
+              apply Forall2_trans with (l2 := ρ0); try easy.
+              apply vconv_trans.
+              apply vconv_sym.
+            }
+            assert(Forall2 vconv ρ'0 ρB).
+            { apply Forall2_sym in H12.
+              apply Forall2_trans with (l2 := ρ2); try easy.
+              apply vconv_trans.
+              apply vconv_sym.
+            }
+            apply Forall2_sym in H16.
+            apply Forall2_trans with (l2 := ρB); try easy.
+            apply vconv_trans.
+            apply vconv_sym.
+            }
+          apply H with (ρ2 := (arg2 :: ρ'0)); try easy.
+     }
    14:{
-   inversion H1.
+   induction H1; intros.
    + subst.
      inversion H.
      ++ subst.
         specialize(n1 vA1 cl1). easy.
-        
      ++ subst.
-        inversion H8. subst.
+        inversion H7. subst.
         specialize(n A0 ρ1 b2). easy.
    + subst.
-     inversion H1.
-     ++ subst.
-        inversion H. subst.
-        specialize(n0 n3). easy.
-     ++ subst.
-        specialize(H4 (NApp n2 arg2)). easy.
-    + subst. easy.
-    + subst. easy.
+     inversion H. subst.
+     specialize(n0 n3). easy.
+   + easy.
+   + easy.
+   + assert(VPi A (Cl ρB b2) ≡ w).
+     { specialize(vconv_sym); intros (Hsym,(_,_)).
+       apply Hsym in H1.
+       apply Hsym.
+       specialize(vconv_trans); intros (Htrans,(_,_)).
+       apply Htrans with (v2 := w0); easy.
+     }
+     inversion H4.
+     * subst. specialize(n1 vA2 cl2). easy.
+     * subst. inversion H9. subst.
+       specialize(n A' ρ2 t2). easy.
+(*      apply IHvapp.
+     specialize(vconv_sym); intros (Hsym,(_,_)).
+     apply Hsym in H1. 
+     specialize(vconv_trans); intros (Htrans,(_,_)).
+     apply Htrans with (v2 := w0); easy.
+     easy. *)
    }
    
    13:{
-   inversion H1.
+   induction H1; intros.
    + subst.
-     inversion H. subst. inversion H9. subst.
+     inversion H. subst. inversion H8. subst.
      specialize(n ρ1 b2). 
      unfold not in *.
      contradiction n.
@@ -637,48 +890,105 @@ Proof.
    + subst. easy.
    + subst. easy.
    + subst. easy.
-  }
-  
+   + assert(VPi A cl ≡ VPi A0 (Cl ρB b2)).
+     { specialize(vconv_sym); intros (Hsym,(_,_)).
+       apply Hsym in H1. 
+       specialize(vconv_trans); intros (Htrans,(_,_)).
+       apply Htrans with (v2 := w); easy.
+     }
+     inversion H4. subst.
+     inversion H10. subst.
+     specialize(n ρ1 b2).
+     unfold not in *.
+     contradiction n.
+     apply vconv_refl.
+  }  
   12:{
-  inversion H1.
+  induction H1; intros.
   + subst. easy.
   + subst.
     constructor. inversion H. subst. constructor; easy.
   + subst. easy.
   + subst.
     inversion H. subst.
-    specialize(H3 n2). easy.
+    specialize(H2 n2). easy.
+  + subst.
+    inversion H. subst. inversion H1.
+(*     apply IHvapp.
+    specialize(vconv_sym); intros (Hsym,(_,_)).
+    apply Hsym in H1. 
+    specialize(vconv_trans); intros (Htrans,(_,_)).
+    apply Htrans with (v2 := w); easy.
+    easy. *)
   }
   
   11:{
-  inversion H0. subst.
-  inversion H2.
-  + subst.
-    apply H with (ρ2 := (arg2 :: ρ'0)).
-    constructor. easy.
-    inversion c. subst.
-    inversion H6. subst.
-    inversion H7. subst.
-
-    eapply Forall2_trans; [apply vconv_trans | 
-    eapply Forall2_trans; [apply vconv_trans | exact H9 | exact H12] |
-    eapply Forall2_sym; [apply vconv_sym | exact H11] ].
-  
-    inversion H6. subst.
-    inversion H7. subst.
-    inversion c. subst.
-    easy.
-  + subst.
-    inversion H7. subst.
-    specialize(H9 ρ2 t2). unfold not in *.
-    contradiction H9.
-    apply vconv_refl.
-  + subst.
-    specialize(H6 vA2 cl2). easy.
+  induction H2; intros.
+  subst.
+  apply H with (ρ2 := (arg0 :: ρ'0)).
+  constructor. easy.
+  inversion c. subst.
+  inversion H0.
+  + subst. inversion H10. subst.
+    inversion H2. subst.
+    apply Forall2_sym in H9.
+    assert(Forall2 vconv ρ'0 ρB).
+    { apply Forall2_trans with (l2 := ρB0); try easy.
+      apply vconv_trans.
+    }
+    apply Forall2_sym in H4.
+    apply Forall2_trans with (l2 := ρB); try easy.
+    apply vconv_trans.
+    apply vconv_sym.
+    apply vconv_sym.
   + subst.
     inversion H2. subst.
-    inversion H7. subst.
-    specialize(H3 A' ρ2 t2). easy.
+    inversion H0. subst.
+    inversion H10. subst.
+    inversion c. subst. easy.
+  + subst.
+    inversion H0.
+  + subst.
+    inversion H0. subst.
+    inversion H8. subst.
+    specialize(H2 ρ2 t2).
+    unfold not in *.
+    contradiction H2.
+    apply vconv_refl.
+  + inversion H0.
+    ++ subst. specialize(H4 vA2 cl2). easy.
+    ++ subst. inversion H9. subst. specialize(H2 A' ρ2 t2). easy.
+  + subst.
+    assert(VPi A (Cl ρB b2) ≡ VPi A0 (Cl ρB0 b1)).
+    { specialize(vconv_sym); intros (Hsym,(_,_)).
+       apply Hsym in H2. 
+       specialize(vconv_trans); intros (Htrans,(_,_)).
+       apply Htrans with (v2 := w); easy.
+    }
+    inversion H5. subst.
+    inversion H11. subst.
+    inversion c. subst.
+    inversion H3. subst.
+    assert(Forall2 vconv (arg :: ρ')  (arg0 :: ρ'0)).
+    { constructor. easy.
+      assert(Forall2 vconv ρ'0 ρB).
+      { apply Forall2_sym in H10.
+        apply Forall2_trans with (l2 := ρB0); try easy.
+        apply vconv_trans.
+        apply vconv_sym.
+      }
+      apply Forall2_sym in H6.
+      apply Forall2_trans with (l2 := ρB); try easy.
+      apply vconv_trans.
+      apply vconv_sym.
+      }
+      apply H with (ρ2 := (arg0 :: ρ'0)); try easy.
+(*     apply IHvapp.
+    specialize(vconv_sym); intros (Hsym,(_,_)).
+    apply Hsym in H2. 
+    specialize(vconv_trans); intros (Htrans,(_,_)).
+    apply Htrans with (v2 := w); easy.
+    easy. *)
   }
   
   10:{
@@ -824,7 +1134,6 @@ Proof.
   intros vP vP2 vz vz2 vs vs2 vn vn2 v v2 Hvp Hvz Hvs Hvn He1 He2.
   apply (HeNat vP vz vs vn v He1 vP2 vz2 vs2 vn2 v2 Hvp Hvz Hvs Hvn He2).
 Qed.
-
 
 (* ---------------------------
    Bidirectional typing (synthesis / checking)
@@ -1127,40 +1436,29 @@ Proof.
   apply (proj2 typing_unique_mut Γ t A Hc A' Hs).
 Qed.
 
-(* Inductive type_synth_closed : term -> Prop :=
-| TSC_Star  : type_synth_closed Star
-| TSC_Nat   : type_synth_closed Nat
-| TSC_Pi    : forall A B,     type_synth_closed A -> type_synth_closed (Pi A B)
-| TSC_Var   : forall x,       type_synth_closed (Var x)
-| TSC_App   : forall t u,     type_synth_closed t -> type_synth_closed (App t u)
-| TSC_Lam   : forall A b,     type_synth_closed A -> type_synth_closed (Lam A b)
-| TSC_NatRec: forall P z s n, type_synth_closed P -> type_synth_closed (NatRec P z s n).
- *)
-
 Inductive type_synth_closed : term -> Prop :=
 | TSC_Star   : type_synth_closed Star
 | TSC_Nat    : type_synth_closed Nat
 | TSC_Pi     : forall A B,
     type_synth_closed A ->
-    type_synth_closed B ->
+    type_synth_closed B -> 
     type_synth_closed (Pi A B)
 | TSC_Var    : forall x,
     type_synth_closed (Var x)
 | TSC_App    : forall t u,
     type_synth_closed t ->
-    type_synth_closed u ->
+   type_synth_closed u -> 
     type_synth_closed (App t u)
 | TSC_Lam    : forall A b,
     type_synth_closed A ->
-    type_synth_closed b ->
+    type_synth_closed b -> 
     type_synth_closed (Lam A b)
 | TSC_NatRec : forall P z s n,
     type_synth_closed P ->
     type_synth_closed z ->
     type_synth_closed s ->
-    type_synth_closed n ->
+    type_synth_closed n -> 
     type_synth_closed (NatRec P z s n).
-
 
 Lemma synth_preserve_eval_for_types :
   (forall Γ t A (He : synth Γ t A),
@@ -1193,34 +1491,36 @@ Proof.
   assert(Forall2 vconv Γ Γ).
   { apply Forall2_refl. apply vconv_refl. }
   specialize(eval_respect_vconv_imp _ _ _ _ _ H2 e H8); intros.
+  
   inversion v.
   + subst.
-    inversion H10.
+(*     revert vt0. *)
+    induction H10; intros.
     * subst. 
       apply H in H6; try easy.
       inversion H6. subst.
       inversion H13. subst.
-      inversion H18. subst.
+      inversion H17. subst.
       inversion H7. subst.
       
 
-    assert(Forall2 vconv (vu :: ρB)(vu0 :: ρ')).
+    assert(Forall2 vconv (vu :: ρB) (arg :: ρ')).
     { constructor. easy.
       assert(Forall2 vconv ρ' ρ1).
       { apply Forall2_trans with (l2 := ρB0).
         apply vconv_trans.
         easy.
-        apply Forall2_sym in H19. easy.
+        apply Forall2_sym in H18. easy.
         apply vconv_sym.
       }
-      apply Forall2_sym in H11, H17.
+      apply Forall2_sym in H10, H16.
       apply Forall2_trans with (l2 := ρ1).
       apply vconv_trans.
       easy. easy.
       apply vconv_sym.
       apply vconv_sym.
     }
-    apply(eval_respect_vconv_imp _ _ _ _ _ H11 e1 H9).
+    apply(eval_respect_vconv_imp _ _ _ _ _ H10 e1 H9).
 
 
     * subst.
@@ -1229,7 +1529,7 @@ Proof.
       apply H in H6; try easy.
       inversion H6. subst.
       inversion H13. subst.
-      inversion H17. subst.
+      inversion H16. subst.
       specialize(H7 ρ2 t2). 
       
       unfold not in *.
@@ -1239,38 +1539,69 @@ Proof.
     * subst.
       apply H in H6; try easy.
       inversion H6. subst.
-      ** specialize(H11 vA2 cl2). easy.
+      ** specialize(H10 vA2 cl2). easy.
       ** subst.
         inversion H13. subst.
-        inversion H18. subst.
+        inversion H17. subst.
         specialize(H7 A' ρ2 t2). easy.
-  + subst.
-    inversion H10. 
-    * subst.
-      apply H in H6; try easy.
-      inversion H6. subst.
-      inversion H13. subst.
-      inversion H18. subst.
-      inversion H7. subst.
+   * subst.
+     apply H in H6; try easy.
+     assert(VPi vA1 cl1 ≡ VPi A (Cl ρB0 b2)).
+     { specialize(vconv_trans); intros (Htrans,(_,_)).
+       apply Htrans with (v2 := w). easy. 
+       apply vconv_sym. easy. }
+     inversion H9. subst.
+     inversion v. subst.
+     inversion H13. subst.
+     inversion H20. subst.
+     inversion H11. subst.
+     inversion H25. subst.
 
-
-    assert(Forall2 vconv (vu :: ρB)(vu0 :: ρ')).
+    assert(Forall2 vconv (vu :: ρB) (arg :: ρ')).
     { constructor. easy.
       assert(Forall2 vconv ρ' ρ1).
       { apply Forall2_trans with (l2 := ρB0).
         apply vconv_trans.
         easy.
-        apply Forall2_sym in H19. easy.
+        apply Forall2_sym in H24. easy.
         apply vconv_sym.
       }
-      apply Forall2_sym in H11, H17.
+      apply Forall2_sym in H19, H14.
       apply Forall2_trans with (l2 := ρ1).
       apply vconv_trans.
       easy. easy.
       apply vconv_sym.
       apply vconv_sym.
     }
-    apply(eval_respect_vconv_imp _ _ _ _ _ H11 e1 H9).
+    apply(eval_respect_vconv_imp _ _ _ _ _ H14 e1 H10).
+
+  + subst.
+    induction H10; intros.
+    * subst. 
+      apply H in H6; try easy.
+      inversion H6. subst.
+      inversion H13. subst.
+      inversion H17. subst.
+      inversion H7. subst.
+
+
+    assert(Forall2 vconv (vu :: ρB) (arg :: ρ')).
+    { constructor. easy.
+      assert(Forall2 vconv ρ' ρ1).
+      { apply Forall2_trans with (l2 := ρB0).
+        apply vconv_trans.
+        easy.
+        apply Forall2_sym in H18. easy.
+        apply vconv_sym.
+      }
+      apply Forall2_sym in H10, H16.
+      apply Forall2_trans with (l2 := ρ1).
+      apply vconv_trans.
+      easy. easy.
+      apply vconv_sym.
+      apply vconv_sym.
+    }
+    apply(eval_respect_vconv_imp _ _ _ _ _ H10 e1 H9).
 
 
     * subst.
@@ -1279,23 +1610,52 @@ Proof.
       apply H in H6; try easy.
       inversion H6. subst.
       inversion H13. subst.
-      inversion H17. subst.
-      specialize(H7 ρ2 t2).
+      inversion H16. subst.
+      specialize(H7 ρ2 t2). 
       
       unfold not in *.
       contradiction H7.
       apply vconv_refl.
-      
+
     * subst.
       apply H in H6; try easy.
       inversion H6. subst.
       ** subst.
-         inversion H13. subst.
-         inversion H18. subst.
-         specialize(H7 vA2 ρ2 t2). easy.
-      ** subst. 
-         specialize(H11 A' cl'). easy.
+        inversion H13. subst.
+        inversion H17. subst.
+        specialize(H7 vA2 ρ2 t2). easy.
+       ** subst. specialize(H10 A' cl'). easy.
+   * subst.
+     apply H in H6; try easy.
+     assert(VLam A cl ≡ VPi A0 (Cl ρB0 b2) ).
+     { specialize(vconv_trans); intros (Htrans,(_,_)).
+       apply Htrans with (v2 := w). easy.
+       apply vconv_sym. easy. }
+     inversion H9. subst.
+     inversion v. subst.
+     inversion H13. subst.
+     inversion H20. subst.
+     inversion H11. subst.
+     inversion H25. subst.
+
+    assert(Forall2 vconv (vu :: ρB) (arg :: ρ')).
+    { constructor. easy.
+      assert(Forall2 vconv ρ' ρ1).
+      { apply Forall2_trans with (l2 := ρB0).
+        apply vconv_trans.
+        easy.
+        apply Forall2_sym in H24. easy.
+        apply vconv_sym.
+      }
+      apply Forall2_sym in H19, H14.
+      apply Forall2_trans with (l2 := ρ1).
+      apply vconv_trans.
+      easy. easy.
+      apply vconv_sym.
+      apply vconv_sym.
     }
+    apply(eval_respect_vconv_imp _ _ _ _ _ H14 e1 H10).
+  }
 
   9:{
   intros.
@@ -1406,4 +1766,180 @@ Lemma check_preserve_eval :
 Proof.
   intros Γ t A v Hclosed Heval Hc.
   eapply (proj2 synth_preserve_eval_for_types); eauto.
+Qed.
+
+(* mutual form suitable for typing_mutind *)
+Lemma progress_mut :
+  (forall Γ t A (Hs : synth Γ t A),  Γ = [] -> type_synth_closed t -> exists v, eval' [] t v)
+  /\
+  (forall Γ t A (Hc : check Γ t A),  Γ = [] -> type_synth_closed t ->  exists v, eval' [] t v).
+Proof.
+  (* use predicates that mention Γ so typing_mutind can accept them,
+     but require Γ = [] inside the predicate *)
+  eapply (typing_mutind
+    (fun (Γ : ctx) (t : term) (A : whnf) (He : synth Γ t A) =>
+       Γ = [] -> type_synth_closed t -> exists v, eval' [] t v)
+    (fun (Γ : ctx) (t : term) (A : whnf) (He : check Γ t A) =>
+       Γ = [] -> type_synth_closed t -> exists v, eval' [] t v)
+  ).
+
+  4:{
+  intros.
+  subst.
+  exists (VPi vA (Cl [] B)).
+  apply E'_Pi.
+  exact e.
+  }
+
+  4:{
+  intros.
+  subst.
+  specialize(H eq_refl).
+  inversion H1. subst. rename H3 into HC1. rename H4 into HC2.
+  specialize(H HC1).
+  destruct H as (vta, Hvta).
+  assert(vta ≡ VPi vdom (Cl ρB Bterm)).
+  { specialize(synth_preserve_eval  _ _ _ _ HC1 Hvta s); intro HHH.
+  specialize (vconv_sym); intros (Hsym,(_,_)).
+  apply Hsym in HHH.
+  specialize (vconv_trans); intros (Htrans,(_,_)).
+  apply Htrans with (v2 := vt); easy.
+  }
+  inversion Hvta.
+  7:{ subst.
+    inversion H. subst. exists vres.
+    apply E'_App with (vt :=  (VPi vA1 cl1)) (vu := vu); try easy.
+    inversion H8. subst.
+    apply VApp_Lam with (ρ' := ρB) (b := Bterm). 
+    specialize (vconv_sym); intros (_,(_,Hsym)).
+    apply Hsym. easy. easy.
+    subst.
+    exists vres.
+    apply E'_App with (vt :=  (VLam A cl)) (vu := vu); try easy.
+    apply VApp_ConvFromPi with (ρ' := ρB) (b := Bterm) (ρB := ρB) (b2 := Bterm) (A := A).
+    constructor.
+    apply vconv_refl.
+    apply vconv_sym. easy.
+    apply vconv_refl.
+    easy.
+  }
+  5:{ subst.
+    inversion H. subst. inversion H7. subst.
+    inversion H6. subst.
+    exists vres.
+    apply E'_App with (vt := (VPi vA (Cl [] Bterm))) (vu := vu); try easy.
+    apply VApp_Lam with (ρ' := []) (b := Bterm).
+    apply vconv_refl. easy.
+   }
+  5:{ subst.
+    inversion H. subst. inversion H7. subst.
+    inversion H6. subst.
+    exists vres.
+    apply E'_App with (vt := (VPi vA (Cl [] Bterm))) (vu := vu); try easy.
+   }
+  7:{ subst.
+  pose proof (proj1 vconv_sym) as vconv_sym_v.
+  pose proof (vconv_sym_v _ _ H) as H_vpiconv_to_vta.
+
+  assert (Hcl_refl : closure_conv (Cl ρB Bterm) (Cl ρB Bterm)).
+  { apply Cl_conv_syn.
+    - apply Forall2_refl. apply vconv_refl.
+    - reflexivity.
+  }
+  pose proof (VApp_ConvFromPi ρB Bterm ρB Bterm vdom vta vu vres
+           H_vpiconv_to_vta Hcl_refl e1) as H_vapp_vta_vu.
+  exists vres.
+  eapply E'_App; try exact Hvta.   (* eval' [] (NatRec ...) vta *)
+  - exact e.                       (* eval' [] u vu *)
+  - exact H_vapp_vta_vu.           (* vapp vta vu vres *)
+  }
+  6:{ subst. inversion H. }
+  5:{ subst. inversion H. }
+  4:{ subst. inversion H. }
+  3:{ subst. rewrite nth_error_nil in H0. easy. }
+  2:{ subst. inversion H. }
+  1:{ subst. inversion H. }
+  }
+
+  8:{
+  intros.
+  subst.
+  specialize(H eq_refl).
+  inversion H2. subst. rename H4 into HC1. rename H5 into HC2.
+  specialize(H HC1).
+  destruct H as (vta, Hvta).
+  exists ((VLam vta (Cl [] b))).
+  constructor. easy.
+  }
+
+  7:{
+  intros.
+  subst.
+  specialize(H eq_refl).
+  destruct H as (vta, Hvta).
+  easy.
+  exists vta. easy.
+  }
+
+  7:{
+  intros.
+  subst.
+  exists v.
+  apply E'_NatRec with (vP := vP) (vz := vz) (vs := vs) (vn := vn); easy.
+  }
+
+  6:{
+  intros.
+  subst.
+  exists v.
+  apply E'_NatRec with (vP := vP) (vz := vz) (vs := vs) (vn := vn); easy.
+  }
+
+  5:{
+  intros.
+  subst.
+  inversion H1.
+  }
+
+  4:{
+  intros.
+  inversion H0.
+  }
+
+  3:{
+  intros.
+  exists VNat. constructor.
+  }
+
+  2:{
+  intros.
+  exists VStar. constructor.
+  }
+
+  1:{
+  intros.
+  subst.
+  exists A.
+  constructor. easy.
+  }
+Qed.
+
+Lemma synth_progress :
+  forall t A,
+    synth [] t A ->
+    type_synth_closed t ->
+    exists v, eval' [] t v.
+Proof.
+  intros t A Heq Hclosed.
+  eapply (proj1 progress_mut); eauto.
+Qed.
+
+Lemma check_progress :
+  forall t A,
+    check [] t A ->
+    type_synth_closed t ->
+    exists v, eval' [] t v.
+Proof.
+  intros t A Heq Hclosed.
+  eapply (proj2 progress_mut); eauto.
 Qed.
