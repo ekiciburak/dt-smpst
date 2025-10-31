@@ -1861,7 +1861,7 @@ Proof.
   intros.
   subst.
   specialize(H eq_refl).
-  inversion H2. subst. rename H4 into HC1. rename H5 into HC2.
+  inversion H2. subst. rename H3 into HC1. (* rename H5 into HC2. *)
   specialize(H HC1).
   destruct H as (vta, Hvta).
   exists ((VLam vta (Cl [] b))).
