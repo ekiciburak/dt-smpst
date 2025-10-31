@@ -1447,17 +1447,13 @@ Inductive type_synth_closed : term -> Prop :=
     type_synth_closed (Var x)
 | TSC_App    : forall t u,
     type_synth_closed t ->
-   type_synth_closed u -> 
+    type_synth_closed u -> 
     type_synth_closed (App t u)
 | TSC_Lam    : forall A b,
     type_synth_closed A ->
-    type_synth_closed b -> 
     type_synth_closed (Lam A b)
 | TSC_NatRec : forall P z s n,
     type_synth_closed P ->
-    type_synth_closed z ->
-    type_synth_closed s ->
-    type_synth_closed n -> 
     type_synth_closed (NatRec P z s n).
 
 Lemma synth_preserve_eval_for_types :
@@ -1677,7 +1673,7 @@ Proof.
   inversion H2. subst.
   inversion v. 
   + subst.
-    apply H in H9; try easy.
+    apply H in H8; try easy.
     constructor. 
     specialize(vconv_trans); intros (Htrans,(_,_)).
     apply Htrans with (v2 := vdom); easy.
@@ -1688,7 +1684,7 @@ Proof.
     apply Htrans with (c2 := (Cl ρB Bterm)); easy.
 
   + subst. 
-    apply H in H9; try easy.
+    apply H in H8; try easy.
     constructor. specialize(vconv_trans); intros (Htrans,(_,_)).
     apply Htrans with (v2 := vdom); easy.
     
@@ -1772,7 +1768,7 @@ Qed.
 Lemma progress_mut :
   (forall Γ t A (Hs : synth Γ t A),  Γ = [] -> type_synth_closed t -> exists v, eval' [] t v)
   /\
-  (forall Γ t A (Hc : check Γ t A),  Γ = [] -> type_synth_closed t ->  exists v, eval' [] t v).
+  (forall Γ t A (Hc : check Γ t A),  Γ = [] -> type_synth_closed t -> exists v, eval' [] t v).
 Proof.
   (* use predicates that mention Γ so typing_mutind can accept them,
      but require Γ = [] inside the predicate *)
