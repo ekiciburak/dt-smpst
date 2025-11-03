@@ -14,7 +14,11 @@ Inductive term : Type :=
   | Var : nat -> term
   | Lam : term -> term -> term
   | App : term -> term -> term
-  | NatRec : term -> term -> term -> term -> term.  (* P z s n *)
+  | NatRec : term -> term -> term -> term -> term  (* P z s n *)
+  | Vec : term -> term -> term                (* Vec A n  *)
+  | Nil : term -> term                        (* Nil A     *)
+  | Cons : term -> term -> term -> term -> term     (* Cons A n x xs *)
+  | VecRec : term -> term -> term -> term -> term -> term.
 
 Inductive whnf : Type :=
 | VStar  : whnf
@@ -24,17 +28,20 @@ Inductive whnf : Type :=
 | VZero  : whnf
 | VSucc  : whnf -> whnf
 | VNeutral : neutral -> whnf
+| VVec  : whnf -> whnf -> whnf              (* VVec vA vn *)
+| VNil  : whnf -> whnf                      (* VNil vA *)
+| VCons : whnf -> whnf -> whnf -> whnf ->  whnf    (* VCons vA vn vx vxs *)
 
 with neutral : Type :=
 | NVar : nat -> neutral
 | NApp : neutral -> whnf -> neutral
 | NNatRec : whnf -> whnf -> whnf -> neutral -> neutral
+| NVecRec : whnf -> whnf -> whnf -> whnf -> neutral -> neutral
 
 with closure : Type :=
 | Cl : list whnf -> term -> closure.
 
 Coercion VNeutral : neutral >-> whnf.
-
 
 Section ManualMutualInduction_Prop.
 
@@ -52,25 +59,34 @@ Section ManualMutualInduction_Prop.
     (H_VSucc    : forall n, Pw n -> Pw (VSucc n))
     (H_VNeutral : forall n, Pn n -> Pw (VNeutral n))
 
+    (* --- vector WHNFs --- *)
+    (H_VVec  : forall vA vn, Pw vA -> Pw vn -> Pw (VVec vA vn))
+    (H_VNil  : forall vA, Pw vA -> Pw (VNil vA))
+    (H_VCons : forall vA vn vx vxs,
+        Pw vA -> Pw vn -> Pw vx -> Pw vxs -> Pw (VCons vA vn vx vxs))
+
     (H_NVar    : forall i, Pn (NVar i))
     (H_NApp    : forall n v, Pn n -> Pw v -> Pn (NApp n v))
     (H_NNatRec : forall P z s n, Pw P -> Pw z -> Pw s -> Pn n -> Pn (NNatRec P z s n))
+    (H_NVecRec : forall vP vnil vcons vinx nn, Pw vP -> Pw vnil -> Pw vcons -> Pw vinx -> Pn nn -> Pn (NVecRec vP vnil vcons vinx nn))
 
     (H_Cl     : forall ρ t, Forall Pw ρ -> Pc (Cl ρ t)).
 
   (* Helper: build a Forall Pw ρ by structural recursion over the list ρ,
      using the mutual whnf_proof function for elements. *)
 
-(* ---- mutual Fixpoint: whnf_proof, neutral_proof, closure_proof ---- *)
   Fixpoint whnf_proof (v : whnf) {struct v} : Pw v :=
     match v with
     | VStar            => H_VStar
     | VNat             => H_VNat
     | VPi A B          => H_VPi A B (whnf_proof A) (closure_proof B)
-    | VLam A cl          => H_VLam A cl (whnf_proof A) (closure_proof cl)
+    | VLam A cl        => H_VLam A cl (whnf_proof A) (closure_proof cl)
     | VZero            => H_VZero
     | VSucc n          => H_VSucc n (whnf_proof n)
     | VNeutral n       => H_VNeutral n (neutral_proof n)
+    | VVec vA vn       => H_VVec vA vn (whnf_proof vA) (whnf_proof vn)
+    | VNil vA          => H_VNil vA (whnf_proof vA)
+    | VCons vA vn vx vxs => H_VCons vA vn vx vxs (whnf_proof vA) (whnf_proof vn) (whnf_proof vx) (whnf_proof vxs)
     end
 
   with neutral_proof (n : neutral) {struct n} : Pn n :=
@@ -78,6 +94,8 @@ Section ManualMutualInduction_Prop.
     | NVar i           => H_NVar i
     | NApp n' v        => H_NApp n' v (neutral_proof n') (whnf_proof v)
     | NNatRec P z s n' => H_NNatRec P z s n' (whnf_proof P) (whnf_proof z) (whnf_proof s) (neutral_proof n')
+    | NVecRec P z s vinx n' => H_NVecRec P z s vinx n' (whnf_proof P) (whnf_proof z) (whnf_proof s) (whnf_proof vinx) (neutral_proof n')
+
     end
 
   with closure_proof (c : closure) {struct c} : Pc c :=
@@ -121,6 +139,15 @@ Inductive neutral_conv : neutral -> neutral -> Prop :=
     vconv vs1 vs2 ->
     neutral_conv n1 n2 ->
     neutral_conv (NNatRec vP1 vz1 vs1 n1) (NNatRec vP2 vz2 vs2 n2)
+
+| NC_VecRec : forall vP1 vnil1 vcons1 vinx1 n1 vP2 vnil2 vcons2 vinx2 n2,
+    vconv vP1 vP2 ->
+    vconv vnil1 vnil2 ->
+    vconv vcons1 vcons2 ->
+    vconv vinx1 vinx2 ->
+    neutral_conv n1 n2 ->
+    neutral_conv (NVecRec vP1 vnil1 vcons1 vinx1 n1) (NVecRec vP2 vnil2 vcons2 vinx2 n2)
+
 where "n1 ≡ₙ n2" := (neutral_conv n1 n2)
 
 with vconv : whnf -> whnf -> Prop :=
@@ -144,7 +171,20 @@ with vconv : whnf -> whnf -> Prop :=
  | VC_LamPi_r : forall cl cl' A A',
      vconv A A' ->
     closure_conv cl' cl ->
-    vconv (VPi A cl') (VLam A' cl) 
+    vconv (VPi A cl') (VLam A' cl)
+| VC_Vec : forall vA1 vA2 vn1 vn2,
+    vconv vA1 vA2 ->
+    vconv vn1 vn2 ->
+    vconv (VVec vA1 vn1) (VVec vA2 vn2)
+| VC_VNil : forall vA1 vA2,
+    vconv vA1 vA2 ->
+    vconv (VNil vA1) (VNil vA2)
+| VC_VCons : forall vA1 vA2 vn1 vn2 vx1 vx2 vxs1 vxs2,
+    vconv vA1 vA2 ->
+    vconv vn1 vn2 ->
+    vconv vx1 vx2 ->
+    vconv vxs1 vxs2 ->
+    vconv (VCons vA1 vn1 vx1 vxs1) (VCons vA2 vn2 vx2 vxs2)
 
 where "v1 ≡ v2" := (vconv v1 v2)
 
@@ -173,27 +213,11 @@ Inductive vapp : whnf -> whnf -> whnf -> Prop :=
     eval' (arg :: ρ') b vres ->
     vapp (VPi A (Cl ρB b2)) arg vres
 | VApp_Neut : forall n v, vapp (VNeutral n) v (VNeutral (NApp n v))
-| VApp_Other_Pi : forall A cl arg,
-    (forall ρ' b, ~ closure_conv (Cl ρ' b) cl) ->  (* no convertible lambda exists *)
-    vapp (VPi A cl) arg (VPi A cl)
-| VApp_Other_Other : forall w arg,
-    (forall A ρ' b, w <> VLam A (Cl ρ' b)) ->
-    (forall n, w <> VNeutral n) ->
-    (forall A cl, w <> VPi A cl) ->
-    vapp w arg w
 | VApp_ConvFromPi : forall ρ' b ρB b2 A w arg vres,
     vconv (VPi A (Cl ρB b2)) w ->
     closure_conv (Cl ρ' b) (Cl ρB b2) ->
     eval' (arg :: ρ') b vres ->
-    vapp w arg vres
-(* | VApp_ConvLam : forall A cl w arg res,
-    vconv (VLam A cl) w ->
-    vapp (VLam A cl) arg res ->
-    vapp w arg res *)
-(* | VApp_ConvHead : forall w w' arg res,
-    vconv w' w ->
-    vapp w' arg res ->
-    vapp w arg res *)
+    vapp w arg vres 
 
 with eval_natrec : whnf -> whnf -> whnf -> whnf -> whnf -> Prop :=
 | ENR_Zero : forall vP vz vs,
@@ -205,11 +229,20 @@ with eval_natrec : whnf -> whnf -> whnf -> whnf -> whnf -> Prop :=
     eval_natrec vP vz vs (VSucc vn) v
 | ENR_Neut : forall vP vz vs nn,
     eval_natrec vP vz vs (VNeutral nn) (VNeutral (NNatRec vP vz vs nn))
-| ENR_Other : forall vP vz vs vn,
-    (forall w, vn <> VSucc w) ->
-    vn <> VZero ->
-    (forall n, vn <> VNeutral n) ->
-    eval_natrec vP vz vs vn vz
+
+with eval_vecrec : whnf -> whnf -> whnf -> whnf -> whnf -> whnf -> Prop :=
+| EVR_Nil : forall vP vnil vcons vindex vA,
+    eval_vecrec vP vnil vcons vindex (VNil vA) vnil
+
+| EVR_Cons : forall vP vnil vcons vindex vA vn vx vxs vrec v1 v2 v,
+    eval_vecrec vP vnil vcons vindex vxs vrec ->
+    vapp vcons vx v1 ->
+    vapp v1 vxs v2 ->
+    vapp v2 vrec v ->
+    eval_vecrec vP vnil vcons vindex (VCons vA vn vx vxs) v
+
+| EVR_Neut : forall vP vnil vcons vindex nn,
+    eval_vecrec vP vnil vcons vindex (VNeutral nn) (VNeutral (NVecRec vP vnil vcons vindex nn))
 
 (* evaluation relation (weak head) *)
 with eval' : list whnf -> term -> whnf -> Prop :=
@@ -229,20 +262,173 @@ with eval' : list whnf -> term -> whnf -> Prop :=
     eval' ρ s vs ->
     eval' ρ n vn ->
     eval_natrec vP vz vs vn v ->
-    eval' ρ (NatRec P z s n) v.
+    eval' ρ (NatRec P z s n) v
+
+| E'_Vec : forall ρ A n vA vn, eval' ρ A vA -> eval' ρ n vn -> eval' ρ (Vec A n) (VVec vA vn)
+| E'_Nil : forall ρ A vA, eval' ρ A vA -> eval' ρ (Nil A) (VNil vA)
+| E'_Cons : forall ρ A n x xs vA vn vx vxs,
+    eval' ρ A vA ->
+    eval' ρ n vn ->
+    eval' ρ x vx ->
+    eval' ρ xs vxs ->
+    eval' ρ (Cons A n x xs) (VCons vA vn vx vxs)
+| E'_VecRec : forall ρ P nil cons n t vt vP vnil vcons vn vres,
+    eval' ρ P vP ->
+    eval' ρ nil vnil ->
+    eval' ρ cons vcons ->
+    eval' ρ n vn ->            (* evaluate the index n *)
+    eval' ρ t vt ->            (* evaluate the scrutinee term t *)
+    eval_vecrec vP vnil vcons vn vt vres ->
+    eval' ρ (VecRec P nil cons n t) vres.
 
 Scheme eval'_rect := Induction for eval' Sort Prop
 with vapp_rect := Induction for vapp Sort Prop
-with eval_natrec_rect := Induction for eval_natrec Sort Prop.
+with eval_natrec_rect := Induction for eval_natrec Sort Prop
+with eval_vecrec_rect := Induction for eval_vecrec Sort Prop.
 
-Combined Scheme evals_mutind from eval'_rect, vapp_rect, eval_natrec_rect.
+Combined Scheme evals_mutind from eval'_rect, vapp_rect, eval_natrec_rect, eval_vecrec_rect.
 
+(* ---------------------------
+   Bidirectional typing (synthesis / checking)
+   synth : ctx -> term -> whnf -> Prop  (Γ ⊢ t ⇒ A)
+   check : ctx -> term -> whnf -> Prop  (Γ ⊢ t ⇐ A)
+   Both operate at WHNF-level for types.
+   --------------------------- *)
+
+Definition ctx := list whnf.
+
+Reserved Notation "Γ ⊢ₛ t ⇑ A" (at level 70).
+Reserved Notation "Γ ⊢𝚌 t ⇓ A" (at level 70).
+
+Inductive synth : ctx -> term -> whnf -> Prop :=
+| S_Var : forall Γ x A,
+    nth_error Γ x = Some A ->
+    synth Γ (Var x) A
+
+| S_Star : forall Γ,                      (* Universe/type of types *)
+    synth Γ Star VStar
+
+| S_Nat : forall Γ,                       (* Nat is a type-level WHNF *)
+    synth Γ Nat VNat
+
+| S_Pi : forall Γ A B vA,
+    eval' Γ A vA ->
+    synth Γ (Pi A B) (VPi vA (Cl Γ B))
+
+(* standard App: synth f to a Pi (up to conv), evaluate arg and body to get result type *)
+| S_App : forall Γ t u vt vu vdom clB ρB Bterm vres,
+    synth Γ t vt ->                 (* synthesize type of t (should be a Pi up to conv) *)
+    eval' Γ u vu ->                 (* evaluate argument to WHNF *)
+    vconv vt (VPi vdom clB) ->      (* vt convertible to a Pi *)
+    clB = Cl ρB Bterm ->            (* expose closure parts *)
+    eval' (vu :: ρB) Bterm vres ->  (* compute codomain under argument value *)
+    synth Γ (App t u) vres
+
+(* Zero/Succ synthesize Nat as their type *)
+| S_Zero : forall Γ, synth Γ Zero VNat
+
+| S_Succ : forall Γ n,
+    check Γ n VNat ->               (* check argument n has type Nat *)
+    synth Γ (Succ n) VNat
+
+(* NatRec term-level: produces whatever eval_natrec produces (term-level eliminator) *)
+| S_NatRec_term : forall Γ P z s n vP vz vs vn v,
+    eval' Γ P vP ->
+    eval' Γ z vz ->
+    eval' Γ s vs ->
+    eval' Γ n vn ->
+    eval_natrec vP vz vs vn v ->
+    synth Γ (NatRec P z s n) v
+
+(* Vec is a type-former (synth returns its WHNF) *)
+| S_Vec : forall Γ A n vA vn,
+    eval' Γ A vA ->
+    eval' Γ n vn ->
+    synth Γ (Vec A n) (VVec vA vn)
+
+(* Nil/Cons produce the canonical WHNFs for vector values *)
+| S_Nil : forall Γ A vA,
+    eval' Γ A vA ->
+    synth Γ (Nil A) (VNil vA)
+
+| S_Cons : forall Γ A n x xs vA vn vx vxs,
+    eval' Γ A vA ->
+    eval' Γ n vn ->
+    eval' Γ x vx ->
+    eval' Γ xs vxs ->
+    check Γ x vA ->                       (* x : A *)
+    check Γ xs (VVec vA vn) ->            (* xs : Vec A n *)
+    synth Γ (Cons A n x xs) (VCons vA vn vx vxs)
+
+
+(* S_VecRec_term: synth returns what eval_vecrec returns *)
+| S_VecRec_term : forall Γ P nil cons n t vt vP vnil vcons vn vres,
+    eval' Γ P vP ->
+    eval' Γ nil vnil ->
+    eval' Γ cons vcons ->
+    eval' Γ n vn ->
+    eval' Γ t vt ->
+    eval_vecrec vP vnil vcons vn vt vres ->
+    synth Γ (VecRec P nil cons n t) vres
+
+
+(* ---------- check: Γ ⊢ t ⇐ A ---------- *)
+with check : ctx -> term -> whnf -> Prop :=
+| C_Synth : forall Γ t A' A,
+    synth Γ t A' ->
+    vconv A' A ->
+    check Γ t A
+
+| C_Lam : forall Γ (A : whnf) annA b vdom clB ρB Bterm vB,
+    synth Γ annA vdom ->                 (* annotation provides domain WHNF vdom *)
+    vconv A (VPi vdom clB) ->            (* expected type convertible to Pi vdom clB *)
+    clB = Cl ρB Bterm ->
+    eval' (vdom :: ρB) Bterm vB ->      (* compute codomain value *)
+    check (vdom :: ρB) b vB ->          (* check body under extended context *)
+    closure_conv (Cl Γ b) clB ->        (** ATTENTION - link runtime closure and expected closure **)
+    check Γ (Lam annA b) A
+
+| C_NatRec_check : forall Γ P z s n A vP vz vs vn v,
+    (* evaluate the eliminator components *)
+    eval' Γ P vP ->              (* evaluate P *)
+    eval' Γ z vz ->              (* evaluate z *)
+    eval' Γ s vs ->              (* evaluate s *)
+    eval' Γ n vn ->              (* evaluate n *)
+    eval_natrec vP vz vs vn v -> (* compute the result v of elimination *)
+    vconv v A ->                 (* v must be convertible to the expected A *)
+    check Γ (NatRec P z s n) A
+
+(* C_VecRec_check: check against expected A *)
+| C_VecRec_check : forall Γ P nil cons n A t vt vP vnil vcons vn vres,
+    eval' Γ P vP ->
+    eval' Γ nil vnil ->
+    eval' Γ cons vcons ->
+    eval' Γ n vn ->
+    eval' Γ t vt ->
+    eval_vecrec vP vnil vcons vn vt vres ->
+    vconv vres A ->
+    check Γ (VecRec P nil cons n t) A.
+
+Scheme synth_rect := Induction for synth Sort Prop
+with check_rect := Induction for check Sort Prop.
+
+Combined Scheme typing_mutind from synth_rect, check_rect.
+
+
+Ltac solve_vconv_refl :=
+  repeat match goal with
+  | [ |- vconv (VVec _ _) (VVec _ _) ] => constructor; try solve_vconv_refl
+  | [ |- vconv (VNil _) (VNil _) ] => constructor
+  | [ |- vconv (VCons _ _ _ _) (VCons _ _ _ _) ] => constructor; try solve_vconv_refl
+  | _ => constructor; auto
+  end.
+  
 Lemma vconv_refl :
   (forall v, vconv v v) /\ 
   (forall n, neutral_conv n n) /\ 
   (forall c, closure_conv c c).
 Proof. apply whnf_mutind.
-       11:{ intros.
+       15:{ intros.
             revert t.
             induction H; intros.
             - constructor. constructor.
@@ -253,6 +439,10 @@ Proof. apply whnf_mutind.
               inversion IHForall. subst. easy.
               easy.
           }
+        14:{ intros. constructor; easy. }
+        13:{ intros. constructor; easy. }
+        12:{ intros. constructor; easy. }
+        11:{ intros. constructor; easy. }
         3:{ intros. constructor; easy. }
         3:{ intros. constructor; easy. }
         8:{ intros. constructor; easy. }
@@ -270,7 +460,7 @@ Lemma vconv_sym :
   (forall n1 n2, neutral_conv n1 n2 -> neutral_conv n2 n1) /\ 
   (forall c1 c2, closure_conv c1 c2 -> closure_conv c2 c1).
 Proof. apply whnf_mutind.
-       11:{ intros.
+       15:{ intros.
             revert t H0. revert c2.
             induction H; intros.
             - inversion H0. subst. constructor. inversion H2. constructor. easy.
@@ -284,31 +474,56 @@ Proof. apply whnf_mutind.
               inversion H2. easy.
               easy.
           }
-        3:{ intros. inversion H1. subst. constructor. apply H; easy. apply H0; easy. 
-            subst. constructor. apply H. easy.
-            apply H0. easy.
+        14:{ 
+        intros.
+        inversion H4. subst.
+        constructor. apply H. easy.
+        apply H0; easy.
+        apply H1; easy.
+        apply H2; easy.
+        apply H3; easy.
+        }
+        13:{
+        intros.
+        inversion H3. subst.
+        constructor. apply H. easy.
+        apply H0; easy.
+        apply H1; easy.
+        apply H2; easy.
+        }
+        12:{
+        intros.
+        inversion H1. subst.
+        constructor. apply H; easy.
+        apply H0; easy.
+        }
+        11:{
+        intros.
+        inversion H. 
+        constructor.
+        }
+        10:{
+        intros.
+        inversion H3. subst.
+        constructor. apply H. easy.
+        apply H0; easy.
+        apply H1; easy.
+        apply H2; easy.
         }
         9:{
         intros.
-        inversion H3.
-        subst.
-        apply H in H8.
-        apply H0 in H10.
-        apply H1 in H11.
-        apply H2 in H12.
-        constructor; easy.
+        inversion H0. subst.
+        constructor. apply H; easy.
         }
         8:{
         intros.
-        inversion H1.
-        subst.
-        apply H in H4.
-        apply H0 in H6.
-        constructor; easy.
+        inversion H1. subst.
+        constructor. apply H; easy.
+        apply H0; easy.
         }
-        7:{
-        intros.
-        inversion H. subst. easy.
+        3:{ intros. inversion H1. subst. constructor. apply H; easy. apply H0; easy. 
+            subst. constructor. apply H. easy.
+            apply H0. easy.
         }
         6:{
         intros.
@@ -344,13 +559,12 @@ Proof. apply whnf_mutind.
         }
 Qed.
 
-
 Lemma vconv_trans :
   (forall v1 v2 v3, vconv v1 v2 -> vconv v2 v3 -> vconv v1 v3) /\ 
   (forall n1 n2 n3, neutral_conv n1 n2 -> neutral_conv n2 n3 -> neutral_conv n1 n3) /\ 
   (forall c1 c2 c3, closure_conv c1 c2 -> closure_conv c2 c3 -> closure_conv c1 c3).
 Proof. apply whnf_mutind.
-       11:{ intros.
+       15:{ intros.
             revert t H0 H1. revert c2 c3.
             induction H; intros.
             - inversion H0. subst. inversion H1. subst. constructor. inversion H3. subst. inversion H4. constructor. easy.
@@ -367,6 +581,65 @@ Proof. apply whnf_mutind.
               inversion H3. subst. easy.
               easy.
           }
+        14:{
+        intros.
+        inversion H4. subst.
+        inversion H5. subst.
+        constructor.
+        apply H with (v2 := vP2); easy.
+        apply H0 with (v2 := vnil2); easy.
+        apply H1 with (v2 := vcons2); easy.
+        apply H2 with (v2 := vinx2); easy.
+        apply H3 with (n2 := n0); easy.
+        }
+        13:{
+        intros.
+        inversion H3. subst.
+        inversion H4. subst.
+        constructor.
+        apply H with (v2 := vP2); easy.
+        apply H0 with (v2 := vz2); easy.
+        apply H1 with (v2 := vs2); easy.
+        apply H2 with (n2 := n0); easy.
+        }
+        12:{
+        intros.
+        inversion H1. subst.
+        inversion H2. subst.
+        constructor.
+        apply H with (n2 := n0); easy.
+        apply H0 with (v2 := v2); easy.
+        }
+        11:{
+        intros.
+        inversion H. subst. inversion H0. subst.
+        easy.
+        }
+        10:{
+        intros.
+        inversion H3. subst.
+        inversion H4. subst.
+        constructor.
+        apply H with (v2 := vA2); easy.
+        apply H0 with (v2 := vn2); easy.
+        apply H1 with (v2 := vx2); easy.
+        apply H2 with (v2 := vxs2); easy.
+        }
+        9:{
+        intros.
+        inversion H0. subst.
+        inversion H1. subst.
+        constructor.
+        apply H with (v2 := vA2); easy.
+        }
+        8:{
+        intros.
+        inversion H1. subst.
+        inversion H2. subst.
+        constructor.
+        apply H with (v2 := vA2); easy.
+        apply H0 with (v2 := vn2); easy.
+        }
         3:{ intros.
             inversion H1. subst.
             + inversion H2.
@@ -385,16 +658,6 @@ Proof. apply whnf_mutind.
                 apply H with (v2 := A'); easy.
                 apply H0 with (c2 := cl). easy. easy.
          }
-        9:{
-        intros.
-        inversion H3. subst.
-        inversion H4. subst.
-        specialize(H _ _ H9 H10).
-        specialize(H0 _ _ H11 H15).
-        specialize(H1 _ _ H12 H16).
-        specialize(H2 _ _ H13 H17).
-        constructor; easy.
-        }
         3:{
         intros.
         inversion H1.
@@ -416,17 +679,6 @@ Proof. apply whnf_mutind.
         intros.
         inversion H0. subst. inversion H1. subst.
         constructor. apply H with (n2 := n2); easy.
-        }
-        5:{
-        intros.
-        inversion H1. subst. inversion H2. subst.
-        constructor. apply H with (n2 := n0); easy.
-        apply H0 with (v2 := v2); easy.
-        }
-        4:{
-        intros.
-        inversion H. subst.
-        inversion H0. constructor.
         }
         3:{
         intros.
@@ -544,6 +796,16 @@ Lemma evals_respect_vconv_mut :
         vconv vs vs2 ->
         vconv vn vn2 -> 
         eval_natrec vP2 vz2 vs2 vn2 v2 ->
+        vconv v v2)
+  /\
+  (forall (vP vnil vcons vindex vn v : whnf) (He : eval_vecrec vP vnil vcons vindex vn v),
+      forall (vP2 vnil2 vcons2 vindex2 vn2 v2 : whnf),
+        vconv vP vP2 ->
+        vconv vnil vnil2 ->
+        vconv vcons vcons2 ->
+        vconv vindex vindex2 ->
+        vconv vn vn2 ->
+        eval_vecrec vP2 vnil2 vcons2 vindex2 vn2 v2 ->
         vconv v v2).
 Proof.
   apply (evals_mutind
@@ -568,30 +830,52 @@ Proof.
          vconv vn vn2 -> 
          eval_natrec vP2 vz2 vs2 vn2 v2 ->
          vconv v v2)
+
+    (fun (vP vnil vcons vindex vn v : whnf) (He : eval_vecrec vP vnil vcons vindex vn v) =>
+       forall (vP2 vnil2 vcons2 vindex2 vn2 v2 : whnf),
+         vconv vP vP2 ->
+         vconv vnil vnil2 ->
+         vconv vcons vcons2 ->
+         vconv vindex vindex2 ->
+         vconv vn vn2 ->
+         eval_vecrec vP2 vnil2 vcons2 vindex2 vn2 v2 ->
+         vconv v v2)
   ); intros.
-  19:{
-  inversion H3.
-  + subst. inversion H2. subst. easy.
-  + subst. inversion H2.
-    subst.
-    specialize(n v0). easy.
-  + subst. inversion H2.
-    subst. specialize(n1 n2). easy.
-  + subst.
-    easy.
+  23:{
+  inversion H4.
+  + subst. inversion H3.
+  + subst. inversion H3.
+  + subst. constructor.
+    inversion H3.
+    constructor; easy.
   }
-  18:{
+  22:{
+  inversion H8.
+  + subst. inversion H7. 
+  + subst. inversion H7. subst.
+    apply H2 with (w2 := v7) (arg2 := vrec0); try easy.
+    apply H1 with (w2 := v6) (arg2 := vxs0); try easy.
+    apply H0 with (w2 := vcons2) (arg2 := vx0); try easy.
+    eapply H; eauto.
+  + subst.
+    inversion H7. 
+  }
+  21:{
+  inversion H4. subst.
+  + inversion H3. subst.
+    easy.
+  + subst. inversion H3.
+  + subst. inversion H3.
+  }
+  20:{
   inversion H3.
   + subst. easy.
   + subst. inversion H2.
   + subst.
     constructor. inversion H2. constructor; easy.
-  + subst.
-    inversion H2. subst.
-    specialize(H6 n2). easy.
   }
 
-  17:{
+  19:{
   inversion H6.
   + subst.
     inversion H5.
@@ -602,24 +886,16 @@ Proof.
     apply H0 with (w2 := vs2) (arg2 := vn0); try easy.
     eapply H; eauto.
   + subst. inversion H5.
-  + subst. inversion H5. subst.
-    specialize(H7 v5). easy.
    }
 
-  16:{
+  18:{
    inversion H3.
    + subst. easy.
    + subst. easy.
    + subst. easy.
-   + subst. inversion H2.
-     subst.
-     easy.
    }
    
-  15:{
-(*    apply H with (ρ2 := (arg :: ρ')).
-   apply Forall2_refl.
-   apply vconv_refl. *)
+  17:{
    inversion v.
    + subst.
      inversion H0. 
@@ -648,16 +924,13 @@ Proof.
           }
           apply H with (ρ2 := (arg2 :: ρ'0)); try easy.
 
-        ** subst.
+(*         ** subst.
            inversion H7. subst.
            inversion H9. subst.
            specialize(H11 ρ0 t0).
            unfold not in *.
            contradiction H11.
-           apply vconv_refl.
-
-        ** subst.
-           specialize(H8 vA0 cl0). easy.
+           apply vconv_refl. *)
         ** subst. 
            inversion H3. subst.
            inversion H7. subst.
@@ -694,10 +967,6 @@ Proof.
 
       * subst.
         inversion H2.
-        ** subst.
-           inversion H7. subst.
-           inversion H9. subst.
-           specialize(H3 A' ρ0 t0). easy.
         ** subst.
            inversion H3. subst.
            inversion H4. subst.
@@ -737,9 +1006,6 @@ Proof.
      inversion H0.
      * subst.
        inversion H2.
-       ** subst. inversion H7. subst.
-          inversion H9. subst.
-          specialize(H3 vA2 ρ0 t0). easy.
        ** subst.
           inversion H3. subst.
           inversion H4. subst.
@@ -804,15 +1070,6 @@ Proof.
            }
           apply H with (ρ2 := (arg2 :: ρ'0)); try easy.
 
-        ** subst.
-           inversion H7. subst.
-           inversion H9. subst.
-           specialize(H11 ρ0 t0).
-           unfold not in *.
-           contradiction H11.
-           apply vconv_refl.
-        ** subst.
-           specialize(H8 A'0 cl'). easy.
         ** subst. 
            inversion H3. subst.
            inversion H7. subst.
@@ -846,83 +1103,16 @@ Proof.
             }
           apply H with (ρ2 := (arg2 :: ρ'0)); try easy.
      }
-   14:{
-   induction H1; intros.
-   + subst.
-     inversion H.
-     ++ subst.
-        specialize(n1 vA1 cl1). easy.
-     ++ subst.
-        inversion H7. subst.
-        specialize(n A0 ρ1 b2). easy.
-   + subst.
-     inversion H. subst.
-     specialize(n0 n3). easy.
-   + easy.
-   + easy.
-   + assert(VPi A (Cl ρB b2) ≡ w).
-     { specialize(vconv_sym); intros (Hsym,(_,_)).
-       apply Hsym in H1.
-       apply Hsym.
-       specialize(vconv_trans); intros (Htrans,(_,_)).
-       apply Htrans with (v2 := w0); easy.
-     }
-     inversion H4.
-     * subst. specialize(n1 vA2 cl2). easy.
-     * subst. inversion H9. subst.
-       specialize(n A' ρ2 t2). easy.
-(*      apply IHvapp.
-     specialize(vconv_sym); intros (Hsym,(_,_)).
-     apply Hsym in H1. 
-     specialize(vconv_trans); intros (Htrans,(_,_)).
-     apply Htrans with (v2 := w0); easy.
-     easy. *)
-   }
-   
-   13:{
-   induction H1; intros.
-   + subst.
-     inversion H. subst. inversion H8. subst.
-     specialize(n ρ1 b2). 
-     unfold not in *.
-     contradiction n.
-     apply vconv_refl.
-   + subst. easy.
-   + subst. easy.
-   + subst. easy.
-   + assert(VPi A cl ≡ VPi A0 (Cl ρB b2)).
-     { specialize(vconv_sym); intros (Hsym,(_,_)).
-       apply Hsym in H1. 
-       specialize(vconv_trans); intros (Htrans,(_,_)).
-       apply Htrans with (v2 := w); easy.
-     }
-     inversion H4. subst.
-     inversion H10. subst.
-     specialize(n ρ1 b2).
-     unfold not in *.
-     contradiction n.
-     apply vconv_refl.
-  }  
-  12:{
+  16:{
   induction H1; intros.
   + subst. easy.
   + subst.
     constructor. inversion H. subst. constructor; easy.
-  + subst. easy.
-  + subst.
-    inversion H. subst.
-    specialize(H2 n2). easy.
   + subst.
     inversion H. subst. inversion H1.
-(*     apply IHvapp.
-    specialize(vconv_sym); intros (Hsym,(_,_)).
-    apply Hsym in H1. 
-    specialize(vconv_trans); intros (Htrans,(_,_)).
-    apply Htrans with (v2 := w); easy.
-    easy. *)
   }
   
-  11:{
+  15:{
   induction H2; intros.
   subst.
   apply H with (ρ2 := (arg0 :: ρ'0)).
@@ -949,16 +1139,6 @@ Proof.
   + subst.
     inversion H0.
   + subst.
-    inversion H0. subst.
-    inversion H8. subst.
-    specialize(H2 ρ2 t2).
-    unfold not in *.
-    contradiction H2.
-    apply vconv_refl.
-  + inversion H0.
-    ++ subst. specialize(H4 vA2 cl2). easy.
-    ++ subst. inversion H9. subst. specialize(H2 A' ρ2 t2). easy.
-  + subst.
     assert(VPi A (Cl ρB b2) ≡ VPi A0 (Cl ρB0 b1)).
     { specialize(vconv_sym); intros (Hsym,(_,_)).
        apply Hsym in H2. 
@@ -983,14 +1163,36 @@ Proof.
       apply vconv_sym.
       }
       apply H with (ρ2 := (arg0 :: ρ'0)); try easy.
-(*     apply IHvapp.
-    specialize(vconv_sym); intros (Hsym,(_,_)).
-    apply Hsym in H2. 
-    specialize(vconv_trans); intros (Htrans,(_,_)).
-    apply Htrans with (v2 := w); easy.
-    easy. *)
   }
-  
+  14:{
+  inversion H6. subst.
+  apply H4 with (vP2 := vP0) (vnil2 := vnil0) (vcons2 := vcons0) (vindex2 := vn0) (vn2 := vt0).
+  apply H with (ρ2 := ρ2); easy.
+  apply H0 with (ρ2 := ρ2); easy.
+  apply H1 with (ρ2 := ρ2); easy.
+  apply H2 with (ρ2 := ρ2); easy.
+  apply H3 with (ρ2 := ρ2); easy.
+  easy.
+  }
+  13:{
+  inversion H4. subst.
+  constructor.
+  apply H with (ρ2 := ρ2); easy.
+  apply H0 with (ρ2 := ρ2); easy.
+  apply H1 with (ρ2 := ρ2); easy.
+  apply H2 with (ρ2 := ρ2); easy.
+  }
+  12:{
+  inversion H1. subst.
+  constructor.
+  apply H with (ρ2 := ρ2); easy.
+  }
+  11:{
+  inversion H2. subst.
+  constructor.
+  apply H with (ρ2 := ρ2); easy.
+  apply H0 with (ρ2 := ρ2); easy.
+  }
   10:{
   inversion H5.
   subst.
@@ -1130,93 +1332,26 @@ Lemma eval_natrec_respect_vconv_imp :
     eval_natrec vP2 vz2 vs2 vn2 v2 ->
     vconv v v2.
 Proof.
-  destruct evals_respect_vconv_mut as [_ [_ HeNat]].  (* project third component *)
+  destruct evals_respect_vconv_mut as [_ [_ [HeNat _]]].  (* project third component *)
   intros vP vP2 vz vz2 vs vs2 vn vn2 v v2 Hvp Hvz Hvs Hvn He1 He2.
   apply (HeNat vP vz vs vn v He1 vP2 vz2 vs2 vn2 v2 Hvp Hvz Hvs Hvn He2).
 Qed.
 
-(* ---------------------------
-   Bidirectional typing (synthesis / checking)
-   synth : ctx -> term -> whnf -> Prop  (Γ ⊢ t ⇒ A)
-   check : ctx -> term -> whnf -> Prop  (Γ ⊢ t ⇐ A)
-   Both operate at WHNF-level for types.
-   --------------------------- *)
-
-Definition ctx := list whnf.
-
-Reserved Notation "Γ ⊢ₛ t ⇑ A" (at level 70).
-Reserved Notation "Γ ⊢𝚌 t ⇓ A" (at level 70).
-
-Inductive synth : ctx -> term -> whnf -> Prop :=
-| S_Var : forall Γ x A,
-    nth_error Γ x = Some A ->
-    synth Γ (Var x) A
-
-| S_Star : forall Γ,                      (* Universe/type of types *)
-    synth Γ Star VStar
-
-| S_Nat : forall Γ,                       (* Nat is a type-level WHNF *)
-    synth Γ Nat VNat
-
-| S_Pi : forall Γ A B vA,
-    eval' Γ A vA ->
-    synth Γ (Pi A B) (VPi vA (Cl Γ B))
-
-(* standard App: synth f to a Pi (up to conv), evaluate arg and body to get result type *)
-| S_App : forall Γ t u vt vu vdom clB ρB Bterm vres,
-    synth Γ t vt ->                 (* synthesize type of t (should be a Pi up to conv) *)
-    eval' Γ u vu ->                 (* evaluate argument to WHNF *)
-    vconv vt (VPi vdom clB) ->      (* vt convertible to a Pi *)
-    clB = Cl ρB Bterm ->            (* expose closure parts *)
-    eval' (vu :: ρB) Bterm vres ->  (* compute codomain under argument value *)
-    synth Γ (App t u) vres
-
-(* Zero/Succ synthesize Nat as their type *)
-| S_Zero : forall Γ, synth Γ Zero VNat
-
-| S_Succ : forall Γ n,
-    check Γ n VNat ->               (* check argument n has type Nat *)
-    synth Γ (Succ n) VNat
-
-(* NatRec term-level: produces whatever eval_natrec produces (term-level eliminator) *)
-| S_NatRec_term : forall Γ P z s n vP vz vs vn v,
-    eval' Γ P vP ->
-    eval' Γ z vz ->
-    eval' Γ s vs ->
-    eval' Γ n vn ->
-    eval_natrec vP vz vs vn v ->
-    synth Γ (NatRec P z s n) v
-
-(* ---------- check: Γ ⊢ t ⇐ A ---------- *)
-with check : ctx -> term -> whnf -> Prop :=
-| C_Synth : forall Γ t A' A,
-    synth Γ t A' ->
-    vconv A' A ->
-    check Γ t A
-
-| C_Lam : forall Γ (A : whnf) annA b vdom clB ρB Bterm vB,
-    synth Γ annA vdom ->                 (* annotation provides domain WHNF vdom *)
-    vconv A (VPi vdom clB) ->            (* expected type convertible to Pi vdom clB *)
-    clB = Cl ρB Bterm ->
-    eval' (vdom :: ρB) Bterm vB ->      (* compute codomain value *)
-    check (vdom :: ρB) b vB ->          (* check body under extended context *)
-    closure_conv (Cl Γ b) clB ->        (** ATTENTION - link runtime closure and expected closure **)
-    check Γ (Lam annA b) A
-
-| C_NatRec_check : forall Γ P z s n A vP vz vs vn v,
-    (* evaluate the eliminator components *)
-    eval' Γ P vP ->              (* evaluate P *)
-    eval' Γ z vz ->              (* evaluate z *)
-    eval' Γ s vs ->              (* evaluate s *)
-    eval' Γ n vn ->              (* evaluate n *)
-    eval_natrec vP vz vs vn v -> (* compute the result v of elimination *)
-    vconv v A ->                 (* v must be convertible to the expected A *)
-    check Γ (NatRec P z s n) A.
-
-Scheme synth_rect := Induction for synth Sort Prop
-with check_rect := Induction for check Sort Prop.
-
-Combined Scheme typing_mutind from synth_rect, check_rect.
+Lemma eval_vecrec_respect_vconv_imp :
+  forall (vP vP2 vz vz2 vs vs2 vn vn2 vt vt2 v v2 : whnf),
+    vconv vP vP2 ->
+    vconv vz vz2 ->
+    vconv vs vs2 ->
+    vconv vn vn2 ->
+    vconv vt vt2 ->
+    eval_vecrec vP vz vs vn vt v ->
+    eval_vecrec vP2 vz2 vs2 vn2 vt2 v2 ->
+    vconv v v2.
+Proof.
+  destruct evals_respect_vconv_mut as [_ [_ [_ HeVec]]].  (* project f component *)
+  intros vP vP2 vz vz2 vs vs2 vn vn2 vt vt2 v v2 Hvp Hvz Hvs Hvn Hvt He1 He2.
+  apply (HeVec vP vz vs vn vt v He1 vP2 vz2 vs2 vn2 vt2 v2 Hvp Hvz Hvs Hvn Hvt He2).
+Qed.
 
 Lemma Forall2_refl_from_pointwise_reflexivity :
   (forall w, vconv w w) ->
@@ -1233,16 +1368,74 @@ Proof.
     (fun Γ t A (He : synth Γ t A) => forall A' (He' : synth Γ t A'), vconv A A')
     (fun Γ t A (He : check Γ t A) => forall A' (He' : synth Γ t A'), vconv A A')
   ).
-    10:{
+    16:{
+    intros. inversion He'. subst.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e H4); intro HHa.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H6); intro HHb.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H8); intro HHc.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H9); intro HHd.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e3 H10); intro HHe.
+    specialize (eval_vecrec_respect_vconv_imp _ _ _ _ _ _ _ _ _ _ vres A' HHa HHb HHc HHd HHe e4 H11); intro HHf.
+    specialize(vconv_sym ); intros (Hsym,(_,_)).
+    specialize(Hsym _ _ v).
+    specialize(vconv_trans ); intros (Htrans,(_,_)).
+    apply Htrans with (v2 := vres); easy.
+    }
+    15:{
+    intros.
+    inversion He'. subst.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e H3); intro HHa.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H5); intro HHb.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H7); intro HHc.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H8); intro HHd.
+    specialize (eval_natrec_respect_vconv_imp _ _ _ _ _ _ _ _ v A' HHa HHb HHc HHd e3 H9); intro HHe.
+    specialize(vconv_sym ); intros (Hsym,(_,_)).
+    specialize(Hsym _ _ v0).
+    specialize(vconv_trans ); intros (Htrans,(_,_)).
+    apply Htrans with (v2 := v); easy.
+    }
+    14:{
     intros. inversion He'.
     }
-    9:{
+    13:{
     intros.
     apply H in He'.
     specialize(vconv_sym ); intros (Hsym,(_,_)).
     specialize(Hsym _ _ v).
     specialize(vconv_trans ); intros (Htrans,(_,_)).
     specialize(Htrans _ _ _ Hsym He'). easy.
+    }
+    12:{
+    intros.
+    inversion He'. subst.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e H4); intro HHa.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H6); intro HHb.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H8); intro HHc.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H9); intro HHd.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e3 H10); intro HHe.
+    specialize (eval_vecrec_respect_vconv_imp _ _ _ _ _ _ _ _ _ _ vres A' HHa HHb HHc HHd HHe e4 H11); intro HHf.
+    easy.
+    }
+    11:{
+    intros.
+    inversion He'. subst.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e H5); intro HHa.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H6); intro HHb.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H8); intro HHc.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H10); intro HHd.
+    constructor; easy.
+    }
+    10:{
+    intros.
+    inversion He'. subst. constructor.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e H1); intro HHa. easy.
+    }
+    9:{
+    intros.
+    inversion He'. subst.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e H2); intro HHa.
+    specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H4); intro HHb.
+    constructor; easy.
     }
     8:{
     intros.
@@ -1398,22 +1591,6 @@ Proof.
     subst.
     apply vconv_refl.
     }
-    1:{
-    intros.
-    inversion He'.
-    subst.
-    
-    specialize(eval_respect_vconv_imp2 _ _ _ _ e H3); intro HHa.
-    specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H5); intro HHb.
-    specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H7); intro HHc.
-    specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H8); intro HHd.
-    specialize (eval_natrec_respect_vconv_imp _ _ _ _ _ _ _ _ v A' HHa HHb HHc HHd e3 H9); intro HHe.
-
-    specialize(vconv_sym ); intros (Hsym,(_,_)).
-    specialize(Hsym _ _ v0).
-    specialize(vconv_trans ); intros (Htrans,(_,_)).
-    specialize(Htrans _ _ _ Hsym HHe). easy.
-    }
 Qed.
 
 Lemma synth_unique_up_to_vconv :
@@ -1447,14 +1624,27 @@ Inductive type_synth_closed : term -> Prop :=
     type_synth_closed (Var x)
 | TSC_App    : forall t u,
     type_synth_closed t ->
-    type_synth_closed u -> 
+   type_synth_closed u -> 
     type_synth_closed (App t u)
 | TSC_Lam    : forall A b,
     type_synth_closed A ->
+    type_synth_closed b -> 
     type_synth_closed (Lam A b)
 | TSC_NatRec : forall P z s n,
     type_synth_closed P ->
-    type_synth_closed (NatRec P z s n).
+    type_synth_closed (NatRec P z s n)
+| TSC_VNil : forall A,
+    type_synth_closed A ->
+    type_synth_closed (Nil A)
+| TSC_VCons : forall A n x xs,
+    type_synth_closed A ->
+    type_synth_closed (Cons A n x xs)
+| TSC_Vec : forall A n,
+    type_synth_closed A ->
+    type_synth_closed (Vec A n)
+| TSC_VecRec : forall P nil cons n t,
+    type_synth_closed P ->
+    type_synth_closed (VecRec P nil cons n t).
 
 Lemma synth_preserve_eval_for_types :
   (forall Γ t A (He : synth Γ t A),
@@ -1469,6 +1659,7 @@ Proof.
     (fun (Γ : ctx) (t : term) (A : whnf) (He : check Γ t A) =>
        forall v, type_synth_closed t -> eval' Γ t v -> vconv A v)
   ).
+  
   4:{
   intros.
   inversion H0. subst.
@@ -1521,25 +1712,6 @@ Proof.
 
     * subst.
       apply H in H6; try easy.
-    * subst.
-      apply H in H6; try easy.
-      inversion H6. subst.
-      inversion H13. subst.
-      inversion H16. subst.
-      specialize(H7 ρ2 t2). 
-      
-      unfold not in *.
-      contradiction H7.
-      apply vconv_refl.
-
-    * subst.
-      apply H in H6; try easy.
-      inversion H6. subst.
-      ** specialize(H10 vA2 cl2). easy.
-      ** subst.
-        inversion H13. subst.
-        inversion H17. subst.
-        specialize(H7 A' ρ2 t2). easy.
    * subst.
      apply H in H6; try easy.
      assert(VPi vA1 cl1 ≡ VPi A (Cl ρB0 b2)).
@@ -1602,25 +1774,7 @@ Proof.
 
     * subst.
       apply H in H6; try easy.
-    * subst.
-      apply H in H6; try easy.
-      inversion H6. subst.
-      inversion H13. subst.
-      inversion H16. subst.
-      specialize(H7 ρ2 t2). 
-      
-      unfold not in *.
-      contradiction H7.
-      apply vconv_refl.
 
-    * subst.
-      apply H in H6; try easy.
-      inversion H6. subst.
-      ** subst.
-        inversion H13. subst.
-        inversion H17. subst.
-        specialize(H7 vA2 ρ2 t2). easy.
-       ** subst. specialize(H10 A' cl'). easy.
    * subst.
      apply H in H6; try easy.
      assert(VLam A cl ≡ VPi A0 (Cl ρB0 b2) ).
@@ -1652,8 +1806,21 @@ Proof.
     }
     apply(eval_respect_vconv_imp _ _ _ _ _ H14 e1 H10).
   }
-
-  9:{
+  14:{
+  intros.
+  inversion H0. subst.
+  inversion H. subst.
+  specialize(eval_respect_vconv_imp2 _ _ _ _ e H6); intro HHa.
+  specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H8); intro HHb.
+  specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H10); intro HHc.
+  specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H11); intro HHd.
+  specialize(eval_respect_vconv_imp2 _ _ _ _ e3 H12); intro HHe.
+  specialize (eval_vecrec_respect_vconv_imp _ _ _ _ _ _ _ _ _ _ vres v0 HHa HHb HHc HHd HHe e4 H13); intro HHf.
+  apply vconv_sym in v.
+  specialize vconv_trans; intros (Ht,(_,_)).
+  apply Ht with (v2 := vres); easy.
+  }
+  13:{
   intros.
   inversion H0.
   subst.
@@ -1666,14 +1833,13 @@ Proof.
   specialize vconv_trans; intros (Ht,(_,_)).
   apply Ht with (v2 := v); easy.
   }
-  
-  8:{
+  12:{
   intros.
   inversion H1. subst.
   inversion H2. subst.
   inversion v. 
   + subst.
-    apply H in H8; try easy.
+    apply H in H9; try easy.
     constructor. 
     specialize(vconv_trans); intros (Htrans,(_,_)).
     apply Htrans with (v2 := vdom); easy.
@@ -1684,7 +1850,7 @@ Proof.
     apply Htrans with (c2 := (Cl ρB Bterm)); easy.
 
   + subst. 
-    apply H in H8; try easy.
+    apply H in H9; try easy.
     constructor. specialize(vconv_trans); intros (Htrans,(_,_)).
     apply Htrans with (v2 := vdom); easy.
     
@@ -1694,7 +1860,7 @@ Proof.
     apply Htrans with (c2 := (Cl ρB Bterm)); easy.
   }
 
- 7:{
+ 11:{
  intros.
  apply H in H1; try easy.
 
@@ -1702,6 +1868,41 @@ Proof.
  apply Hsym in v.
  specialize(vconv_trans); intros (Htrans,(_,_)).
  apply Htrans with (v2 := A'); easy.
+ }
+ 
+ 10:{
+ intros.
+ inversion H0. subst.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e H6); intro HHa.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H8); intro HHb.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H10); intro HHc.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H11); intro HHd.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e3 H12); intro HHe.
+ specialize (eval_vecrec_respect_vconv_imp _ _ _ _ _ _ _ _ _ _ vres v HHa HHb HHc HHd HHe e4 H13); intro HHf.
+ easy.
+ }
+ 9:{
+ intros.
+ inversion H2. subst.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e H8); intro HHa.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H10); intro HHb.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H11); intro HHc.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H12); intro HHd.
+ constructor; easy.
+ }
+ 8:{
+ intros.
+ inversion H0. subst.
+ constructor.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e H3); intro HHa.
+ easy.
+ }
+ 7:{
+ intros.
+ inversion H0. subst.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e H4); intro HHa.
+ specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H6); intro HHb.
+ constructor; easy.
  }
  
  6:{
@@ -1768,7 +1969,7 @@ Qed.
 Lemma progress_mut :
   (forall Γ t A (Hs : synth Γ t A),  Γ = [] -> type_synth_closed t -> exists v, eval' [] t v)
   /\
-  (forall Γ t A (Hc : check Γ t A),  Γ = [] -> type_synth_closed t -> exists v, eval' [] t v).
+  (forall Γ t A (Hc : check Γ t A),  Γ = [] -> type_synth_closed t ->  exists v, eval' [] t v).
 Proof.
   (* use predicates that mention Γ so typing_mutind can accept them,
      but require Γ = [] inside the predicate *)
@@ -1778,6 +1979,7 @@ Proof.
     (fun (Γ : ctx) (t : term) (A : whnf) (He : check Γ t A) =>
        Γ = [] -> type_synth_closed t -> exists v, eval' [] t v)
   ).
+  
 
   4:{
   intros.
@@ -1786,7 +1988,11 @@ Proof.
   apply E'_Pi.
   exact e.
   }
-
+  15:{
+  intros. subst.
+  exists vres.
+  eapply E'_VecRec; eauto.
+  }
   4:{
   intros.
   subst.
@@ -1855,35 +2061,21 @@ Proof.
   3:{ subst. rewrite nth_error_nil in H0. easy. }
   2:{ subst. inversion H. }
   1:{ subst. inversion H. }
+  4:{ subst.
+  exists vres.
+  apply E'_App with (vt := vta) (vu := vu).
+  - exact Hvta.
+  - exact e.
+  - (* build vapp vta vu vres by VApp_ConvFromPi *)
+    apply VApp_ConvFromPi with (ρ' := ρB) (b := Bterm) (ρB := ρB) (b2 := Bterm) (A := vdom).
+    + apply vconv_sym. easy.
+    + apply vconv_refl.
+    + easy.
+    }
+  3:{ subst. inversion H. }
+  2:{ subst. inversion H. }
+  1:{ subst. inversion H. }
   }
-
-  8:{
-  intros.
-  subst.
-  specialize(H eq_refl).
-  inversion H2. subst. rename H3 into HC1. (* rename H5 into HC2. *)
-  specialize(H HC1).
-  destruct H as (vta, Hvta).
-  exists ((VLam vta (Cl [] b))).
-  constructor. easy.
-  }
-
-  7:{
-  intros.
-  subst.
-  specialize(H eq_refl).
-  destruct H as (vta, Hvta).
-  easy.
-  exists vta. easy.
-  }
-
-  7:{
-  intros.
-  subst.
-  exists v.
-  apply E'_NatRec with (vP := vP) (vz := vz) (vs := vs) (vn := vn); easy.
-  }
-
   6:{
   intros.
   subst.
@@ -1918,6 +2110,52 @@ Proof.
   exists A.
   constructor. easy.
   }
+  7:{
+  intros. subst.
+  exists v.
+  apply E'_NatRec with (vP := vP) (vz := vz) (vs := vs) (vn := vn); easy.
+  }
+
+ 6:{
+  intros.
+  subst.
+  specialize(H eq_refl).
+  inversion H2. subst. rename H4 into HC1. rename H5 into HC2.
+  specialize(H HC1).
+  destruct H as (vta, Hvta).
+  exists ((VLam vta (Cl [] b))).
+  constructor. easy.
+  }
+
+  5:{
+  intros.
+  subst.
+  specialize(H eq_refl).
+  apply H in H1.
+  destruct H1 as (vta, Hvta).
+  exists vta. easy.
+  }
+  
+  4:{
+  intros. subst.
+  exists vres.
+  eapply E'_VecRec; eauto.
+  }
+  3:{
+  intros. subst.
+  exists (VCons vA vn vx vxs).
+  constructor; easy.
+  }
+  2:{
+  intros. subst.
+  exists (VNil vA).
+  constructor; easy.
+  }
+  1:{
+  intros.
+  exists (VVec vA vn). subst. 
+  constructor; easy.
+  }
 Qed.
 
 Lemma synth_progress :
@@ -1939,3 +2177,42 @@ Proof.
   intros t A Heq Hclosed.
   eapply (proj2 progress_mut); eauto.
 Qed.
+
+Theorem type_safety_mut :
+  (forall t A, synth [] t A -> type_synth_closed t -> exists v, eval' [] t v /\ vconv A v)
+  /\
+  (forall t A, check [] t A -> type_synth_closed t -> exists v, eval' [] t v /\ vconv A v).
+Proof.
+  split.
+  - intros t A Hs Hclosed.
+    (* progress for synth gives a value *)
+    destruct (synth_progress t A Hs Hclosed) as [v Hev].
+    (* preservation (synth_preserve_eval) gives convertibility of A and v *)
+    specialize (synth_preserve_eval [] t A v Hclosed Hev Hs).
+    exists v; split; auto.
+  - intros t A Hc Hclosed.
+    destruct (check_progress t A Hc Hclosed) as [v Hev].
+    specialize (check_preserve_eval [] t A v Hclosed Hev Hc).
+    exists v; split; auto.
+Qed.
+
+Lemma synth_type_safety :
+  forall t A,
+    synth [] t A ->
+    type_synth_closed t ->
+    exists v, eval' [] t v /\ vconv A v.
+Proof.
+  intros t A Heq Hclosed.
+  eapply (proj1 type_safety_mut); eauto.
+Qed.
+
+Lemma check_type_safety :
+  forall t A,
+    check [] t A ->
+    type_synth_closed t ->
+    exists v, eval' [] t v /\ vconv A v.
+Proof.
+  intros t A Heq Hclosed.
+  eapply (proj2 type_safety_mut); eauto.
+Qed.
+
