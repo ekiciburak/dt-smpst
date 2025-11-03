@@ -30,7 +30,7 @@ Inductive whnf : Type :=
 | VNeutral : neutral -> whnf
 | VVec  : whnf -> whnf -> whnf              (* VVec vA vn *)
 | VNil  : whnf -> whnf                      (* VNil vA *)
-| VCons : whnf -> whnf -> whnf -> whnf ->  whnf    (* VCons vA vn vx vxs *)
+| VCons : whnf -> whnf -> whnf -> whnf -> whnf    (* VCons vA vn vx vxs *)
 
 with neutral : Type :=
 | NVar : nat -> neutral
@@ -62,8 +62,7 @@ Section ManualMutualInduction_Prop.
     (* --- vector WHNFs --- *)
     (H_VVec  : forall vA vn, Pw vA -> Pw vn -> Pw (VVec vA vn))
     (H_VNil  : forall vA, Pw vA -> Pw (VNil vA))
-    (H_VCons : forall vA vn vx vxs,
-        Pw vA -> Pw vn -> Pw vx -> Pw vxs -> Pw (VCons vA vn vx vxs))
+    (H_VCons : forall vA vn vx vxs,Pw vA -> Pw vn -> Pw vx -> Pw vxs -> Pw (VCons vA vn vx vxs))
 
     (H_NVar    : forall i, Pn (NVar i))
     (H_NApp    : forall n v, Pn n -> Pw v -> Pn (NApp n v))
@@ -371,6 +370,12 @@ Inductive synth : ctx -> term -> whnf -> Prop :=
     eval_vecrec vP vnil vcons vn vt vres ->
     synth Γ (VecRec P nil cons n t) vres
 
+(* synth rule for annotated lambdas: produce a Pi whose body closure is the lambda body itself *)
+| S_Lam_Ann : forall Γ annA b vdom vB,
+    synth Γ annA vdom ->
+    check (vdom :: Γ) b vB ->
+    synth Γ (Lam annA b) (VPi vdom (Cl Γ b))
+
 
 (* ---------- check: Γ ⊢ t ⇐ A ---------- *)
 with check : ctx -> term -> whnf -> Prop :=
@@ -385,7 +390,7 @@ with check : ctx -> term -> whnf -> Prop :=
     clB = Cl ρB Bterm ->
     eval' (vdom :: ρB) Bterm vB ->      (* compute codomain value *)
     check (vdom :: ρB) b vB ->          (* check body under extended context *)
-    closure_conv (Cl Γ b) clB ->        (** ATTENTION - link runtime closure and expected closure **)
+    closure_conv (Cl Γ b) clB ->        (** ATTENTION - link runtime closure and expected closure **) 
     check Γ (Lam annA b) A
 
 | C_NatRec_check : forall Γ P z s n A vP vz vs vn v,
@@ -414,7 +419,6 @@ with check_rect := Induction for check Sort Prop.
 
 Combined Scheme typing_mutind from synth_rect, check_rect.
 
-
 Ltac solve_vconv_refl :=
   repeat match goal with
   | [ |- vconv (VVec _ _) (VVec _ _) ] => constructor; try solve_vconv_refl
@@ -422,7 +426,7 @@ Ltac solve_vconv_refl :=
   | [ |- vconv (VCons _ _ _ _) (VCons _ _ _ _) ] => constructor; try solve_vconv_refl
   | _ => constructor; auto
   end.
-  
+
 Lemma vconv_refl :
   (forall v, vconv v v) /\ 
   (forall n, neutral_conv n n) /\ 
@@ -1360,6 +1364,135 @@ Proof.
   intros H; induction Γ; constructor; auto.
 Qed.
 
+
+(* semantic/observational closure equality *)
+Definition closure_extensional (c1 c2 : closure) : Prop :=
+  match c1, c2 with
+  | Cl ρ1 t1, Cl ρ2 t2 =>
+      Forall2 vconv ρ1 ρ2 /\
+      (forall v1 v2 v1' v2',
+         vconv v1 v2 ->
+         eval' (v1 :: ρ1) t1 v1' ->
+         eval' (v2 :: ρ2) t2 v2' ->
+         vconv v1' v2')
+  end.
+
+Lemma closure_extensional_refl : forall ρ t, closure_extensional (Cl ρ t) (Cl ρ t).
+Proof.
+  intros ρ t. unfold closure_extensional.
+  split.
+  - apply Forall2_refl.
+    intros; apply vconv_refl.
+  - intros v1 v2 v1' v2' Hvv He1 He2.
+    apply (eval_respect_vconv_imp (v1 :: ρ) (v2 :: ρ) t v1' v2').
+    + (* build Forall2 vconv (v1::ρ) (v2::ρ) *)
+      constructor; try assumption.
+      apply Forall2_refl; intros; apply vconv_refl.
+    + exact He1.
+    + exact He2.
+Qed.
+
+Lemma closure_extensional_sym :
+  forall c1 c2, closure_extensional c1 c2 -> closure_extensional c2 c1.
+Proof.
+  intros [ρ1 t1] [ρ2 t2] H.
+  unfold closure_extensional in *.
+  destruct H as [Henv Hext].
+  split.
+  - apply Forall2_sym.
+    apply vconv_sym. easy.
+  - intros v2 v1 v2' v1' Hvv He2 He1.
+    apply vconv_sym in Hvv.
+    specialize (Hext v1 v2 v1' v2' Hvv He1 He2).
+    apply vconv_sym; assumption.
+Qed.
+
+Lemma closure_extensional_trans_general :
+  forall ρ1 t1 ρ2 t2 ρ3 t3,
+    (* ext between 1 and 2: env relation and extensionality property *)
+    (Forall2 vconv ρ1 ρ2 /\
+     forall v1 v2 v1' v2',
+       vconv v1 v2 ->
+       eval' (v1 :: ρ1) t1 v1' ->
+       eval' (v2 :: ρ2) t2 v2' ->
+       vconv v1' v2')
+    ->
+    (* ext between 2 and 3 *)
+    (Forall2 vconv ρ2 ρ3 /\
+     forall v2 v3 v2' v3',
+       vconv v2 v3 ->
+       eval' (v2 :: ρ2) t2 v2' ->
+       eval' (v3 :: ρ3) t3 v3' ->
+       vconv v2' v3')
+    ->
+    (* simulation hypothesis: any evaluation in env3 for t3 can be matched by one in env2
+       producing a convertible result (v2' convertible to v3') *)
+    (forall v v3',
+        eval' (v :: ρ3) t3 v3' ->
+        exists v2', eval' (v :: ρ2) t2 v2' /\ vconv v2' v3')
+    ->
+    (* conclusion: ext between 1 and 3 *)
+    Forall2 vconv ρ1 ρ3 /\
+    (forall v1 v3 v1' v3',
+        vconv v1 v3 ->
+        eval' (v1 :: ρ1) t1 v1' ->
+        eval' (v3 :: ρ3) t3 v3' ->
+        vconv v1' v3').
+Proof.
+  intros ρ1 t1 ρ2 t2 ρ3 t3 H12 H23 Hsim.
+  destruct H12 as [Henv12 Hext12].
+  destruct H23 as [Henv23 Hext23].
+  split.
+  - (* compose environment relation *)
+    eapply Forall2_trans; eauto.
+    intros x y z Hxy Hyz.
+    eapply vconv_trans; eauto.
+  - (* extensionality clause composition *)
+    intros v1 v3 v1' v3' Hv13 Hev1 Hev3.
+    (* simulate the right evaluation in the middle env *)
+    specialize (Hsim v3 v3' Hev3).
+    destruct Hsim as (v2' & Hev2' & Hv2'v3').
+    
+    eapply vconv_trans.
+    + eapply Hext12; try eassumption.
+    + exact Hv2'v3'.
+Qed.
+
+Lemma closure_extensional_trans :
+  forall ρ1 ρ2 ρ3 t,
+    closure_extensional (Cl ρ1 t) (Cl ρ2 t) ->
+    closure_extensional (Cl ρ2 t) (Cl ρ3 t) ->
+    (forall v  v3',
+        eval' (v :: ρ3) t v3' ->
+        exists v2', eval' (v :: ρ2) t v2' /\ vconv v2' v3') ->
+    closure_extensional (Cl ρ1 t) (Cl ρ3 t).
+Proof.
+  intros ρ1 ρ2 ρ3 t H12 H23 Hsim.
+  unfold closure_extensional in *.
+  destruct H12 as [Henv12 Hext12].
+  destruct H23 as [Henv23 Hext23].
+  split.
+  - eapply Forall2_trans; eauto.
+    intros x y z Hxy Hyz.
+    eapply vconv_trans; eauto.
+  - intros v1 v3 v1' v3' H13 Hev1 Hev3.
+    specialize (Hsim v3 v3' Hev3).
+    destruct Hsim as (v2' & Hev2' & Hv2'v3').
+    specialize (Hext12 v1 v3 v1' v2' H13 Hev1 Hev2').
+    eapply vconv_trans; eauto.
+Qed.
+
+Lemma closure_extensional_to_closure_conv_when_bodies_eq :
+  forall ρ1 ρ2 t,
+    closure_extensional (Cl ρ1 t) (Cl ρ2 t) ->
+    closure_conv (Cl ρ1 t) (Cl ρ2 t).
+Proof.
+  intros ρ1 ρ2 t H.
+  unfold closure_extensional in H.
+  destruct H as [Henv _].
+  constructor; [assumption | reflexivity].
+Qed.
+
 Lemma typing_unique_mut :
   (forall Γ t A (He : synth Γ t A) A' (He' : synth Γ t A'), vconv A A')  /\
   (forall Γ t A (He : check Γ t A) A' (He' : synth Γ t A'), vconv A A').
@@ -1368,7 +1501,7 @@ Proof.
     (fun Γ t A (He : synth Γ t A) => forall A' (He' : synth Γ t A'), vconv A A')
     (fun Γ t A (He : check Γ t A) => forall A' (He' : synth Γ t A'), vconv A A')
   ).
-    16:{
+    17:{
     intros. inversion He'. subst.
     specialize(eval_respect_vconv_imp2 _ _ _ _ e H4); intro HHa.
     specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H6); intro HHb.
@@ -1381,7 +1514,7 @@ Proof.
     specialize(vconv_trans ); intros (Htrans,(_,_)).
     apply Htrans with (v2 := vres); easy.
     }
-    15:{
+    16:{
     intros.
     inversion He'. subst.
     specialize(eval_respect_vconv_imp2 _ _ _ _ e H3); intro HHa.
@@ -1394,16 +1527,44 @@ Proof.
     specialize(vconv_trans ); intros (Htrans,(_,_)).
     apply Htrans with (v2 := v); easy.
     }
-    14:{
-    intros. inversion He'.
+    15:{
+    intros.
+    inversion He'. subst.
+    inversion c0. subst.
+    inversion v.
+    + subst. constructor.
+      apply H in H4. 
+      specialize(vconv_trans); intros (Htrans,(_,_)).
+      apply Htrans with (v2 := vdom); easy.
+      inversion H8. subst.
+      apply vconv_sym in c0.
+      specialize(vconv_trans); intros (_,(_,Htrans)).
+      apply Htrans with (c2 := (Cl ρB Bterm)); easy.
+    + subst.
+      constructor.
+      apply H in H4.
+      specialize(vconv_trans); intros (Htrans,(_,_)).
+      apply Htrans with (v2 := vdom); easy.
+      apply vconv_sym in c0.
+      specialize(vconv_trans); intros (_,(_,Htrans)).
+      apply Htrans with (c2 := (Cl ρB Bterm)); easy.
     }
-    13:{
+(*     14:{
+    intros. inversion He'.
+    } *)
+    14:{
     intros.
     apply H in He'.
     specialize(vconv_sym ); intros (Hsym,(_,_)).
     specialize(Hsym _ _ v).
     specialize(vconv_trans ); intros (Htrans,(_,_)).
     specialize(Htrans _ _ _ Hsym He'). easy.
+    }
+    13:{
+    intros.
+    inversion He'. subst.
+    apply H in H4. constructor. easy.
+    apply vconv_refl.
     }
     12:{
     intros.
@@ -1628,7 +1789,6 @@ Inductive type_synth_closed : term -> Prop :=
     type_synth_closed (App t u)
 | TSC_Lam    : forall A b,
     type_synth_closed A ->
-    type_synth_closed b -> 
     type_synth_closed (Lam A b)
 | TSC_NatRec : forall P z s n,
     type_synth_closed P ->
@@ -1659,7 +1819,6 @@ Proof.
     (fun (Γ : ctx) (t : term) (A : whnf) (He : check Γ t A) =>
        forall v, type_synth_closed t -> eval' Γ t v -> vconv A v)
   ).
-  
   4:{
   intros.
   inversion H0. subst.
@@ -1806,7 +1965,7 @@ Proof.
     }
     apply(eval_respect_vconv_imp _ _ _ _ _ H14 e1 H10).
   }
-  14:{
+  15:{
   intros.
   inversion H0. subst.
   inversion H. subst.
@@ -1820,7 +1979,7 @@ Proof.
   specialize vconv_trans; intros (Ht,(_,_)).
   apply Ht with (v2 := vres); easy.
   }
-  13:{
+  14:{
   intros.
   inversion H0.
   subst.
@@ -1833,24 +1992,25 @@ Proof.
   specialize vconv_trans; intros (Ht,(_,_)).
   apply Ht with (v2 := v); easy.
   }
-  12:{
+  13:{
   intros.
   inversion H1. subst.
   inversion H2. subst.
   inversion v. 
   + subst.
-    apply H in H9; try easy.
+    apply H with (v := vA) in H4; try easy.
     constructor. 
     specialize(vconv_trans); intros (Htrans,(_,_)).
     apply Htrans with (v2 := vdom); easy.
     
     specialize(vconv_sym); intros (_,(_,Hsym)).
+(*     inversion H2. subst. *)
     apply Hsym in c0.
     specialize(vconv_trans); intros (_,(_,Htrans)).
     apply Htrans with (c2 := (Cl ρB Bterm)); easy.
 
   + subst. 
-    apply H in H9; try easy.
+    apply H with (v := vA) in H4; try easy.
     constructor. specialize(vconv_trans); intros (Htrans,(_,_)).
     apply Htrans with (v2 := vdom); easy.
     
@@ -1860,7 +2020,7 @@ Proof.
     apply Htrans with (c2 := (Cl ρB Bterm)); easy.
   }
 
- 11:{
+ 12:{
  intros.
  apply H in H1; try easy.
 
@@ -1870,6 +2030,15 @@ Proof.
  apply Htrans with (v2 := A'); easy.
  }
  
+ 11:{
+ intros.
+ inversion H1. subst.
+ inversion H2. subst.
+ apply H with (v := vA) in H4.
+ constructor. easy.
+ apply vconv_refl.
+ easy.
+ }
  10:{
  intros.
  inversion H0. subst.
@@ -1988,7 +2157,7 @@ Proof.
   apply E'_Pi.
   exact e.
   }
-  15:{
+  16:{
   intros. subst.
   exists vres.
   eapply E'_VecRec; eauto.
@@ -2037,7 +2206,12 @@ Proof.
     inversion H. subst. inversion H7. subst.
     inversion H6. subst.
     exists vres.
-    apply E'_App with (vt := (VPi vA (Cl [] Bterm))) (vu := vu); try easy.
+    apply E'_App with (vt := (VLam vA (Cl [] Bterm))) (vu := vu); try easy.
+    apply VApp_ConvFromPi with (ρ' := []) (b := Bterm) (ρB := []) (b2 := Bterm) (A := vdom).
+    constructor. 
+    apply vconv_sym. easy.
+    apply vconv_refl.
+    apply vconv_refl. easy.
    }
   7:{ subst.
   pose proof (proj1 vconv_sym) as vconv_sym_v.
@@ -2110,30 +2284,43 @@ Proof.
   exists A.
   constructor. easy.
   }
+  
+  7:{
+  intros. subst.
+  specialize(H eq_refl).
+  inversion H2. subst.
+  apply H in H3.
+  destruct H3 as (vt,Hvt).
+  inversion c0. subst.
+  inversion H5. subst.
+  exists (VLam vt (Cl [] Bterm)).
+  constructor. easy.
+  }
+  
   7:{
   intros. subst.
   exists v.
   apply E'_NatRec with (vP := vP) (vz := vz) (vs := vs) (vn := vn); easy.
   }
 
- 6:{
-  intros.
-  subst.
-  specialize(H eq_refl).
-  inversion H2. subst. rename H4 into HC1. rename H5 into HC2.
-  specialize(H HC1).
-  destruct H as (vta, Hvta).
-  exists ((VLam vta (Cl [] b))).
-  constructor. easy.
-  }
-
-  5:{
+  6:{
   intros.
   subst.
   specialize(H eq_refl).
   apply H in H1.
   destruct H1 as (vta, Hvta).
   exists vta. easy.
+  }
+  
+  5:{
+  intros.
+  subst.
+  specialize(H eq_refl).
+  inversion H2. subst. rename H3 into HC1. (* rename H5 into HC2. *)
+  specialize(H HC1).
+  destruct H as (vta, Hvta).
+  exists ((VLam vta (Cl [] b))).
+  constructor. easy.
   }
   
   4:{
@@ -2215,4 +2402,15 @@ Proof.
   intros t A Heq Hclosed.
   eapply (proj2 type_safety_mut); eauto.
 Qed.
+
+Definition add_term : term :=
+  Lam Nat
+    ( Lam Nat
+        ( NatRec
+            (Lam Nat Nat)                     (* P = λ_. Nat *)
+            (Var 0)                           (* z = y *)
+            (Lam Nat (Lam Nat (Succ (Var 0))))(* s = λn. λrec. Succ rec *)
+            (Var 1)                           (* n = x *)
+        )
+    ).
 
