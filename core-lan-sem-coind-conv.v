@@ -256,12 +256,6 @@ Lemma evals_deterministic :
      forall r2, eval_vecrec vP vnil vcons vindex t r2 -> r1 = r2).
 Proof.
   apply evals_mutind; intros.
-(*   apply (evals_mutind
-    (fun ρ t v _ => forall v', eval' ρ t v' -> v = v')
-    (fun vt arg r _ => forall r', vapp vt arg r' -> r = r')
-    (fun vP vz vs n v _ => forall v', eval_natrec vP vz vs n v' -> v = v')
-    (fun vP vnil vcons vindex vt v _ =>
-       forall v', eval_vecrec vP vnil vcons vindex vt v' -> v = v')). *)
    23:{
    intros.
    inversion H. subst. easy.
@@ -413,18 +407,11 @@ Proof.
   eauto.
 Qed.
 
-(* ------------------------------------------------------------------ *)
-(* Tag all three relation kinds into one type so we can use paco2 on  *)
-(* a single binary relation over these tags; projections give the real *)
-(* three relations.                                                     *)
-(* ------------------------------------------------------------------ *)
-
 Inductive conv_tag : Type :=
 | TNe : neutral -> conv_tag
 | TV  : whnf -> conv_tag
 | TC  : closure -> conv_tag.
 
-(* accessors (you already have equivalents; we include here for completeness) *)
 Definition env_of_cl (cl : closure) : list whnf :=
   match cl with Cl rho _ => rho end.
 
@@ -1008,15 +995,14 @@ Definition neutral_conv (n1 n2 : neutral) : Prop := conv (TNe n1) (TNe n2).
 Definition vconv (v1 v2 : whnf) : Prop := conv (TV v1) (TV v2).
 Definition closure_conv (c1 c2 : closure) : Prop := conv (TC c1) (TC c2).
 
-(* Assumes the code you gave above (term, whnf, neutral, closure, eval', eval_natrec, eval_vecrec, vconv, closure_conv) is already present. *)
 
 Section BidirectionalTyping.
 
-  (* Context: list of whnf (value-types) *)
-  Definition ctx := list whnf.
+(* Context: list of whnf (value-types) *)
+Definition ctx := list whnf.
 
-  (* Helper: lookup in ctx *)
-  Definition ctx_lookup (Γ : ctx) (n : nat) : option whnf := nth_error Γ n.
+(* Helper: lookup in ctx *)
+Definition ctx_lookup (Γ : ctx) (n : nat) : option whnf := nth_error Γ n.
 
 
 Reserved Notation "Γ ⊢ₛ t ⇑ A" (at level 70).
@@ -1679,6 +1665,23 @@ Lemma check_type_safety :
 Proof.
   intros t A Heq Hclosed.
   eapply (proj2 type_safety_mut); eauto.
+Qed.
+
+Lemma closure_conv_bisim_exists :
+  forall (ρ1 ρ2 : list whnf) (t1 t2 : term) (arg r2 : whnf),
+    upaco2 convF bot2 (TC (Cl ρ1 t1)) (TC (Cl ρ2 t2)) ->
+    eval' (arg :: ρ2) t2 r2 ->
+    exists r1, eval' (arg :: ρ1) t1 r1 /\ upaco2 convF bot2 (TV r1) (TV r2).
+Proof. intros.
+       destruct H as [H | H].
+       punfold H.
+       simpl in H.
+       destruct H as (Ha,(Hb,Hc)).
+       apply Hc in H0.
+       destruct H0 as (res1,(Hc1,Hc2)).
+       exists res1. easy.
+       apply mon_convF.
+       easy.
 Qed.
 
 Definition add_term : term :=
