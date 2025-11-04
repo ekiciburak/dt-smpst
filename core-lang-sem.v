@@ -348,7 +348,7 @@ Inductive synth : ctx -> term -> whnf -> Prop :=
 (* Nil/Cons produce the canonical WHNFs for vector values *)
 | S_Nil : forall Γ A vA,
     eval' Γ A vA ->
-    synth Γ (Nil A) (VNil vA)
+    synth Γ (Nil A) (VVec vA VZero)
 
 | S_Cons : forall Γ A n x xs vA vn vx vxs,
     eval' Γ A vA ->
@@ -357,7 +357,7 @@ Inductive synth : ctx -> term -> whnf -> Prop :=
     eval' Γ xs vxs ->
     check Γ x vA ->                       (* x : A *)
     check Γ xs (VVec vA vn) ->            (* xs : Vec A n *)
-    synth Γ (Cons A n x xs) (VCons vA vn vx vxs)
+    synth Γ (Cons A n x xs) (VVec vA (VSucc vn))
 
 
 (* S_VecRec_term: synth returns what eval_vecrec returns *)
@@ -413,6 +413,12 @@ with check : ctx -> term -> whnf -> Prop :=
     eval_vecrec vP vnil vcons vn vt vres ->
     vconv vres A ->
     check Γ (VecRec P nil cons n t) A.
+
+(* | C_Pi : forall Γ A B vA vB,
+    eval' Γ A vA ->
+    eval' (vA :: Γ) B vB ->
+    vconv vB VStar ->
+    check Γ (Pi A B) VStar. *)
 
 Scheme synth_rect := Induction for synth Sort Prop
 with check_rect := Induction for check Sort Prop.
@@ -1584,12 +1590,15 @@ Proof.
     specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H6); intro HHb.
     specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H8); intro HHc.
     specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H10); intro HHd.
-    constructor; easy.
+    constructor. easy.
+    constructor. easy.
+(*     constructor; easy. *)
     }
     10:{
     intros.
     inversion He'. subst. constructor.
     specialize(eval_respect_vconv_imp2 _ _ _ _ e H1); intro HHa. easy.
+    constructor.
     }
     9:{
     intros.
@@ -2057,6 +2066,8 @@ Proof.
  specialize(eval_respect_vconv_imp2 _ _ _ _ e0 H10); intro HHb.
  specialize(eval_respect_vconv_imp2 _ _ _ _ e1 H11); intro HHc.
  specialize(eval_respect_vconv_imp2 _ _ _ _ e2 H12); intro HHd.
+
+
  constructor; easy.
  }
  8:{
@@ -2350,7 +2361,7 @@ Lemma synth_progress :
     synth [] t A ->
     type_synth_closed t ->
     exists v, eval' [] t v.
-Proof.
+Proof. 
   intros t A Heq Hclosed.
   eapply (proj1 progress_mut); eauto.
 Qed.
