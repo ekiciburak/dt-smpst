@@ -450,6 +450,10 @@ Definition convF
   | TV VNat,  TV VNat  => True
   | TV VZero, TV VZero => True
 
+(*   (* make Nat and Star convertible (Nat : Star) *)
+  | TV VNat, TV VStar => True
+  | TV VStar, TV VNat => True *)
+
   | TV (VSucc n1), TV (VSucc n2) =>
       r (TV n1) (TV n2)
 
@@ -1023,6 +1027,16 @@ Inductive is_type_shape : term -> Prop :=
    Bidirectional typing
    --------------------------- *)
 
+Fixpoint make_neutral_env_from (start : nat) (Γ : list whnf) : list whnf :=
+  match Γ with
+  | [] => []
+  | _ :: Γ' => VNeutral (NVar start) :: make_neutral_env_from (S start) Γ'
+  end.
+
+Definition make_neutral_env (Γ : list whnf) : list whnf :=
+  make_neutral_env_from 0 Γ.
+
+
 Inductive synth : ctx -> term -> whnf -> Prop :=
   (* variables: types are stored as whnf in the context *)
 | S_Var : forall Γ x A,
@@ -1104,15 +1118,21 @@ Inductive synth : ctx -> term -> whnf -> Prop :=
     eval_vecrec vP vnil vcons vn vt vres ->
     synth Γ (VecRec P nil cons n t) vres
 
+| S_Lam_Ann : forall Γ annA b vdom vB,
+    synth Γ annA vdom ->
+    vconv vdom VStar ->
+    check (vdom :: Γ) b vB ->
+    synth Γ (Lam annA b) (VPi vdom (Cl Γ b))
+
   (* Annotated lambda (synthesizes a Pi based on annotation). We require the annotation
-     to synthesize to a type (vdom) and that the lambda body checks under the extended
+(*      to synthesize to a type (vdom) and that the lambda body checks under the extended
      static context (vdom :: Γ) to some vB; the produced Pi closure captures the
      body-as-term with Γ. *)
 | S_Lam_Ann : forall Γ annA b vdom vB,
     synth Γ annA vdom ->
     vconv vdom VStar ->
     check (vdom :: Γ) b vB ->
-    synth Γ (Lam annA b) (VPi vdom (Cl Γ b))
+    synth Γ (Lam annA b) (VPi vdom (Cl Γ b)) *)
 
 where "Γ ⊢ₛ t ⇑ A" := (synth Γ t A)
 
@@ -1123,7 +1143,17 @@ with check : ctx -> term -> whnf -> Prop :=
     vconv A' A ->
     check Γ t A
 
-(* check lambda against expected Pi: expected A convertible to Pi vdom clB,
+| C_Lam : forall Γ (A : whnf) annA b vdom clB ρB Bterm vB,
+    synth Γ annA vdom ->                 (* annotation synthesizes the domain *)
+    vconv vdom VStar ->                  (* annotation must be a type *)
+    vconv A (VPi vdom clB) ->            (* expected type convertible to Pi vdom clB *)
+    clB = Cl ρB Bterm ->
+    eval' (vdom :: ρB) Bterm vB ->       (* evaluate codomain under clB's runtime env *)
+    check (vdom :: Γ) b vB ->            (* check the lambda body in its own static env *)
+    closure_conv (Cl Γ b) clB ->
+    check Γ (Lam annA b) A
+
+(* (* check lambda against expected Pi: expected A convertible to Pi vdom clB,
    evaluate the expected codomain under clB's env to get vB, check the lambda body
    under its own static environment (vdom :: Γ) against that vB, then require
    the runtime closure produced by the lambda be observationally convertible to clB. *)
@@ -1136,7 +1166,7 @@ with check : ctx -> term -> whnf -> Prop :=
     check (vdom :: Γ) b vB ->            (* check the lambda body in its own static env *)
     closure_conv (Cl Γ b) clB ->         (* closures must be observationally convertible *)
     check Γ (Lam annA b) A
-
+ *)
 (* NatRec checked against an expected A: evaluate elim components and require the
    evaluation of the elimination be convertible to A *)
 | C_NatRec_check : forall Γ P z s n A vP vz vs vn v,
