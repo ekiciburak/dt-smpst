@@ -2006,6 +2006,115 @@ Definition bigfuel := 500%nat.
 Compute (evalk bigfuel [] tm_append_v12_v3).
 
 
+(* Put this after your whnf/neutral/closure/eval' definitions. *)
+
+Section ConvFuelCorrected.
+
+  (* supply a fuelled term evaluator: nat -> env -> term -> option whnf *)
+  Variable eval_term_fuel : nat -> list whnf -> term -> option whnf.
+
+  (* non-recursive helper to evaluate a closure with one arg using the fuelled evaluator *)
+  Definition eval_closure_with_arg_fuel (fuel : nat) (cl : closure) (arg : whnf)
+    : option whnf :=
+    match cl with Cl rho t => eval_term_fuel fuel (arg :: rho) t end.
+
+  (* Mutual Fixpoint: conv_fuel, conv_neutral_fuel, envs_conv_b, conv_closure_b.
+     Each function matches on fuel as the first argument so recursive calls
+     are on a strictly smaller fuel (S f' -> use f'). *)
+  Fixpoint conv_fuel (fuel : nat) (v w : whnf) {struct fuel} : bool :=
+    match fuel with
+    | 0 => false
+    | S f' =>
+      match v, w with
+      | VType i, VType j => Nat.eqb i j
+      | VNat, VNat => true
+      | VPi a cl, VPi a' cl' =>
+          andb (conv_fuel f' a a') (conv_closure_b f' cl cl')
+      | VLam a cl, VLam a' cl' =>
+          andb (conv_fuel f' a a') (conv_closure_b f' cl cl')
+      | VZero, VZero => true
+      | VSucc n1, VSucc n2 => conv_fuel f' n1 n2
+      | VNeutral n1, VNeutral n2 => conv_neutral_fuel f' n1 n2
+      | VVec a n, VVec a' n' =>
+          andb (conv_fuel f' a a') (conv_fuel f' n n')
+      | VNil a, VNil a' => conv_fuel f' a a'
+      | VCons a n x xs, VCons a' n' x' xs' =>
+          andb (conv_fuel f' a a')
+               (andb (conv_fuel f' n n')
+                     (andb (conv_fuel f' x x') (conv_fuel f' xs xs')))
+      | _, _ => false
+      end
+    end
+
+  with conv_neutral_fuel (fuel : nat) (n n' : neutral) {struct fuel} : bool :=
+    match fuel with
+    | 0 => false
+    | S f' =>
+      match n, n' with
+      | NVar i, NVar j => Nat.eqb i j
+      | NApp n1 v1, NApp n2 v2 =>
+          andb (conv_neutral_fuel f' n1 n2) (conv_fuel f' v1 v2)
+      | NNatRec P z s nn, NNatRec P' z' s' nn' =>
+          andb (conv_fuel f' P P')
+               (andb (conv_fuel f' z z')
+                     (andb (conv_fuel f' s s') (conv_neutral_fuel f' nn nn')))
+      | NVecRec P nl cns idx nn, NVecRec P' nil' cons' idx' nn' =>
+          andb (conv_fuel f' P P')
+               (andb (conv_fuel f' nl nil')
+                     (andb (conv_fuel f' cns cons')
+                           (andb (conv_fuel f' idx idx')
+                                 (conv_neutral_fuel f' nn nn'))))
+      | _, _ => false
+      end
+    end
+
+  with envs_conv_b (fuel : nat) (ρ1 ρ2 : list whnf) {struct fuel} : bool :=
+    match fuel with
+    | 0 => false
+    | S f' =>
+      match ρ1, ρ2 with
+      | [], [] => true
+      | v1 :: r1, v2 :: r2 => andb (conv_fuel f' v1 v2) (envs_conv_b f' r1 r2)
+      | _, _ => false
+      end
+    end
+
+  with conv_closure_b (fuel : nat) (cl1 cl2 : closure) {struct fuel} : bool :=
+    match fuel with
+    | 0 => false
+    | S f' =>
+      match cl1, cl2 with
+      | Cl ρ1 t1, Cl ρ2 t2 =>
+          let env_ok := envs_conv_b f' ρ1 ρ2 in
+          if env_ok then
+            let witness := VNeutral (NVar 0) in
+            match eval_closure_with_arg_fuel f' cl1 witness,
+                  eval_closure_with_arg_fuel f' cl2 witness with
+            | Some r1, Some r2 => conv_fuel f' r1 r2
+            | _, _ => false
+            end
+          else false
+      end
+    end.
+
+End ConvFuelCorrected.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 From Coq Require Import List Arith Lia Bool.
 Import ListNotations.
 From Paco Require Import paco.
