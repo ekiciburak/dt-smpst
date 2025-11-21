@@ -2,6 +2,7 @@ From Coq Require Import Strings.String.
 From Coq Require Import Lists.List.
 From Coq Require Import Arith.PeanoNat.
 Import ListNotations.
+Require Import Coq.Relations.Relation_Operators.
 
 (* ----------------------------- *)
 (* Locally-Nameless syntax       *)
