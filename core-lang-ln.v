@@ -229,6 +229,18 @@ Definition convertible_ln : term_ln -> term_ln -> Prop :=
 
 Infix "≡ₗₙ" := convertible_ln (at level 70, no associativity).
 
+
+Lemma convertible_refl : forall x, convertible_ln x x.
+Proof. unfold convertible_ln; intros. 
+Search clos_refl_sym_trans. apply rst_refl. Qed.
+
+Lemma convertible_sym : forall x y, convertible_ln x y -> convertible_ln y x.
+Proof. intros; unfold convertible_ln in *. apply rst_sym. easy. Qed.
+
+Lemma convertible_trans : forall x y z, convertible_ln x y -> convertible_ln y z -> convertible_ln x z.
+Proof. intros; unfold convertible_ln in *. apply rst_trans with (y:= y); easy. Qed.
+
+
 From Coq Require Import Strings.String.
 From Coq Require Import Lists.List.
 From Coq Require Import Arith.PeanoNat.
@@ -262,10 +274,38 @@ Definition extend (Γ : ctx_ln) (x : string) (T : term_ln) : ctx_ln := (x,T) :: 
 
 Definition fresh (x : string) (Γ : ctx_ln) : Prop := ~ In x (map fst Γ).
 
-Definition P_app1 (P : term_ln) (m : term_ln) : term_ln := open_many [m] P.
+Definition shift_open (d : nat) (P x : term_ln) : term_ln :=
+  open_rec_ln d x P.
+
+Definition body_of_P (P : term_ln) : term_ln :=
+  match P with
+  | t_Lam _ body => body
+  | _ => open_ln P (t_bvar 0)   (* treat P as if it were abstracted over a Nat *)
+  end.
+
+Definition P_open (d : nat) (P : term_ln) (x : term_ln) : term_ln :=
+  shift_open d (body_of_P P) x.   (* pseudo; implement with your existing open/shift *)
+
+(* apply P to a numeral m *)
+Definition P_app1 (P : term_ln) (m : term_ln) : term_ln :=
+  open_ln (body_of_P P) m.
 
 Definition s_expected_type_for_P (P : term_ln) : term_ln :=
-  t_Pi t_Nat (t_Pi (open_ln P (t_bvar 0)) (open_ln P (t_Succ (t_bvar 0)))).
+  t_Pi t_Nat
+    (t_Pi (P_open 1 P (t_bvar 1))  (* ih : P m where m is bvar 1 inside the inner pi *)
+          (P_open 1 P (t_Succ (t_bvar 1)))).
+
+(* Definition s_expected_type_for_P (P : term_ln) : term_ln :=
+  t_Pi t_Nat
+    (t_Pi (open_ln (body_of_P P) (t_bvar 1))    (* ih : P m  -- m is t_bvar 1 here *)
+          (open_ln (body_of_P P) (t_Succ (t_bvar 1)))). *)
+
+Fixpoint insert_at {A : Type} (n : nat) (x : A) (Γ : list A) : list A :=
+  match n, Γ with
+  | 0, _ => x :: Γ
+  | S n', g :: Γ' => g :: insert_at n' x Γ'
+  | S _, [] => [x]          (* if n is larger than the length, append at end *)
+  end.
 
 Inductive has_type_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
 
@@ -309,31 +349,20 @@ Inductive has_type_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
     has_type_ln Gamma n t_Nat ->
     has_type_ln Gamma (t_Succ n) t_Nat
 
-| ty_NatRec : forall Gamma P z s n,
-  (* P is a family Nat -> Type_k *)
-  (exists k, forall Gprime (m_name:string),
-      fresh m_name Gprime ->
-        has_type_ln ((m_name, t_Nat) :: Gprime)
-                    (open_ln P (t_fvar m_name))
-                    (t_Type k)) ->
-  (* z : P[Zero] *)
-  has_type_ln Gamma z (P_app1 P t_Zero) ->
-  (* s : forall m:Nat, forall ih : P[m], P[Succ m] *)
-  (forall Gprime (m_name:string),
-     fresh m_name Gprime ->
-       forall ih_name, fresh ih_name ((m_name, t_Nat) :: Gprime) ->
-         has_type_ln
-           ((m_name, t_Nat) :: (ih_name, open_ln P (t_fvar m_name)) :: Gprime)
-           (open_ln (open_ln s (t_fvar m_name)) (t_fvar ih_name))
-           (open_ln P (t_Succ (t_fvar m_name)))) ->
-  has_type_ln Gamma n t_Nat ->
-  has_type_ln Gamma (t_NatRec_ln P z s n) (P_app1 P n)
+| ty_NatRec_strong : forall Gamma P body z s n k,
+    has_type_ln Gamma P (t_Pi t_Nat (t_Type k)) -> 
+    step_star_ln P (t_Lam t_Nat body) ->
+(*  (forall x, fresh x Gamma -> has_type_ln ((x, t_Nat) :: Gamma) body (t_Type k)) -> *)
+    (* base: z : P 0 = body[0 := Zero] *) 
+    has_type_ln Gamma z (open_rec_ln 0 t_Zero body) -> 
+    (* step: s : Π (m:Nat). Π (ih : P m), P (S m) encoded with de Bruijn indices: inside inner Pi: ih = bvar 0, m = bvar 1 *) 
+    has_type_ln Gamma s (t_Pi t_Nat (t_Pi (open_rec_ln 0 (t_bvar 1) body) (* ih : P m *) (open_rec_ln 0 (t_Succ (t_bvar 1)) body))) -> (* P (S m) *) 
+    has_type_ln Gamma n t_Nat -> has_type_ln Gamma (t_NatRec_ln P z s n) (open_rec_ln 0 n body)
 
-| ty_conv :
-    forall Γ t A B,
-      has_type_ln Γ t A ->
-      convertible_ln A B ->
-      has_type_ln Γ t B.
+| ty_conv : forall Γ t A B,
+    has_type_ln Γ t A ->
+    convertible_ln A B ->
+    has_type_ln Γ t B.
 
 Require Import Coq.Program.Equality.
 
@@ -487,14 +516,14 @@ Proof. intros.
             apply IHhas_type_ln; try easy.
           }
        8: { subst.
-            destruct H as (k, H).
-            apply ty_NatRec. unfold P_app1, s_expected_type_for_P in *. simpl in *.
-            exists k. subst.
-            intros. apply H. easy.
-            apply IHhas_type_ln1. easy. easy. easy. easy.
+            
+            (* destruct H as (k, H). *)
+            apply ty_NatRec_strong with (k := k). unfold P_app1, s_expected_type_for_P in *. cbn in *.
+            eapply IHhas_type_ln1. easy. easy. easy. easy. easy.
+            eapply IHhas_type_ln2. easy. easy. easy. easy.
+            apply IHhas_type_ln3. easy. easy. easy. easy.
             intros.
-            apply H0. easy. easy.
-            apply IHhas_type_ln2; easy.
+            apply IHhas_type_ln4; easy.
            }
         3: { subst.
              constructor. apply IHhas_type_ln; easy.
@@ -525,7 +554,34 @@ Proof. intros.
          1: { constructor. subst.
               apply IHhas_type_ln; easy.
             }
-Qed.
+Qed. 
+
+Inductive ctx_sub: ctx_ln -> ctx_ln -> Prop :=
+| ctx_sub_refl : forall Γ, ctx_sub Γ Γ
+| ctx_sub_insert :
+    forall Γ Γ1 Γ2 b,
+      ctx_sub Γ (Γ1 ++ Γ2) ->
+      fresh (fst b) (Γ1 ++ Γ2) ->
+      ctx_sub Γ (Γ1 ++ b :: Γ2).
+
+Lemma ctx_sub_weaken_head :
+  forall Γ Γ' x U,
+    ctx_sub Γ Γ' ->
+    fresh x Γ' ->
+    ctx_sub ((x, U) :: Γ) ((x, U) :: Γ').
+Proof.
+  intros. revert x U H0.
+  dependent induction H; intros.
+  - (* refl *) constructor.
+  - simpl.
+    assert(((x, U) :: Γ1 ++ b :: Γ2) = (((x, U) :: Γ1) ++ (b :: Γ2))). easy.
+    rewrite H2.
+    constructor. apply IHctx_sub.
+    admit.
+    destruct b.
+    simpl in *.
+    admit.
+Admitted.
 
 Lemma weakening_fresh :
   forall Γ t T x U,
@@ -541,7 +597,9 @@ Proof. intros. revert x H U.
             specialize (fresh_commute_middle nil Gamma (open_ln b (t_fvar x0)) (open_ln B (t_fvar x0))); intros Ha.
             simpl in Ha. apply Ha.
             pose proof H3 as H3a.
-            apply fresh_not_2 in H3. easy. easy.
+            apply fresh_not_2 in H3. easy. 
+            pose proof H3 as H3a.
+            apply fresh_not_2 in H3. easy.
             pose proof H3 as H3a.
             apply fresh_not_2 in H3. easy.
             apply H1.
@@ -553,11 +611,11 @@ Proof. intros. revert x H U.
             intro HH. apply H2.
             simpl in HH. destruct HH; easy.
           }
-       8: { constructor.
-            destruct H as (k, H). exists k.
-            intros. apply H. easy.
+       8: { apply ty_NatRec_strong with (k := k).
             apply IHhas_type_ln1. easy. easy.
             apply IHhas_type_ln2. easy.
+            apply IHhas_type_ln3. easy.
+            apply IHhas_type_ln4. easy.
           }
        3: { constructor.
             apply IHhas_type_ln; easy.
@@ -594,4 +652,70 @@ Proof. intros. revert x H U.
             + simpl. rewrite H1. easy.
           }
 Qed.
+
+(* add := fun (n : Nat) (m : Nat) =>
+     nat_rec n (fun _ => Nat) m (fun _ (r : Nat) => Succ r) *)
+
+Definition P_const : term_ln := t_Lam t_Nat t_Nat.
+Definition s_add : term_ln := t_Lam t_Nat (t_Lam t_Nat (t_Succ (t_bvar 0))).
+
+Definition add_ln : term_ln :=
+  t_Lam t_Nat (
+    t_Lam t_Nat (
+      t_NatRec_ln P_const (t_bvar 0) s_add (t_bvar 1)
+    )
+  ).
+
+Lemma add_ln_typing :
+  has_type_ln [] add_ln (t_Pi t_Nat (t_Pi t_Nat t_Nat)).
+Proof.
+  unfold add_ln.
+  eapply ty_Lam.
+  - apply ty_Nat.
+  - intros n_name Hfresh_n.
+    eapply ty_Lam.
+    + apply ty_Nat.
+    + intros m_name Hfresh_m. cbn.
+      eapply ty_NatRec_strong
+            with (k := 0)
+                 (P := t_Lam t_Nat t_Nat)     (* P_const *)
+                 (body := t_Nat)              (* the body of P_const *)
+                 (z := t_fvar m_name)         (* base case uses the local var m *)
+                 (s := s_add)                 (* step function *)
+                 (n := t_fvar n_name).        (* recursion argument = local var n *)
+      cbn.
+      apply ty_Lam with (i := 0).
+      apply ty_Nat.
+      intros.
+      cbn.
+      apply ty_Nat.
+      cbn. constructor.
+      apply ty_var. simpl. rewrite String.eqb_refl. easy.
+      
+      intros.
+      cbn.
+      unfold s_expected_type_for_P. cbn.
+      apply ty_Lam with (i := 0).
+      constructor.
+      intros.
+      cbn.
+      apply ty_Lam with (i := 0).
+      constructor.
+      intros.
+      cbn.
+      constructor. 
+      cbn.
+      apply ty_var. simpl. rewrite String.eqb_refl. easy.
+      apply ty_var. simpl. rewrite String.eqb_refl.
+      unfold fresh in Hfresh_m.
+      apply fresh_not_2 in Hfresh_m.
+      destruct Hfresh_m as (Ha,_).
+      apply String.eqb_neq in Ha.
+      assert((n_name =? m_name)%string = false).
+      { apply String.eqb_neq in Ha.
+        apply String.eqb_neq. easy.
+      }
+      rewrite H. easy.
+Qed.
+
 
