@@ -351,8 +351,8 @@ Inductive has_type_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
 
 | ty_NatRec_strong : forall Gamma P body z s n k,
     has_type_ln Gamma P (t_Pi t_Nat (t_Type k)) -> 
-    step_star_ln P (t_Lam t_Nat body) ->
-(*  (forall x, fresh x Gamma -> has_type_ln ((x, t_Nat) :: Gamma) body (t_Type k)) -> *)
+    convertible_ln P (t_Lam t_Nat body) ->
+    (forall x, fresh x Gamma -> has_type_ln ((x, t_Nat) :: Gamma) body (t_Type k)) ->
     (* base: z : P 0 = body[0 := Zero] *) 
     has_type_ln Gamma z (open_rec_ln 0 t_Zero body) -> 
     (* step: s : Π (m:Nat). Π (ih : P m), P (S m) encoded with de Bruijn indices: inside inner Pi: ih = bvar 0, m = bvar 1 *) 
@@ -516,10 +516,20 @@ Proof. intros.
             apply IHhas_type_ln; try easy.
           }
        8: { subst.
-            
-            (* destruct H as (k, H). *)
             apply ty_NatRec_strong with (k := k). unfold P_app1, s_expected_type_for_P in *. cbn in *.
             eapply IHhas_type_ln1. easy. easy. easy. easy. easy.
+            intros. 
+            specialize(H1 x0).
+            assert(Hfr1: fresh x0 (Gamma1 ++ (x, U) :: (y, V) :: Gamma2)).
+            { apply fresh_commute. easy. }
+            specialize(H1 Hfr1
+            ((x0, t_Nat) :: Gamma1)
+            Gamma2
+            ). simpl in H1. eapply H1.
+            apply fresh_not in H5.
+            apply fresh_dtop. easy. easy. easy.
+            apply fresh_not in H5.
+            apply fresh_dtop. easy. easy. easy.
             eapply IHhas_type_ln2. easy. easy. easy. easy.
             apply IHhas_type_ln3. easy. easy. easy. easy.
             intros.
@@ -613,6 +623,16 @@ Proof. intros. revert x H U.
           }
        8: { apply ty_NatRec_strong with (k := k).
             apply IHhas_type_ln1. easy. easy.
+            intros.
+            specialize(fresh_commute_middle nil); intro HH. simpl in HH.
+            eapply HH.
+            apply fresh_not_2 in H3. easy. easy.
+            apply fresh_not_2 in H3. easy.
+            eapply H1.
+            apply fresh_not_2 in H3. easy.
+            apply fresh_not_2 in H3.
+            specialize (fresh_dtop nil); intro HHa. simpl in HHa.
+            apply HHa. easy. easy.
             apply IHhas_type_ln2. easy.
             apply IHhas_type_ln3. easy.
             apply IHhas_type_ln4. easy.
@@ -689,7 +709,11 @@ Proof.
       intros.
       cbn.
       apply ty_Nat.
-      cbn. constructor.
+      cbn. 
+      apply convertible_refl.
+      
+      intros. cbn.
+      apply ty_Nat. 
       apply ty_var. simpl. rewrite String.eqb_refl. easy.
       
       intros.
