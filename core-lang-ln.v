@@ -352,12 +352,14 @@ Inductive has_type_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
 | ty_NatRec_strong : forall Gamma P body z s n k,
     has_type_ln Gamma P (t_Pi t_Nat (t_Type k)) -> 
     convertible_ln P (t_Lam t_Nat body) ->
-    (forall x, fresh x Gamma -> has_type_ln ((x, t_Nat) :: Gamma) body (t_Type k)) ->
+    (forall x, fresh x Gamma -> 
+               has_type_ln ((x, t_Nat) :: Gamma) (open_ln body (t_fvar x)) (open_ln (t_Type k) (t_fvar x))) ->
     (* base: z : P 0 = body[0 := Zero] *) 
     has_type_ln Gamma z (open_rec_ln 0 t_Zero body) -> 
     (* step: s : Π (m:Nat). Π (ih : P m), P (S m) encoded with de Bruijn indices: inside inner Pi: ih = bvar 0, m = bvar 1 *) 
     has_type_ln Gamma s (t_Pi t_Nat (t_Pi (open_rec_ln 0 (t_bvar 1) body) (* ih : P m *) (open_rec_ln 0 (t_Succ (t_bvar 1)) body))) -> (* P (S m) *) 
-    has_type_ln Gamma n t_Nat -> has_type_ln Gamma (t_NatRec_ln P z s n) (open_rec_ln 0 n body)
+    has_type_ln Gamma n t_Nat -> 
+    has_type_ln Gamma (t_NatRec_ln P z s n) (open_rec_ln 0 n body)
 
 | ty_conv : forall Γ t A B,
     has_type_ln Γ t A ->
@@ -531,7 +533,8 @@ Proof. intros.
             apply fresh_not in H5.
             apply fresh_dtop. easy. easy. easy.
             eapply IHhas_type_ln2. easy. easy. easy. easy.
-            apply IHhas_type_ln3. easy. easy. easy. easy.
+            apply IHhas_type_ln3. 
+            easy. easy. easy. easy.
             intros.
             apply IHhas_type_ln4; easy.
            }
@@ -713,7 +716,7 @@ Proof.
       apply convertible_refl.
       
       intros. cbn.
-      apply ty_Nat. 
+      apply ty_Nat.
       apply ty_var. simpl. rewrite String.eqb_refl. easy.
       
       intros.
@@ -742,4 +745,439 @@ Proof.
       rewrite H. easy.
 Qed.
 
+Require Import Lia.
+
+Lemma cl_larger: forall v k u, 
+  Nat.le k u -> 
+  lc_rec_ln k v -> 
+  lc_rec_ln u v.
+Proof. intro t.
+       induction t; intros.
+       10:{ simpl. inversion H0. split.
+            apply IHt1 with (k := (S k)). lia. easy.
+            split. apply IHt2 with (k := k). lia. easy.
+            split. apply IHt3 with (k := (S (S k))). lia. easy.
+            apply IHt4 with (k := k). lia. easy.
+          }
+       9: { apply IHt with (k := k). lia. easy. }
+       8: { simpl. easy. }
+       7: { simpl. easy. }
+       6: { simpl. inversion H0.
+            split. apply IHt1 with (k := k). lia. easy.
+            apply IHt2 with (k := k). lia. easy.
+          }
+       5: { simpl. inversion H0.
+            split. apply IHt1 with (k := k). lia. easy.
+            apply IHt2 with (k := S k). lia. easy.
+          }
+       4: { simpl. inversion H0.
+            split. apply IHt1 with (k := k). lia. easy.
+            apply IHt2 with (k := S k). lia. easy.
+          }
+       3: { simpl. easy. }
+       2: { simpl. easy. }
+       1: { simpl. inversion H0. subst. lia. lia. }
+Qed.
+
+Lemma open_rec_ln_noop_on_lc :
+  forall v k w,
+    lc_rec_ln k v ->
+    open_rec_ln k w v = v.
+Proof.
+  intro v.
+  induction v; intros; simpl in *; try reflexivity.
+  -  destruct (Nat.eqb n k) eqn:Heq.
+    + apply Nat.eqb_eq in Heq. lia. (* contradicts n < k *)
+    + reflexivity.
+  - (* t_Pi *) destruct H as [H1 H2]. rewrite IHv1, IHv2; try easy.
+  - (* t_Lam *) destruct H as [H1 H2].  rewrite IHv1, IHv2; try easy.
+  - (* t_App *) destruct H as [H1 H2].  rewrite IHv1, IHv2; try easy.
+  - (* t_Succ *) rewrite IHv; easy.
+  - (* t_NatRec_ln *)
+    destruct H as [HP [Hz [Hs Hn]]].
+    rewrite IHv1, IHv2, IHv3, IHv4; try easy.
+Qed.
+
+Lemma open_subst_commute: forall t x u k v,
+  lc_rec_ln k u ->
+  subst_ln x u (open_rec_ln k v t) =
+  open_rec_ln k (subst_ln x u v) (subst_ln x u t).
+Proof. intro t.
+       induction t; intros.
+       10:{ simpl. rewrite IHt1, IHt2, IHt3, IHt4; try easy.
+            apply cl_larger with (k := k). lia. easy.
+            apply cl_larger with (k := k). lia. easy.
+          }
+       9: { simpl. rewrite IHt. easy. easy. }
+       8: { simpl. easy. }
+       7: { simpl. easy. }
+       6: { simpl. rewrite IHt1, IHt2. easy. easy. easy. }
+       5: { simpl. rewrite IHt1, IHt2. easy.
+            apply cl_larger with (k := k). lia. easy. easy.
+          }
+       4: { simpl. rewrite IHt1, IHt2. easy. 
+            apply cl_larger with (k := k). lia. easy. easy. 
+          }
+       3: { simpl. easy. }
+       2: { simpl.
+            case_eq((x =? s)%string); intros.
+            + simpl.
+              rewrite open_rec_ln_noop_on_lc. easy. easy.
+            + simpl. easy.
+          }
+       1: { simpl.
+            case_eq( n =? k); intros.
+            + easy.
+            + simpl. easy.
+          }
+Qed.
+
+Lemma convertible_subst : forall A B x v,
+  lc_rec_ln 0 v ->
+  A ≡ₗₙ B -> 
+  subst_ln x v A ≡ₗₙ subst_ln x v B.
+Proof. intros. revert x v H.
+       induction H0; intros.
+       - induction H; intros.
+         + induction H; intros. simpl. constructor. constructor.
+           unfold open_ln. rewrite open_subst_commute; try easy.
+           constructor.
+           simpl. constructor. constructor. constructor.
+           simpl. constructor. constructor. simpl.
+           unfold open_ln.
+           rewrite open_subst_commute; try easy.
+           rewrite open_subst_commute; try easy.
+           constructor.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_pi_A_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_Pi y (subst_ln x0 v B)); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_pi_B_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_Pi (subst_ln x0 v A) y); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_lam_A_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_Lam y (subst_ln x0 v b)); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_lam_b_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_Lam (subst_ln x0 v A) y); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_app1_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_App y (subst_ln x0 v t2)); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_app2_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_App (subst_ln x0 v t1) y); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_succ_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_Succ y); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_natrec_P_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_NatRec_ln y (subst_ln x0 v z) (subst_ln x0 v s) (subst_ln x0 v n)); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_natrec_z_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_NatRec_ln (subst_ln x0 v P) y (subst_ln x0 v s) (subst_ln x0 v n)); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_natrec_s_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_NatRec_ln (subst_ln x0 v P) (subst_ln x0 v z) y (subst_ln x0 v n)); easy.
+         + cbn.
+           induction IHbeta_ln; intros.
+           ++ simpl. constructor. eapply beta_natrec_n_ln. easy.
+           ++ simpl. apply convertible_refl.
+           ++ apply convertible_sym. easy.
+           ++ apply convertible_trans with (y := t_NatRec_ln (subst_ln x0 v P) (subst_ln x0 v z) (subst_ln x0 v s) y); easy.
+       - apply convertible_refl.
+       - apply convertible_sym. apply IHclos_refl_sym_trans. easy.
+       - apply convertible_trans with (y := subst_ln x0 v y). 
+         apply IHclos_refl_sym_trans1. easy.
+         apply IHclos_refl_sym_trans2. easy.
+Qed.
+
+
+From Coq Require Import Strings.String Ascii.
+From Coq Require Import Lists.List Arith.PeanoNat.
+Import ListNotations.
+(* Open Scope string_scope. *)
+
+(* ------------------------- *)
+(* basic helpers (if absent) *)
+(* ------------------------- *)
+
+Fixpoint str_length (s : string) : nat :=
+  match s with
+  | EmptyString => 0
+  | String _ t => S (str_length t)
+  end.
+
+Fixpoint repeat_ascii (n : nat) (c : ascii) : string :=
+  match n with
+  | 0 => EmptyString
+  | S n' => String c (repeat_ascii n' c)
+  end.
+
+(* max length of names in Γ *)
+Definition max_len_of_fsts (Γ : list (string * term_ln)) : nat :=
+  fold_right (fun '(z, _) acc => Nat.max (str_length z) acc) 0 Γ.
+
+(* candidate that is strictly longer than both the names in Γ and the string x *)
+Definition fresh_candidate_not_eq (Γ : list (string * term_ln)) (x : string) : string :=
+  let m := Nat.max (max_len_of_fsts Γ) (str_length x) in
+  repeat_ascii (S m) (Ascii.ascii_of_nat 97).  (* 'a' *)
+
+(* ------------------------- *)
+(* elementary lemmas         *)
+(* ------------------------- *)
+
+Lemma str_length_repeat_ascii :
+  forall n c, str_length (repeat_ascii n c) = n.
+Proof. induction n; simpl; auto. Qed.
+
+Lemma str_length_in_map_le_max :
+  forall Γ s,
+    In s (map fst Γ) ->
+    str_length s <= max_len_of_fsts Γ.
+Proof.
+  intros Γ s Hin.
+  unfold max_len_of_fsts.
+  generalize dependent s.
+  induction Γ as [| [z U] Γ' IH]; simpl; intros; simpl in *.
+  - contradiction.
+  - destruct Hin as [Heq | Hin'].
+    + subst s. apply Nat.le_max_l.
+    + apply Nat.le_trans with (m := fold_right (fun '(z, _) acc => Nat.max (str_length z) acc) 0 Γ').
+      * apply IH; assumption.
+      * apply Nat.le_max_r.
+Qed.
+
+Lemma candidate_longer_than_any_and_x :
+  forall Γ x s,
+    In s (map fst Γ) ->
+    str_length (fresh_candidate_not_eq Γ x) > str_length s.
+Proof.
+  intros Γ x s Hin.
+  unfold fresh_candidate_not_eq.
+  set (m := Nat.max (max_len_of_fsts Γ) (str_length x)).
+  rewrite str_length_repeat_ascii.
+  simpl.
+  apply Nat.lt_succ_r.
+  apply Nat.le_trans with (m := max_len_of_fsts Γ).
+  - apply str_length_in_map_le_max; assumption.
+  - apply Nat.le_max_l.
+Qed.
+
+Lemma candidate_not_eq_x :
+  forall Γ x,
+    str_length (fresh_candidate_not_eq Γ x) > str_length x.
+Proof.
+  intros Γ x.
+  unfold fresh_candidate_not_eq.
+  set (m := Nat.max (max_len_of_fsts Γ) (str_length x)).
+  rewrite str_length_repeat_ascii.
+  simpl.
+  apply Nat.lt_succ_r.
+  apply Nat.le_max_r.
+Qed.
+
+(* ------------------------- *)
+(* main existence lemma      *)
+(* ------------------------- *)
+
+Lemma exists_fresh_not_eq :
+  forall (Γ : list (string * term_ln)) (x : string),
+    exists y, ~ In y (map fst Γ) /\ y <> x.
+Proof.
+  intros Γ x.
+  set (y := fresh_candidate_not_eq Γ x).
+  exists y.
+  split.
+  - (* y ∉ map fst Γ *)
+    intros Hin.
+    eapply Nat.lt_irrefl.
+    apply (candidate_longer_than_any_and_x Γ x y).
+    exact Hin.
+  - (* y <> x because length(y) > length(x) *)
+    intro Heq.
+    apply (f_equal str_length) in Heq.
+    unfold y in *.
+    specialize (candidate_not_eq_x Γ x); intros. lia.
+Qed.
+
+
+Lemma rename_body_Lam_ind :
+  forall Γ A b B x y i,
+    y <> x ->
+    fresh y Γ ->
+    fresh x Γ ->
+    has_type_ln Γ A (t_Type i) ->
+    has_type_ln ((y, A) :: Γ) (open_ln b (t_fvar y)) (open_ln B (t_fvar y)) ->
+    has_type_ln ((x, A) :: Γ) (open_ln b (t_fvar x)) (open_ln B (t_fvar x)).
+Admitted.
+
+Lemma rename_fvar_in_typing_rec :
+  forall k Γ T t U x y,
+    y <> x ->
+    fresh y Γ ->
+    fresh x Γ ->
+    has_type_ln ((y, T) :: Γ) (open_rec_ln k (t_fvar y) t) U ->
+    has_type_ln ((x, T) :: Γ) (open_rec_ln k (t_fvar x) t) U.
+Admitted.
+
+Definition subst_ctx (x : string) (v : term_ln) (Γ : list (string * term_ln))
+  : list (string * term_ln) :=
+  map (fun p => (fst p, subst_ln x v (snd p))) Γ.
+
+Theorem substitution_general :
+  forall ΓL ΓR x A t B v,
+    fresh x (ΓL ++ ΓR) ->
+    has_type_ln (ΓL ++ (x, A) :: ΓR) t B ->
+    has_type_ln ΓR v A ->
+    lc_ln v ->
+    has_type_ln (subst_ctx x v (ΓL ++ ΓR)) (subst_ln x v t) (subst_ln x v B).
+Proof.
+  intros ΓL ΓR x A t B v Hf Ht Hu Hc .
+  remember (ΓL ++ (x, A) :: ΓR) as G.
+  revert v x A Hf Hu Hc HeqG. revert ΓL ΓR.
+
+  induction Ht; intros.
+  10:{
+  subst.
+  apply ty_conv with (A := (subst_ln x v A)).
+  apply IHHt with (A := A0). easy. easy. easy. easy.
+  apply convertible_subst. easy. easy.
+  }
+  9: {
+  subst.
+  simpl. rewrite open_subst_commute. eapply ty_NatRec_strong with (k := k).
+  simpl in IHHt1.
+  apply IHHt1 with (A := A). easy. easy. easy. easy.
+  apply convertible_subst with (x := x) (v := v) in H; try easy.
+  
+  intros.
+  specialize (exists_fresh_not_eq (ΓL ++ (x, A) :: ΓR) x0); intros.
+  destruct H3 as (y,(Hfry,H3)).
+  assert(fresh y (ΓL ++ (x, A) :: ΓR) ) by admit.
+  assert(Hfy1: fresh x (((y, t_Nat) :: ΓL) ++ ΓR)) by admit.
+  specialize(H1 y H4 ((y, t_Nat) :: ΓL) ΓR v x A Hfy1 Hu Hc eq_refl).
+  simpl in H1. unfold open_ln. simpl.
+  apply rename_fvar_in_typing_rec with (y := y). easy. admit. easy.
+  unfold open_ln in H1.
+  rewrite open_subst_commute in H1. simpl in H1.
+  assert((x =? y)%string = false) by admit.
+  rewrite H5 in H1. easy.
+  easy.
+  specialize(IHHt2 ΓL ΓR v x A).
+  simpl in IHHt2.
+  rewrite  open_subst_commute in IHHt2.
+  apply IHHt2; easy.
+  easy.
+  cbn.
+  specialize(IHHt3 ΓL ΓR v x A).
+  simpl in IHHt3.
+  rewrite  open_subst_commute in IHHt3.
+  rewrite  open_subst_commute in IHHt3.
+  apply IHHt3; easy.
+  easy. easy.
+  simpl in IHHt4. apply IHHt4 with (A := A); easy.
+  easy.
+  }
+  8:{
+  subst. simpl.
+  constructor.
+  simpl in IHHt.
+  apply IHHt with (A := A); easy.
+  }
+  7:{
+  subst. constructor.
+  }
+  6:{ subst. constructor. }
+  5:{ subst. 
+  simpl. unfold open_ln.
+  rewrite open_subst_commute.
+  apply ty_App with (A := (subst_ln x v A)).
+  specialize(IHHt1 ΓL ΓR v x A0).
+  simpl in IHHt1.
+  apply IHHt1; easy.
+  apply IHHt2 with (A := A0); easy.
+  easy.
+  } 
+  4:{ subst. 
+  simpl.
+  apply ty_Lam with (i := i).
+  simpl in IHHt. apply IHHt with (A := A0); easy.
+  intros.
+  specialize (exists_fresh_not_eq (ΓL ++ (x, A0) :: ΓR) x0); intros.
+  destruct H2 as (y,(Hfry,H2)).
+  assert(fresh y (ΓL ++ (x, A0) :: ΓR) ) by admit.
+  specialize(H0 y H3 ((y, A) :: ΓL) ΓR v x A0).
+  simpl in H0.
+  unfold open_ln in H0. cbn in H0.
+  rewrite open_subst_commute in H0.
+  rewrite open_subst_commute in H0.
+  simpl in H0.
+  assert((x =? y)%string = false) by admit.
+  rewrite H4 in H0.
+  assert(Hfrx1: fresh x ((y, A) :: ΓL ++ ΓR)) by admit.
+  specialize(H0 Hfrx1 Hu Hc eq_refl).
+  apply rename_body_Lam_ind with (y := y) (i := i). easy. admit. easy.
+  apply IHHt with (A := A0). easy. easy. easy. easy. easy. easy.
+  }
+  3:{ subst.
+  simpl.
+  apply ty_Pi with (i := i).
+  simpl in IHHt. apply IHHt with (A := A0); easy.
+  intros.
+  specialize (exists_fresh_not_eq (ΓL ++ (x, A0) :: ΓR) x0); intros.
+  destruct H2 as (y,(Hfry,H2)).
+  assert(fresh y (ΓL ++ (x, A0) :: ΓR) ) by admit.
+  specialize(H0 y H3 ((y, A) :: ΓL) ΓR v x A0).
+  simpl in H0.
+  unfold open_ln in H0. cbn in H0.
+  rewrite open_subst_commute in H0.
+  simpl in H0.
+  assert((x =? y)%string = false) by admit.
+  rewrite H4 in H0.
+  assert(Hfrx1: fresh x ((y, A) :: ΓL ++ ΓR)) by admit.
+  specialize(H0 Hfrx1 Hu Hc eq_refl).
+  apply rename_fvar_in_typing_rec with (y := y). easy. admit. easy. easy.
+  easy.
+  }
+  2:{ subst.
+  simpl.
+  constructor.
+  }
+  1:{ subst. admit. }
+Admitted.
+  
+  
+  
+  
+  
 
