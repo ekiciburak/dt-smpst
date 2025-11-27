@@ -587,7 +587,7 @@ Inductive ctx_sub: ctx_ln -> ctx_ln -> Prop :=
       fresh (fst b) (Γ1 ++ Γ2) ->
       ctx_sub Γ (Γ1 ++ b :: Γ2).
 
-Lemma ctx_sub_weaken_head :
+(* Lemma ctx_sub_weaken_head :
   forall Γ Γ' x U,
     ctx_sub Γ Γ' ->
     fresh x Γ' ->
@@ -605,7 +605,7 @@ Proof.
     simpl in *.
     admit.
 Admitted.
-
+ *)
 Lemma weakening_fresh :
   forall Γ t T x U,
      ~ In x (map fst Γ) ->
@@ -1152,6 +1152,36 @@ Fixpoint subst_ctx (x: string) (v: term_ln) (Γ: list(string*term_ln)) :=
   | (y,T) :: Γ' => (y, subst_ln x v T) :: subst_ctx x v Γ'
   end.
 
+Lemma map_fst_app :
+  forall A (l1 l2 : list (string * A)),
+    map fst (l1 ++ l2) = map fst l1 ++ map fst l2.
+Proof. intros. induction l1; simpl; auto. destruct a; f_equal; auto. Qed.
+
+Lemma NoDup_left_disjoint_right :
+  forall {A: Type} (ΓL ΓR : list A) (x : A),
+    NoDup (ΓL ++ ΓR) ->
+    In x ΓL ->
+    ~ In x ΓR.
+Proof.
+  intros A ΓL ΓR x Hnodup Hin.
+  induction ΓL as [| a ΓL' IH].
+  - simpl in Hin. contradiction.
+  - simpl in Hin.
+    destruct Hin as [Heq | Hin'].
+    + subst a.
+      (* (a :: ΓL') ++ ΓR = a :: (ΓL' ++ ΓR) *)
+      simpl in Hnodup.
+      inversion Hnodup as [| ? l Hnotin Hnodup']; clear Hnodup.
+      (* Hnotin : ~ In a (ΓL' ++ ΓR) *)
+      intros HinR. apply Hnotin. apply in_or_app. right. assumption.
+    + (* x ∈ ΓL' *)
+      simpl in Hnodup.
+      inversion Hnodup as [| ? l Hnotin Hnodup']; clear Hnodup.
+      (* Hnodup' : NoDup (ΓL' ++ ΓR) *)
+      subst.
+      apply IH. easy. easy.
+Qed.
+
 Lemma ctx_subst_some: forall G x v x0 T,
      x <> x0 ->
      lookup_ln G x = Some T ->
@@ -1260,74 +1290,23 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma strengthening_middle :
-  forall Gamma1 Gamma2 x U t A,
-    (* ~ In x (fv_ln t) -> *)
-    ~ In x (map fst (Gamma1 ++ Gamma2)) ->
-    has_type_ln (Gamma1 ++ (x, U) :: Gamma2) t A ->
-    has_type_ln (Gamma1 ++ Gamma2) t A.
-Proof. intros.
-       remember (Gamma1 ++ (x, U) :: Gamma2) as G.
-       revert HeqG. revert Gamma1 Gamma2 H. revert x U.
-       induction H0; intros.
-       9: { subst.
-            apply ty_NatRec_strong with (k := k) (L := x::L).
-            apply IHhas_type_ln1 with (x := x) (U := U).
-            easy. easy. easy.
-            
-            intros.
-            assert( ~ In x0 L) by admit.
-            specialize(H1 x0 H4 x U ((x0, t_Nat) :: Gamma1) Gamma2).
-            simpl in H1. simpl.
-            apply H1. 
-            admit.
-            easy.
-            apply IHhas_type_ln2 with (x := x) (U := U).
-            easy. easy.
-            apply IHhas_type_ln3 with (x := x) (U := U).
-            easy. easy.
-            apply IHhas_type_ln4 with (x := x) (U := U).
-            easy. easy.
-          }
-Admitted.
-
-
-Lemma strengthening :
-  forall G1 x U t A,
-    ~ In x (map fst G1) ->
-    has_type_ln ((x,U)::G1) t A ->
-    has_type_ln G1 t A.
-Proof. intros.
-       remember ((x, U) :: G1) as G.
-       revert HeqG. revert G1 U H. revert x.
-       induction H0; intros.
-       10:{ subst.
-            apply ty_conv with (A := A).
-            apply IHhas_type_ln with (x := x) (U:= U); easy.
-            easy.
-          }
-       9: { subst.
-            apply ty_NatRec_strong with (k := k) (L := x::L++(map fst G1)).
-            apply IHhas_type_ln1 with (x := x) (U := U).
-            easy. easy. easy.
-            
-            intros.
-            assert( ~ In x0 L) by admit.
-            assert(~ (x = x0 \/ In x0 (map fst G1))) by admit.
-            specialize(H1 x0 H4 x0 ((x, U) :: G1) t_Nat H5 eq_refl).
-            specialize (strengthening_middle nil); intro HH.
-            simpl in HH.
-            apply HH in H1.
-            apply weakening_fresh with (x := x0) (U := t_Nat) in H1.
-            easy.
-            admit.
-            easy.
-            eapply IHhas_type_ln2 with (x := x) (U := U). easy. easy.
-            eapply IHhas_type_ln3 with (x := x) (U := U). easy. easy.
-            eapply IHhas_type_ln4 with (x := x) (U := U). easy. easy.
-          }
-Admitted.
-
+Lemma lookup_not_in: forall Gamma x T,
+  lookup_ln Gamma x = Some T ->
+  ~ In x (map fst Gamma) -> False.
+Proof. intro G.
+       induction G; intros.
+       - simpl in H. easy.
+       - simpl in H. destruct a.
+         case_eq((x =? s)%string ); intros.
+         + rewrite String.eqb_eq in H1. subst.
+           rewrite String.eqb_refl in H. inversion H. subst.
+           simpl in H0. apply H0.
+           left. easy.
+         + rewrite H1 in H.
+           apply IHG with (x := x) (T := T). easy.
+           unfold not. intros.
+           apply H0. simpl. right. easy.
+Qed.
 
 Lemma env_subst :
   forall x v G t T,
@@ -1347,13 +1326,18 @@ Proof. intros.
             apply convertible_subst with (x := x) (v := v) in H0; try easy.
             
             intros.
-            assert(~ In x0 L) by admit.
-            assert(~ In x (map fst ((x0, t_Nat) :: Gamma))) by admit.
+            assert(~ In x0 L).
+            { unfold not. intros. apply H8. simpl. right. easy. }
+            assert(~ In x (map fst ((x0, t_Nat) :: Gamma))).
+            { unfold not. intros. simpl in H10. destruct H10. subst. 
+              apply H8. simpl. left. easy. easy. }
             specialize(H2 x0 H9 x H10 v H7).
             simpl in H2. cbn. unfold open_ln in H2.
             rewrite open_subst_commute in H2.
             simpl in H2.
-            assert((x =? x0)%string = false) by admit.
+            assert((x =? x0)%string = false).
+            { apply String.eqb_neq. unfold not. intros. subst.
+              apply H8. simpl. left. easy. }
             rewrite H11 in H2. cbn in H2. unfold open_ln. cbn. easy.
             easy.
             specialize(IHhas_type_ln2 x H6 v H7).
@@ -1367,16 +1351,66 @@ Proof. intros.
             apply IHhas_type_ln3; easy. easy. easy.
             apply IHhas_type_ln4; easy. easy.
            }
-        1: { simpl.
-             case_eq((x0 =? x)%string); intros.
-             + rewrite String.eqb_eq in H2. subst.
-               admit.
-             + apply ty_var. simpl.
-               rewrite ctx_subst_some with (T := T). easy. 
-               apply String.eqb_neq in H2. easy.
-               easy.
-            }
-Admitted.
+       1: { simpl.
+            case_eq((x0 =? x)%string); intros.
+            + rewrite String.eqb_eq in H2. subst.
+              apply lookup_not_in in H. easy. easy.
+            + apply ty_var. simpl.
+              rewrite ctx_subst_some with (T := T). easy. 
+              apply String.eqb_neq in H2. easy.
+              easy.
+           }
+        3: { simpl. apply ty_Lam with (i := i) (L :=x::L).
+             apply IHhas_type_ln; easy.
+             intros.
+            assert(~ In x0 L).
+            { unfold not. intros. apply H4. simpl. right. easy. }
+            assert(~ In x (map fst ((x0, t_Nat) :: Gamma))).
+            { unfold not. intros. simpl in H6. destruct H6. subst. 
+              apply H4. simpl. left. easy. easy. }
+             specialize(H1 x0 H5 x H6 v H3). cbn in H1.
+             unfold open_ln in H1.
+             rewrite  open_subst_commute in H1.
+             rewrite  open_subst_commute in H1. cbn in H1.
+             assert((x =? x0)%string = false).
+            { apply String.eqb_neq. unfold not. intros. subst.
+              apply H6. simpl. left. easy. }
+             rewrite H7 in H1. cbn in H1.
+             apply H1. easy. easy.
+           }
+        2: { simpl. apply ty_Pi with (i := i) (L :=x::L).
+             apply IHhas_type_ln; easy.
+             intros.
+            assert(~ In x0 L).
+            { unfold not. intros. apply H4. simpl. right. easy. }
+            assert(~ In x (map fst ((x0, t_Nat) :: Gamma))).
+            { unfold not. intros. simpl in H6. destruct H6. subst. 
+              apply H4. simpl. left. easy. easy. }
+             specialize(H1 x0 H5 x H6 v H3). cbn in H1.
+             unfold open_ln in H1.
+             rewrite  open_subst_commute in H1.
+             cbn in H1.
+             assert((x =? x0)%string = false).
+            { apply String.eqb_neq. unfold not. intros. subst.
+              apply H6. simpl. left. easy. }
+             rewrite H7 in H1. cbn in H1.
+             apply H1. easy.
+          }
+       2: { simpl. unfold open_ln.
+            rewrite open_subst_commute.
+            apply ty_App with (A := (subst_ln x v A)).
+            cbn. 
+            apply IHhas_type_ln1; easy.
+            apply IHhas_type_ln2; easy.
+            easy.
+          }
+       4: { simpl. apply ty_Succ.
+            apply IHhas_type_ln; easy.
+          }
+       3: { simpl. constructor. }
+       2: { simpl. constructor. }
+       1: { simpl. constructor. }
+Qed.
 
 Lemma fv_open_rec_contains :
   forall (b : term_ln) (k : nat) (u : term_ln) (y : string),
@@ -1498,38 +1532,127 @@ Proof.
   apply subst_ln_notin_fv; assumption.
 Qed.
 
+Lemma subst_ctx_app_or: forall G1 G2 x v,
+  subst_ctx x v (G1 ++ G2) = subst_ctx x v G1 ++ subst_ctx x v G2.
+Proof. intro G.
+       induction G; intros.
+       - simpl. easy.
+       - simpl. destruct a. rewrite IHG. simpl. easy.
+Qed.
+
+Lemma subst_fst_id: forall G x v,
+  (map fst (subst_ctx x v G)) = (map fst G).
+Proof. intro G.
+       induction G; intros.
+       - simpl. easy.
+       - simpl. destruct a. simpl. rewrite IHG. easy.
+Qed.
+
+Lemma in_map_eq: forall G1 G2 x A T,
+  ~ In x (map fst G1 ++ map fst G2) ->
+  lookup_ln (G1 ++ (x, A) :: G2) x = Some T -> T = A.
+Proof. intro G1.
+       induction G1; intros.
+       - simpl in *. rewrite String.eqb_refl in H0. inversion H0. easy.
+       - simpl in *. destruct a.
+         case_eq( (x =? s)%string); intros.
+         + rewrite String.eqb_eq in H1. subst.
+           rewrite String.eqb_refl in H0. inversion H0. subst.
+           contradict H. left. simpl. easy.
+         + rewrite H1 in H0. apply IHG1 with (G2 := G2) (x := x).
+           unfold not. intros.
+           apply H. right. easy.
+           easy.
+Qed.
+
+Lemma in_map_neq: forall G1 G2 x0 x A T,
+  x <> x0 ->
+  lookup_ln (G1 ++ (x0, A) :: G2) x = Some T ->
+  lookup_ln (G1 ++ G2) x = Some T.
+Proof. intro G1.
+       induction G1; intros.
+       - simpl in *.
+         apply String.eqb_neq in H.
+         rewrite H in H0. easy.
+       - simpl. destruct a. simpl in H0.
+         case_eq((x =? s)%string); intros.
+         + rewrite H1 in H0. easy.
+         + rewrite H1 in H0.
+           apply IHG1 with (x0 := x0) (A := A); easy.
+Qed.
+
+Lemma weakening_ctx :
+  forall Δ Γ t T,
+    has_type_ln Γ t T ->
+    NoDup (map fst Δ) ->
+    (forall x, In x (map fst Δ) -> ~ In x (map fst Γ)) ->
+    has_type_ln (Δ ++ Γ) t T.
+Proof. intro G.
+       induction G; intros.
+       - simpl. easy.
+       - simpl. destruct a. apply weakening_fresh.
+         simpl in H0.
+         specialize(H1 s).
+         simpl in H1. 
+         assert(s = s \/ In s (map fst G)).
+         { left. easy. }
+         specialize(H1 H2). clear H2.
+         specialize(NoDup_remove [] ( map fst G)); intro HH. simpl in HH.
+         apply HH in H0.
+         rewrite map_app.
+         unfold not. intros.
+         apply in_app_iff in H2.
+         destruct H0 as (H0a,H0b).
+         destruct H2. apply H0b. easy.
+         apply H1. easy. 
+         apply IHG. easy.
+         simpl in H0.
+         specialize(NoDup_remove [] ( map fst G)); intro HH. simpl in HH.
+         apply HH in H0. easy.
+         intros.
+         apply H1. simpl. right. easy.
+Qed.
+
 Theorem substitution_general :
   forall ΓL ΓR x A t B v,
+    NoDup (map fst (ΓL ++ ΓR)) ->
     ~In x (map fst (ΓL ++ ΓR)) ->
     has_type_ln (ΓL ++ (x, A) :: ΓR) t B ->
     has_type_ln ΓR v A ->
     lc_ln v ->
     has_type_ln (subst_ctx x v (ΓL ++ ΓR)) (subst_ln x v t) (subst_ln x v B).
 Proof.
-  intros ΓL ΓR x A t B v Hf Ht Hu Hc .
+  intros ΓL ΓR x A t B v Hnd Hf Ht Hu Hc .
   remember (ΓL ++ (x, A) :: ΓR) as G.
-  revert v x A Hf Hu Hc HeqG. revert ΓL ΓR.
+  revert v x A Hf Hu Hc HeqG. revert ΓL ΓR Hnd.
 
   induction Ht; intros.
   10:{
   subst.
   apply ty_conv with (A := (subst_ln x v A)).
-  apply IHHt with (A := A0). easy. easy. easy. easy.
+  apply IHHt with (A := A0). easy. easy. easy. easy. easy.
   apply convertible_subst. easy. easy.
   }
   9: {
   subst.
-  simpl. rewrite open_subst_commute. eapply ty_NatRec_strong with (k := k) (L := x::L).
+  simpl. rewrite open_subst_commute. eapply ty_NatRec_strong with (k := k) (L := x::L++(map fst (ΓL ++ ΓR))).
   simpl in IHHt1.
-  apply IHHt1 with (A := A). easy. easy. easy. easy.
+  apply IHHt1 with (A := A). easy. easy. easy. easy. easy.
   apply convertible_subst with (x := x) (v := v) in H; try easy.
   
   intros.
   assert(~ In x0 L).
-  { unfold not. intros. apply H2. simpl. right. easy. }
+  { unfold not. intros. apply H2. simpl. right. apply in_app_iff. left. easy. }
   assert(~ In x (map fst (((x0, t_Nat) :: ΓL) ++ ΓR))).
   { unfold not. intros. simpl in H4. destruct H4. subst. apply H2. simpl. left. easy. easy. }
-  specialize(H1 x0 H3 ((x0, t_Nat) :: ΓL) ΓR v x A H4).
+  assert(HN: NoDup (map fst (((x0, t_Nat) :: ΓL) ++ ΓR))).
+  { assert(HNN: ~ In x0 (map fst (ΓL ++ ΓR))).
+    { unfold not. intros. apply H2. simpl. right. apply in_app_iff. right. easy. }
+    simpl.
+    constructor; easy.
+  }
+   simpl. simpl in H4.
+  specialize(H1 x0 H3 ((x0, t_Nat) :: ΓL) ΓR HN v x A H4).
   simpl in H1.
   assert((x =? x0)%string = false).
   { apply String.eqb_neq. unfold not. intros. apply H2. subst. simpl. left. easy. }
@@ -1541,13 +1664,13 @@ Proof.
   rewrite open_subst_commute in H1. simpl in H1.
   rewrite H5 in H1.
   apply H1. easy. easy. easy. easy.
-  specialize(IHHt2 ΓL ΓR v x A).
+  specialize(IHHt2 ΓL ΓR Hnd v x A).
   simpl in IHHt2.
   rewrite  open_subst_commute in IHHt2.
   apply IHHt2; easy.
   easy.
   cbn.
-  specialize(IHHt3 ΓL ΓR v x A).
+  specialize(IHHt3 ΓL ΓR Hnd v x A).
   simpl in IHHt3.
   rewrite  open_subst_commute in IHHt3.
   rewrite  open_subst_commute in IHHt3.
@@ -1570,7 +1693,7 @@ Proof.
   simpl. unfold open_ln.
   rewrite open_subst_commute.
   apply ty_App with (A := (subst_ln x v A)).
-  specialize(IHHt1 ΓL ΓR v x A0).
+  specialize(IHHt1 ΓL ΓR Hnd v x A0).
   simpl in IHHt1.
   apply IHHt1; easy.
   apply IHHt2 with (A := A0); easy.
@@ -1578,14 +1701,20 @@ Proof.
   } 
   4:{ subst. 
   simpl.
-  apply ty_Lam with (i := i) (L := x::L).
+  apply ty_Lam with (i := i) (L := x::L++(map fst (ΓL ++ ΓR))).
   simpl in IHHt. apply IHHt with (A := A0); easy.
   intros.
   assert(~ In x0 L).
-  { unfold not. intros. apply H1. simpl. right. easy. }
+  { unfold not. intros. apply H1. simpl. right. apply in_app_iff. left. easy. }
   assert(~ In x (map fst (((x0, t_Nat) :: ΓL) ++ ΓR))).
   { unfold not. intros. simpl in H3. destruct H3. subst. apply H1. simpl. left. easy. easy. }
-  specialize(H0 x0 H2 ((x0, A) :: ΓL) ΓR v x A0 H3).
+  assert(HN: NoDup (map fst (((x0, t_Nat) :: ΓL) ++ ΓR))).
+  { assert(HNN: ~ In x0 (map fst (ΓL ++ ΓR))).
+    { unfold not. intros. apply H1. simpl. right. apply in_app_iff. right. easy. }
+    simpl.
+    constructor; easy.
+  }
+  specialize(H0 x0 H2 ((x0, A) :: ΓL) ΓR HN v x A0 H3).
   simpl in H0.
   assert((x =? x0)%string = false).
   { apply String.eqb_neq. unfold not. intros. apply H1. subst. simpl. left. easy. }
@@ -1599,14 +1728,20 @@ Proof.
   }
   3:{ subst.
   simpl.
-  apply ty_Pi with (i := i) (L := x::L).
+  apply ty_Pi with (i := i) (L := x::L++(map fst (ΓL ++ ΓR))).
   simpl in IHHt. apply IHHt with (A := A0); easy.
   intros.
   assert(~ In x0 L).
-  { unfold not. intros. apply H1. simpl. right. easy. }
+  { unfold not. intros. apply H1. simpl. right. apply in_app_iff. left. easy. }
   assert(~ In x (map fst (((x0, t_Nat) :: ΓL) ++ ΓR))).
   { unfold not. intros. simpl in H3. destruct H3. subst. apply H1. simpl. left. easy. easy. }
-  specialize(H0 x0 H2 ((x0, A) :: ΓL) ΓR v x A0 H3).
+  assert(HN: NoDup (map fst (((x0, t_Nat) :: ΓL) ++ ΓR))).
+  { assert(HNN: ~ In x0 (map fst (ΓL ++ ΓR))).
+    { unfold not. intros. apply H1. simpl. right. apply in_app_iff. right. easy. }
+    simpl.
+    constructor; easy.
+  }
+  specialize(H0 x0 H2 ((x0, A) :: ΓL) ΓR HN  v x A0 H3).
   simpl in H0.
   assert((x =? x0)%string = false).
   { apply String.eqb_neq. unfold not. intros. apply H1. subst. simpl. left. easy. }
@@ -1624,22 +1759,135 @@ Proof.
   1:{ subst. simpl. 
       case_eq((x0 =? x)%string); intros.
       - rewrite String.eqb_eq in H0. subst.
-        assert(T = A) by admit. subst.
-        assert((subst_ctx x v (ΓL ++ ΓR)) = (subst_ctx x v ΓL ++ subst_ctx x v ΓR)) by admit.
-        assert(has_type_ln (subst_ctx x v ΓR) v (subst_ln x v A) ->
-               has_type_ln (subst_ctx x v (ΓL ++ ΓR)) v (subst_ln x v A)) by admit.
-        apply H1.
-        clear H0 H1.
+        assert(T = A).
+        { rewrite map_app in Hnd, Hf.
+          apply in_map_eq with (G1 := ΓL) (G2 := ΓR) (x := x); easy.
+        }
+        subst.
+        assert((subst_ctx x v (ΓL ++ ΓR)) = (subst_ctx x v ΓL ++ subst_ctx x v ΓR)) by apply subst_ctx_app_or.
+        rewrite H0. clear H0.
+        apply weakening_ctx. 
         assert((subst_ln x v v) = v).
-        { apply subst_ln_id_from_typing with (ΓR := ΓR) (A := A); try easy. admit. }
+        { apply subst_ln_id_from_typing with (ΓR := ΓR) (A := A); try easy.
+          unfold not. intros. apply Hf.
+          rewrite map_app.
+          apply in_app_iff. right. easy.
+        }
         rewrite <- H0 at 2.
         apply env_subst; try easy.
-        admit.
-
+        { unfold not. intros. apply Hf.
+          rewrite map_app.
+          apply in_app_iff. right. easy.
+        }
+        rewrite subst_fst_id.
+        rewrite map_app in Hnd.
+        apply NoDup_app_remove_r in Hnd. easy.
+        intros.
+        apply NoDup_left_disjoint_right with (ΓL := (map fst (subst_ctx x v ΓL))).
+        rewrite !subst_fst_id.
+        rewrite map_app in Hnd.
+        easy.
+        easy.
       - apply ty_var. simpl.
-        assert(lookup_ln (ΓL ++ ΓR) x = Some T) by admit.
+        assert(lookup_ln (ΓL ++ ΓR) x = Some T).
+        { apply in_map_neq with (x0 := x0) (A := A); try easy.
+          apply String.eqb_neq. rewrite String.eqb_sym. easy.
+        }
         rewrite ctx_subst_some with (T := T). easy.
         apply String.eqb_neq in H0. easy. easy.
     }
+Qed.
+
+Corollary substitution_head :
+  forall Γ x A t B v,
+    NoDup (map fst Γ) ->
+    ~ In x (map fst Γ) ->
+    lc_ln v ->
+    has_type_ln Γ v A ->
+    has_type_ln ((x, A) :: Γ) t B ->
+    has_type_ln (subst_ctx x v Γ) (subst_ln x v t) (subst_ln x v B).
+Proof. intros. specialize (substitution_general []); intro HH.
+       simpl in HH. apply HH with (A := A); easy.
+Qed.
+
+(*
+Lemma strengthening_middle :
+  forall Gamma1 Gamma2 x U t A,
+     ~ In x (fv_ln t) -> 
+     ~ In x (map fst (Gamma1 ++ Gamma2)) ->
+    has_type_ln (Gamma1 ++ (x, U) :: Gamma2) t A ->
+    has_type_ln (Gamma1 ++ Gamma2) t A.
+Proof. intros.
+       remember (Gamma1 ++ (x, U) :: Gamma2) as G.
+       revert HeqG. revert Gamma1 Gamma2 H H0. revert x U.
+       induction H1; intros.
+       9: { subst.
+            destruct (exists_fresh_not_in_list L x) as (y,(Hfy,Hy)).
+            apply ty_NatRec_strong with (k := k) (L := x::y::L++(fv_ln body)).
+            apply IHhas_type_ln1 with (x := x) (U := U). simpl in H2. admit.
+            easy. easy. easy.
+           
+            intros.
+            assert( ~ In x0 L) by admit.
+            
+            specialize(H1 x0 H5 x U ((x0, t_Nat) :: Gamma1) Gamma2).
+            simpl in H1. simpl.
+            apply H1. simpl.
+            simpl in H2.
+            admit. admit.
+            easy.
+            apply IHhas_type_ln2 with (x := x) (U := U).
+            admit. easy. easy.
+            apply IHhas_type_ln3 with (x := x) (U := U).
+            admit. easy. easy.
+            apply IHhas_type_ln4 with (x := x) (U := U).
+            admit. easy. easy.
+          }
+       1: { apply ty_var. subst. admit. }
+       3: { subst. eapply ty_Lam. admit. }
+        
 Admitted.
+
+
+Lemma strengthening :
+  forall G1 x U t A,
+    ~ In x (map fst G1) ->
+    has_type_ln ((x,U)::G1) t A ->
+    has_type_ln G1 t A.
+Proof. intros.
+       remember ((x, U) :: G1) as G.
+       revert HeqG. revert G1 U H. revert x.
+       induction H0; intros.
+       10:{ subst.
+            apply ty_conv with (A := A).
+            apply IHhas_type_ln with (x := x) (U:= U); easy.
+            easy.
+          }
+       9: { subst.
+            apply ty_NatRec_strong with (k := k) (L := x::L++(map fst G1)).
+            apply IHhas_type_ln1 with (x := x) (U := U).
+            easy. easy. easy.
+            
+            intros.
+            assert( ~ In x0 L) by admit.
+            assert(~ (x = x0 \/ In x0 (map fst G1))) by admit.
+            specialize(H1 x0 H4 x0 ((x, U) :: G1) t_Nat H5 eq_refl).
+            specialize (strengthening_middle nil); intro HH.
+            simpl in HH.
+            apply HH in H1.
+            apply weakening_fresh with (x := x0) (U := t_Nat) in H1.
+            easy.
+            admit. 
+            
+            admit.
+            easy.
+            eapply IHhas_type_ln2 with (x := x) (U := U). easy. easy.
+            eapply IHhas_type_ln3 with (x := x) (U := U). easy. easy.
+            eapply IHhas_type_ln4 with (x := x) (U := U). easy. easy.
+          }
+Admitted. *)
+
+
+
+
 
