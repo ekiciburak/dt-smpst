@@ -108,6 +108,11 @@ Inductive value_ln : term_ln -> Prop :=
 | V_Zero_ln : value_ln t_Zero
 | V_Succ_ln : forall n, value_ln n -> value_ln (t_Succ n).
 
+(* numeric values predicate (Nat values) *)
+Inductive nat_value : term_ln -> Prop :=
+| nv_zero : nat_value t_Zero
+| nv_succ : forall n, nat_value n -> nat_value (t_Succ n).
+
 Reserved Notation "t '-->' t'" (at level 40).
 
 Inductive step_ln : term_ln -> term_ln -> Prop :=
@@ -146,15 +151,38 @@ Inductive step_ln : term_ln -> term_ln -> Prop :=
 | s_rec_zero_ln : forall P z s,
     step_ln (t_NatRec_ln P z s t_Zero) z
 
-| s_rec_succ_ln : forall P z s n,
+(* | s_rec_succ_ln : forall P z s n,
     value_ln n ->
     step_ln (t_NatRec_ln P z s (t_Succ n))
-            (t_App (t_App s n) (t_NatRec_ln P z s n)) 
+            (t_App (t_App s n) (t_NatRec_ln P z s n))  *)
+
+| s_rec_succ_ln : forall Pbody z sbody n,
+    value_ln n ->
+    step_ln (t_NatRec_ln (t_Lam t_Nat Pbody) z (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) (t_Succ n))
+            (t_App (t_App (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) n) (t_NatRec_ln (t_Lam t_Nat Pbody) z (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) n)) 
+            
+(* | s_rec_succ_ln : forall Pbody z sbody n,
+    nat_value n ->
+    step_ln
+      (t_NatRec_ln (t_Lam t_Nat Pbody)
+                   z
+                   (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody))
+                   (t_Succ n))
+      (open_rec_ln 0 (t_NatRec_ln (t_Lam t_Nat Pbody)
+                                  z
+                                  (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody))
+                                  n)
+                   (open_rec_ln 1 n sbody)) *)
 
 (* | s_rec_succ_ln : forall P z s n,
     value_ln n ->
     step_ln (t_NatRec_ln P z s (t_Succ n))
-            (open_rec_ln 0 (t_NatRec_ln P z s n) (open_rec_ln 1 n s))  *)
+            (t_App (t_App s n) (t_NatRec_ln P z s n)) 
+ *)
+(* | s_rec_succ_ln : forall P z s n,
+    value_ln n ->
+    step_ln (t_NatRec_ln P z s (t_Succ n))
+            (open_rec_ln 0 (t_NatRec_ln P z s n) (open_rec_ln 1 n s)) *)
 
 | s_natrec_P_ln : forall P P' z s n,
     step_ln P P' ->
@@ -194,10 +222,35 @@ Inductive beta_head_ln : term_ln -> term_ln -> Prop :=
     forall P z s,
       beta_head_ln (t_NatRec_ln P z s t_Zero) z
 | b_natrec_succ_ln :
+    forall Pbody z sbody n,
+      beta_head_ln (t_NatRec_ln (t_Lam t_Nat Pbody) z (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) (t_Succ n))
+                   (t_App (t_App (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) n) (t_NatRec_ln (t_Lam t_Nat Pbody) z (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) n)).
+      
+(* | b_natrec_succ_ln :
     forall P z s n,
       beta_head_ln (t_NatRec_ln P z s (t_Succ n))
                    (* (open_rec_ln 0 (t_NatRec_ln P z s n) (open_rec_ln 1 n s))  *)
-                   (t_App (t_App s n) (t_NatRec_ln P z s n)).
+                   (t_App (t_App s n) (t_NatRec_ln P z s n)). *)
+(* | b_natrec_succ_ln :
+    forall Pbody z sbody n,
+      (* P must be exactly a lambda: t_Lam t_Nat Pbody *)
+      (* s must be exactly: t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody) *)
+      beta_head_ln
+        (t_NatRec_ln
+           (t_Lam t_Nat Pbody)
+           z
+           (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody))
+           (t_Succ n))
+        (open_rec_ln 0 (t_NatRec_ln (t_Lam t_Nat Pbody)
+                                    z
+                                    (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody))
+                                    n)
+                     (open_rec_ln 1 n sbody)). *)
+(* | b_natrec_succ_ln :
+    forall P z s n,
+      beta_head_ln (t_NatRec_ln P z s (t_Succ n))
+                   (open_rec_ln 0 (t_NatRec_ln P z s n) (open_rec_ln 1 n s))
+                   (* (t_App (t_App s n) (t_NatRec_ln P z s n)) *). *)
 
 Infix "⇝ₕₗₙ" := beta_head_ln (at level 40, no associativity).
 
@@ -316,6 +369,7 @@ Fixpoint lookup_ln (Γ : ctx_ln) (x : string) : option term_ln :=
 
 Definition fresh (x : string) (Γ : ctx_ln) : Prop := ~ In x (map fst Γ).
 
+Print nat_rec.
 
 (* cofinite-style typing judgment *)
 Inductive has_type_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
@@ -362,49 +416,126 @@ Inductive has_type_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
     has_type_ln Gamma n t_Nat ->
     has_type_ln Gamma (t_Succ n) t_Nat
 
-| ty_NatRec_strong : forall Gamma P body z s n k L,
-    has_type_ln Gamma P (t_Pi t_Nat (t_Type k)) -> 
+| ty_NatRec_strong : forall Gamma P body z s sbody n k L,
+    has_type_ln Gamma P (t_Pi t_Nat (t_Type k)) ->
+    (* P is definitionally a lambda with body *)
     convertible_ln P (t_Lam t_Nat body) ->
-    (* cofinite: body yields a family of types *)
-    (forall x, ~ In x L -> 
-               (~ In x (map fst Gamma) ->
-                has_type_ln ((x, t_Nat) :: Gamma)
-                            (open_ln body (t_fvar x))
-                            (open_ln (t_Type k) (t_fvar x)))) ->
-    (* base: z : P 0  (consistently expanded) *)
+
+    (* body yields a family of types (cofinite) *)
+    (forall x, ~ In x L ->
+       (~ In x (map fst Gamma) ->
+         has_type_ln ((x, t_Nat) :: Gamma)
+                     (open_ln body (t_fvar x))
+                     (open_ln (t_Type k) (t_fvar x)))) ->
+
+    (* base: z : P 0 (opened on body) *)
     has_type_ln Gamma z (open_rec_ln 0 t_Zero (open_rec_ln 0 (t_bvar 1) body)) -> 
-    (* step: s : Π (m:Nat). Π (ih : P m), P (S m)  -- unchanged shape *)
+
+    (* s is convertible to the required double-lambda shape *)
+    convertible_ln s (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) body) sbody)) ->
+
+    (* and the inner body sbody type-checks cofinitely with two distinct fresh names:
+       - x is the numeric parameter m
+       - y is the recursive hypothesis ih of type P x
+    *)
     has_type_ln Gamma s
       (t_Pi t_Nat
             (t_Pi (open_rec_ln 0 (t_bvar 1) body)
                   (open_rec_ln 0 (t_Succ (t_bvar 1)) body))) ->
-    has_type_ln Gamma n t_Nat -> 
-    (* conclusion: the NatRec result has type P n (consistently expanded) *)
-    has_type_ln Gamma (t_NatRec_ln P z s n)
-      (open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body))
-      
-(* | ty_NatRec_strong : forall Gamma P body z s n k L (* (Hcl: lc_rec_ln 2 body) *),
-    has_type_ln Gamma P (t_Pi t_Nat (t_Type k)) -> 
-    convertible_ln P (t_Lam t_Nat body) ->
-    (forall x, ~ In x L -> 
-               (~ In x (map fst Gamma) ->
-                has_type_ln ((x, t_Nat) :: Gamma)
-                            (open_ln body (t_fvar x))
-                            (open_ln (t_Type k) (t_fvar x)))) ->
-    (* base: z : P 0 = body[0 := Zero] *) 
-    has_type_ln Gamma z (open_rec_ln 0 t_Zero body) ->
-    (* step: s : Π (m:Nat). Π (ih : P m), P (S m) *)
-    has_type_ln Gamma s
-      (t_Pi t_Nat
-            (t_Pi (open_rec_ln 0 (t_bvar 1) body)
-                  (open_rec_ln 0 (t_Succ (t_bvar 1)) body))) ->
-    has_type_ln Gamma n t_Nat -> 
-    has_type_ln Gamma (t_NatRec_ln P z s n) (open_rec_ln 0 n body) *)
+
+    (forall x y, x <> y ->
+       ~ In x L -> ~ In y L ->
+       (~ In x (map fst Gamma) -> ~ In y (map fst Gamma) ->
+         has_type_ln ((y, open_rec_ln 0 (t_fvar x) body) :: (x, t_Nat) :: Gamma)
+                     (open_rec_ln 0 (t_fvar y) (open_rec_ln 1 (t_fvar x) sbody))
+                     (open_rec_ln 0 (t_Succ (t_fvar x)) body))) ->
+
+    (* scrutinee is a nat *)
+    has_type_ln Gamma n t_Nat ->
+
+    (* conclusion: NatRec result has type P n expanded on body *)
+    has_type_ln Gamma (t_NatRec_ln P z s n) (open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body))
 
 | ty_conv : forall Γ t A B,
     has_type_ln Γ t A ->
     convertible_ln A B ->
     has_type_ln Γ t B.
+
+
+Definition P_const : term_ln := t_Lam t_Nat t_Nat.
+Definition s_add : term_ln := t_Lam t_Nat (t_Lam t_Nat (t_Succ (t_bvar 0))).
+
+Definition add_ln : term_ln :=
+  t_Lam t_Nat (
+    t_Lam t_Nat (
+      t_NatRec_ln P_const (t_bvar 0) s_add (t_bvar 1)
+    )
+  ).
+
+Lemma add_ln_typing :
+  has_type_ln [] add_ln (t_Pi t_Nat (t_Pi t_Nat t_Nat)).
+Proof.
+  unfold add_ln.
+  eapply ty_Lam with (L := []).
+  - apply ty_Nat.
+  - intros n_name Hfresh_n.
+    intros.
+    eapply ty_Lam with (L := []).
+    + apply ty_Nat.
+    + intros m_name Hfresh_m. cbn. intros.
+      cbn.
+      
+      eapply ty_NatRec_strong
+            with (k := 0)
+                 (P := t_Lam t_Nat t_Nat)     (* P_const *)
+                 (body := t_Nat)              (* the body of P_const *)
+                 (z := t_fvar m_name)         (* base case uses the local var m *)
+                 (s := s_add)                 (* step function *)
+                 (n := t_fvar n_name)
+                 (L := [])
+                 (sbody := ((t_Succ (t_bvar 0))) ).        (* recursion argument = local var n *)
+      cbn.
+      apply ty_Lam with (i := 0) (L := []).
+      apply ty_Nat.
+      intros.
+      cbn.
+      apply ty_Nat.
+      cbn. 
+      apply convertible_refl.
+(*       
+      easy. *)
+      intros. cbn.
+      apply ty_Nat.
+      apply ty_var. simpl. rewrite String.eqb_refl. easy.
+      unfold s_add.
+      cbn.
+      apply convertible_refl.
+      
+      unfold s_add.
+      apply ty_Lam with (i := 0) (L := []).
+      apply ty_Nat.
+      
+      intros.
+      cbn.
+      apply ty_Lam with (i := 0) (L := []).
+      apply ty_Nat.
+      
+      intros.
+      cbn.
+      apply ty_Succ.
+      apply ty_var. simpl.
+      rewrite String.eqb_refl. easy.
+      
+      intros.
+      simpl.
+      cbn.
+      apply ty_Succ.
+      apply ty_var. simpl.
+      rewrite String.eqb_refl. easy.
+      apply ty_var. simpl.
+      rewrite String.eqb_refl.
+      destruct((n_name =? m_name)%string); easy.
+Qed.
 
 
 Require Import Coq.Program.Equality.
@@ -567,10 +698,10 @@ Proof. intros.
             apply IHhas_type_ln; try easy.
           }
        8: { subst.
-            apply ty_NatRec_strong with (k := k) (L := L). unfold P_app1, s_expected_type_for_P in *. cbn in *.
+            apply ty_NatRec_strong with (k := k) (L := L) (sbody := sbody). unfold P_app1, s_expected_type_for_P in *. cbn in *.
             eapply IHhas_type_ln1. easy. easy. easy. easy. easy.
             intros. 
-            specialize(H1 x0 H5).
+            specialize(H1 x0 H8).
 (*             unfold not. intros.
             apply H6.
             rewrite map_app.
@@ -578,28 +709,71 @@ Proof. intros.
             simpl. simpl in H7. destruct H7. right. left. easy.
             destruct H7. left. easy. *)
             assert(HNIN: (~In x0 (map fst (Gamma1 ++ (x, U) :: (y, V) :: Gamma2)))).
-            { unfold not. intros. apply H6.
-              rewrite map_app. rewrite map_app in H7.
-              simpl in H7. apply in_app_iff in H7.
-              apply in_app_iff. destruct H7. left. easy.
+            { unfold not. intros. apply H9.
+              rewrite map_app. rewrite map_app in H10.
+              simpl in H10. apply in_app_iff in H10.
+              apply in_app_iff. destruct H10. left. easy.
               right.
-              simpl in H7. destruct H7. simpl. right. left. easy.
-              destruct H7. simpl. left. easy.
+              simpl in H10. destruct H10. simpl. right. left. easy.
+              destruct H10. simpl. left. easy.
               simpl. right. right. easy.
             }
             specialize(H1 HNIN ((x0, t_Nat) :: Gamma1) Gamma2).
             cbn in H1. cbn.
             apply H1.
             unfold not. intros.
-            destruct H7. subst. apply H6. simpl. rewrite map_app. apply in_app_iff. right. simpl. left. easy.
+            destruct H10. subst. apply H9. simpl. rewrite map_app. apply in_app_iff. right. simpl. left. easy.
             easy. easy.
-            unfold not. intros. destruct H7. subst.
-            apply H6. simpl. rewrite map_app. apply in_app_iff. right. right. left. easy. easy.
+            unfold not. intros. destruct H10. subst.
+            apply H9. simpl. rewrite map_app. apply in_app_iff. right. right. left. easy. easy.
             easy. 
             apply IHhas_type_ln2. 
             easy. easy. easy. easy.
-            intros.
+            easy.
             apply IHhas_type_ln3; easy.
+            intros.
+
+            specialize(H4 x0 y0 H8 H9 H10).
+(*             unfold not. intros.
+            apply H6.
+            rewrite map_app.
+            apply in_app_iff. right.
+            simpl. simpl in H7. destruct H7. right. left. easy.
+            destruct H7. left. easy. *)
+            assert(HNIN: (~In x0 (map fst (Gamma1 ++ (x, U) :: (y, V) :: Gamma2)))).
+            { unfold not. intros. apply H11.
+              rewrite map_app. rewrite map_app in H13.
+              simpl in H13. apply in_app_iff in H13.
+              apply in_app_iff. destruct H13. left. easy.
+              right.
+              simpl in H13. destruct H13. simpl. right. left. easy.
+              destruct H13. simpl. left. easy.
+              simpl. right. right. easy.
+            }
+            assert(HNIN2: (~In y0 (map fst (Gamma1 ++ (x, U) :: (y, V) :: Gamma2)))).
+            { unfold not. intros. apply H12.
+              rewrite map_app. rewrite map_app in H13.
+              simpl in H13. apply in_app_iff in H13.
+              apply in_app_iff. destruct H13. left. easy.
+              right.
+              simpl in H13. destruct H13. simpl. right. left. easy.
+              destruct H13. simpl. left. easy.
+              simpl. right. right. easy.
+            }
+            specialize(H4 HNIN HNIN2 ((y0, open_rec_ln 0 (t_fvar x0) body) :: (x0, t_Nat) :: Gamma1) Gamma2).
+            cbn in H4. cbn.
+            apply H4.
+            unfold not. intros.
+            destruct H13. subst. apply H12. simpl. rewrite map_app. apply in_app_iff. right. simpl. left. easy.
+            destruct H13. subst. apply H11. simpl. rewrite map_app. apply in_app_iff. right. simpl. left. easy.
+            easy. easy.
+            unfold not. intros. destruct H13. subst.
+            apply H12. simpl. rewrite map_app. apply in_app_iff. right. right. left. easy.
+            destruct H13. subst.
+            apply H11. simpl. rewrite map_app. apply in_app_iff. right. right. left. easy.
+            easy.
+            easy.
+           
             apply IHhas_type_ln4; easy.
            }
         3: { subst.
@@ -681,27 +855,65 @@ Proof. intros. revert x H U.
             apply in_app_iff. right. easy.
             easy.
           }
-       8: { apply ty_NatRec_strong with (k := k) (L := L).
+       8: { apply ty_NatRec_strong with (k := k) (L := L) (sbody := sbody).
             apply IHhas_type_ln1. easy. easy.
             intros.
             assert(HNIN: ~ In x0 (map fst  Gamma)).
-            { unfold not. intros. apply H4. simpl. right. easy. }
-            specialize(H1 x0 H3 HNIN x).
+            { unfold not. intros. apply H7. simpl. right. easy. }
+            specialize(H1 x0 H6 HNIN x).
             assert( ~ In x (map fst ((x0, t_Nat) :: Gamma))).
-            { simpl. simpl in H4. unfold not.
-              intros. apply H4. destruct H5. left. easy. right. easy.
+            { simpl. simpl in H7. unfold not.
+              intros. apply H7. destruct H8. left. easy. right. easy.
             }
-            apply H1 with (U := U) in H5.
+            apply H1 with (U := U) in H8.
 
             specialize (fresh_commute_middle nil); intros Ha.
             simpl in Ha.
             apply Ha.
-            unfold not. intros. apply H4. simpl. left. easy. easy.
-            unfold not. intros. apply H4. simpl. right. easy.
+            unfold not. intros. apply H7. simpl. left. easy. easy.
+            unfold not. intros. apply H7. simpl. right. easy.
             easy.
 
-            apply IHhas_type_ln2. easy.
+            apply IHhas_type_ln2. easy. easy.
             apply IHhas_type_ln3. easy.
+            
+            intros.
+            specialize(H4 x0 y H6 H7 H8).
+            assert(HNIN: ~ In x0 (map fst  Gamma)).
+            { unfold not. intros. apply H9. simpl. right. easy. }
+            assert(HNIN2: ~ In y (map fst  Gamma)).
+            { unfold not. intros. apply H10. simpl. right. easy. }
+            simpl in H4.
+            assert(~ (y = x \/ x0 = x \/ In x (map fst Gamma))).
+            { simpl. simpl in H10. unfold not.
+              intros. apply H10. destruct H11. left. easy.
+              destruct H11. subst. contradict H9. simpl. left. easy.
+              right. easy.
+            }
+            specialize(H4 HNIN HNIN2 x H11). cbn.
+            specialize (fresh_commute_middle nil); intros Ha.
+            simpl in Ha.
+            apply Ha.
+            unfold not. intros. apply H10. simpl. left. easy. easy.
+            unfold not. intros. apply H10. simpl. right. easy.
+            apply Ha; try easy.
+            apply Ha with (U := U) in H4.
+            specialize (fresh_commute_middle [(y, open_rec_ln 0 (t_fvar x0) body)]); intros Hb.
+            simpl in Hb.
+            apply Hb.
+            unfold not. intros. apply H9. simpl. left. easy.
+            unfold not. intros.
+            destruct H12. apply H10. simpl. left. easy.
+            easy.
+            unfold not. intros.
+            destruct H12. subst. easy. easy.
+            apply H4.
+            unfold not. intros. subst. contradict H11. left. easy.
+            unfold not. intros.
+            apply H9. simpl. simpl in H12. destruct H12. left. easy.
+            easy.
+            simpl. unfold not. intros.
+            destruct H12. subst. easy. easy.
             apply IHhas_type_ln4. easy.
           }
        3: { apply ty_Pi with (i := i) (L := x::L++(map fst Gamma)).
@@ -743,7 +955,7 @@ Proof. intros. revert x H U.
           }
 Qed.
 
-Definition P_const : term_ln := t_Lam t_Nat t_Nat.
+(* Definition P_const : term_ln := t_Lam t_Nat t_Nat.
 Definition s_add : term_ln := t_Lam t_Nat (t_Lam t_Nat (t_Succ (t_bvar 0))).
 
 Definition add_ln : term_ln :=
@@ -803,7 +1015,7 @@ Proof.
       apply ty_var. simpl. rewrite String.eqb_refl.
       destruct((n_name =? m_name)%string); easy.
 Qed.
-
+ *)
 Require Import Lia.
 
 Lemma cl_larger: forall v k u, 
@@ -904,11 +1116,15 @@ Proof. intros. revert x v H.
            simpl. constructor. constructor. constructor.
            simpl. constructor. constructor. simpl.
            unfold open_ln.
-           constructor. 
+           
+(*             constructor. *)
+           rewrite open_subst_commute; try easy.
 (*            rewrite open_subst_commute; try easy.
-           rewrite open_subst_commute; try easy. 
+           rewrite open_subst_commute; try easy. *)
+           cbn.
+(*            rewrite open_subst_commute; try easy. *)
            constructor.
-           apply cl_larger with (k := 0). lia. easy. *)
+(*           apply cl_larger with (k := 0). lia. easy. *)
          + cbn.
            induction IHbeta_ln; intros.
            ++ simpl. constructor. eapply beta_pi_A_ln. easy.
@@ -1385,41 +1601,91 @@ Proof. intros.
 (*             destruct (exists_fresh_not_in_list (x::L++(map fst Gamma)) x) as (y,(Hniny,Hy)). *)
             rewrite open_subst_commute.
             rewrite open_subst_commute.
-            eapply ty_NatRec_strong with (k := k) (L := x::L).
+            eapply ty_NatRec_strong with (k := k) (L := x::L) (sbody := (subst_ln x v sbody)).
             apply IHhas_type_ln1. easy. easy.
             apply convertible_subst with (x := x) (v := v) in H0; try easy.
             
             intros.
-            rewrite subst_fst_id in H9.
-            pose proof H9 as HNIN.
+            rewrite subst_fst_id in H12.
+            pose proof H12 as HNIN.
             assert(~ In x0 L).
-            { unfold not. intros. apply H8. simpl. right. easy. }
-            specialize(H2 x0 H10 H9 x).
+            { unfold not. intros. apply H11. simpl. right. easy. }
+            specialize(H2 x0 H13 H12 x).
             assert(~ In x (map fst ((x0, t_Nat) :: Gamma))).
-            { unfold not. intros. simpl in H11. destruct H11. subst. 
-              apply H8. simpl. left. easy. easy. }
-            specialize(H2 H11 v H7).
+            { unfold not. intros. simpl in H14. destruct H14. subst. 
+              apply H11. simpl. left. easy. easy. }
+            specialize(H2 H14 v H10).
             cbn in H2. cbn.
             simpl in H2. cbn. unfold open_ln in H2.
             rewrite open_subst_commute in H2.
             simpl in H2.
             assert((x =? x0)%string = false).
             { apply String.eqb_neq. unfold not. intros. subst.
-              apply H8. simpl. left. easy. }
-            rewrite H12 in H2. cbn in H2. unfold open_ln. cbn. easy.
+              apply H11. simpl. left. easy. }
+            rewrite H15 in H2. cbn in H2. unfold open_ln. cbn. easy.
             easy.
-            specialize(IHhas_type_ln2 x H6 v H7).
+            specialize(IHhas_type_ln2 x H9 v H10).
             cbn in IHhas_type_ln2.
             rewrite  open_subst_commute in IHhas_type_ln2.
             rewrite  open_subst_commute in IHhas_type_ln2.
-            apply IHhas_type_ln2. easy. easy.
-            specialize(IHhas_type_ln3 x H6 v H7).
+            apply IHhas_type_ln2. easy. easy. 
+            specialize(IHhas_type_ln3 x H9 v H10).
             simpl in IHhas_type_ln3.
             cbn in IHhas_type_ln3.
+            assert(subst_ln x v s ≡ₗₙ subst_ln x v (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) body) sbody))).
+            { apply convertible_subst. easy. easy. }
+            apply convertible_trans with (y := subst_ln x v (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) body) sbody))).
+            easy.
+            cbn.
+            rewrite  open_subst_commute. cbn.
+            apply convertible_refl.
+            easy.
+            cbn in IHhas_type_ln3.
+            specialize(IHhas_type_ln3 x H9 v H10).
+            
             rewrite  open_subst_commute in IHhas_type_ln3.
             rewrite  open_subst_commute in IHhas_type_ln3.
             apply IHhas_type_ln3; easy. easy. easy.
-            apply IHhas_type_ln4; easy. easy. easy.
+            
+            intros.
+            assert(~ In x0 L).
+            { unfold not. intros. apply H12. simpl. right. easy. }
+            assert(~ In y L).
+            { unfold not. intros. apply H13. simpl. right. easy. }
+            rewrite subst_fst_id in H14, H15.
+            assert( ~ (y = x \/ x0 = x \/ In x (map fst Gamma))).
+            { unfold not. intros. destruct H18.
+              subst. contradict H13. simpl. left. easy. 
+              destruct H18. subst.
+              contradict H12. simpl. left. easy.
+              easy.
+            }
+            specialize(H7 x0 y H11 H16 H17 H14 H15 x H18 v H10).
+            cbn in H7.
+            rewrite  open_subst_commute in H7.
+            rewrite  open_subst_commute in H7.
+            cbn in H7.
+            assert((x =? x0)%string = false).
+            { apply String.eqb_neq. unfold not. intros.
+              subst. apply H18. right. left. easy.
+            }
+            rewrite H19 in H7.
+            assert((x =? y)%string = false).
+            { apply String.eqb_neq. unfold not. intros.
+              subst. apply H18. left. easy.
+            }
+            rewrite H20 in H7.
+            rewrite  open_subst_commute in H7.
+            rewrite  open_subst_commute in H7.
+            cbn in H7.
+            rewrite H19 in H7.
+            apply H7. easy.
+            
+            apply cl_larger with (k := 0). lia.
+            easy. easy. easy.
+            
+            apply IHhas_type_ln4; easy. easy. 
+            easy. (* admit. *) (* easy. *)
            }
        1: { simpl.
             case_eq((x0 =? x)%string); intros.
@@ -1551,12 +1817,13 @@ Proof. intros.
        revert y H0.
        induction H; intros.
        10:{ apply IHhas_type_ln. easy. }
-       9: { simpl in H6. apply in_app_iff in H6.
-            destruct H6. apply IHhas_type_ln1. easy.
-            apply in_app_iff in H6.
-            destruct H6. apply IHhas_type_ln2. easy.
-            apply in_app_iff in H6.
-            destruct H6. apply IHhas_type_ln3. easy.
+       9: { simpl in H9. 
+            apply in_app_iff in H9.
+            destruct H9. apply IHhas_type_ln1. easy.
+            apply in_app_iff in H9.
+            destruct H9. apply IHhas_type_ln2. easy.
+            apply in_app_iff in H9.
+            destruct H9. apply IHhas_type_ln3. easy.
             apply IHhas_type_ln4. easy.
           }
        1: { simpl in H0. destruct H0. subst. 
@@ -1711,46 +1978,49 @@ Proof.
   subst.
   simpl. rewrite open_subst_commute. 
   rewrite open_subst_commute. 
-  eapply ty_NatRec_strong with (k := k) (L := x::L++(map fst (ΓL ++ ΓR))).
+  eapply ty_NatRec_strong with (k := k) (L := x::L++(map fst (ΓL ++ ΓR))) (sbody := (subst_ln x v sbody)).
   simpl in IHHt1.
   apply IHHt1 with (A := A). easy. easy. easy. easy. easy.
   apply convertible_subst with (x := x) (v := v) in H; try easy.
   
   intros.
   assert(~ In x0 L).
-  { unfold not. intros. apply H2. simpl. right. apply in_app_iff. left. easy. }
+  { unfold not. intros. apply H5. simpl. right. apply in_app_iff. left. easy. }
   assert(~ In x (map fst (((x0, t_Nat) :: ΓL) ++ ΓR))).
-  { unfold not. intros. simpl in H4. destruct H5. subst. apply H2. simpl. left. easy. easy. }
+  { unfold not. intros. simpl in H8. destruct H8. subst. apply H5. simpl. left. easy. easy. }
   assert(HN: NoDup (map fst (((x0, t_Nat) :: ΓL) ++ ΓR))).
   { assert(HNN: ~ In x0 (map fst (ΓL ++ ΓR))).
-    { unfold not. intros. apply H2. simpl. right. apply in_app_iff. right. easy. }
+    { unfold not. intros. apply H5. simpl. right. apply in_app_iff. right. easy. }
     simpl.
     constructor; easy.
   }
   simpl. simpl in H4.
   assert(HN2: ~ In x0 (map fst (ΓL ++ (x, A) :: ΓR))).
-  { unfold not. intros. apply H3.
-    rewrite map_app in H6.
-    apply in_app_iff in H6.
+  { unfold not. intros. apply H6.
+    rewrite map_app in H9.
+    apply in_app_iff in H9. simpl.
     rewrite subst_fst_id. rewrite map_app.
-    apply in_app_iff. destruct H6. left.
+    apply in_app_iff. destruct H9. left.
     easy.
-    rewrite subst_fst_id in H3.
-    simpl in H6. destruct H6. subst. simpl in H5.
-    contradict H5. left. easy.
+    rewrite subst_fst_id in H6.
+    simpl in H6. destruct H6. subst. simpl in H9.
+    destruct H9. subst.
+    contradict H8. left. easy.
+    rewrite map_app.
+    apply in_app_iff. 
     right. easy.
   }
-  specialize(H1 x0 H4 HN2 ((x0, t_Nat) :: ΓL) ΓR HN v x A H5).
+  specialize(H1 x0 H7 HN2 ((x0, t_Nat) :: ΓL) ΓR HN v x A H8).
   simpl in H1.
   assert((x =? x0)%string = false).
-  { apply String.eqb_neq. unfold not. intros. apply H2. subst. simpl. left. easy. }
+  { apply String.eqb_neq. unfold not. intros. apply H5. subst. simpl. left. easy. }
   simpl in H1.
   (*
   rewrite H5 in H1.
   simpl in H1. unfold open_ln. simpl. *)
   unfold open_ln in H1.
   rewrite open_subst_commute in H1. simpl in H1.
-  rewrite H6 in H1.
+  rewrite H9 in H1.
   apply H1. easy. easy. easy. easy.
   specialize(IHHt2 ΓL ΓR Hnd v x A).
   simpl in IHHt2.
@@ -1758,15 +2028,91 @@ Proof.
   rewrite  open_subst_commute in IHHt2.
   apply IHHt2; easy.
   easy. easy.
+  
+   (* easy. *)
   cbn.
+  assert(subst_ln x v s ≡ₗₙ subst_ln x v (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) body) sbody))).
+  { apply convertible_subst. easy. easy. }
+  apply convertible_trans with (y := subst_ln x v (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) body) sbody))).
+  easy.
+  cbn.
+  rewrite  open_subst_commute. cbn.
+  apply convertible_refl. easy.
+  
   specialize(IHHt3 ΓL ΓR Hnd v x A).
   simpl in IHHt3.
   rewrite  open_subst_commute in IHHt3.
   rewrite  open_subst_commute in IHHt3.
   apply IHHt3; easy.
   easy. easy.
-  simpl in IHHt4. apply IHHt4 with (A := A); easy.
-  easy. easy.
+  simpl in IHHt4.
+  
+  intros.
+  assert(~ In x0 L).
+  { unfold not. intros. apply H6. simpl. right. apply in_app_iff. left. easy. }
+  assert(~ In y L).
+  { unfold not. intros. apply H7. simpl. right. apply in_app_iff. left. easy. }
+  assert(~ In x0 (map fst (ΓL ++ (x, A) :: ΓR))).
+  { unfold not. intros. rewrite map_app in H12. apply in_app_iff in H12.
+    simpl in H12. destruct H12. subst. apply H6. simpl. right.
+    apply in_app_iff. right. rewrite map_app. apply in_app_iff. left. easy.
+    destruct H12. subst. apply H6. left. easy.
+    apply H6. simpl. right. rewrite map_app. apply in_app_iff. right.
+    apply in_app_iff. right. easy.
+  }
+  assert(~ In y (map fst (ΓL ++ (x, A) :: ΓR))).
+  { unfold not. intros. rewrite map_app in H13. apply in_app_iff in H13.
+    simpl in H13. destruct H13. subst. apply H7. simpl. right.
+    apply in_app_iff. right. rewrite map_app. apply in_app_iff. left. easy.
+    destruct H13. subst. apply H7. left. easy.
+    apply H7. simpl. right. rewrite map_app. apply in_app_iff. right.
+    apply in_app_iff. right. easy.
+  }
+  assert(HN: NoDup (y :: x0 :: map fst (ΓL ++ ΓR))).
+  { constructor.
+    simpl. unfold not.
+    intros.
+    destruct H14. subst. easy.
+    apply H9. simpl.
+    rewrite subst_fst_id. easy.
+    constructor.
+    simpl. unfold not.
+    intros.
+    apply H8. simpl.
+    rewrite subst_fst_id. easy.
+    easy.
+  }
+  specialize(H4 x0 y H5 H10 H11 H12 H13
+  ((y, open_rec_ln 0 (t_fvar x0) body) :: (x0, t_Nat) :: ΓL) ΓR
+  HN v x A).
+  cbn in H4.
+  rewrite  open_subst_commute in H4.
+  rewrite  open_subst_commute in H4.
+  rewrite  open_subst_commute in H4.
+  rewrite  open_subst_commute in H4.
+  cbn in H4.
+  assert((x =? x0)%string = false).
+  { apply String.eqb_neq. unfold not. intros.
+    subst. contradict H12.
+    rewrite map_app. apply in_app_iff. right.
+    simpl. left. easy.
+  }
+  assert((x =? y)%string = false).
+  { apply String.eqb_neq. unfold not. intros.
+    subst. contradict H13.
+    rewrite map_app. apply in_app_iff. right.
+    simpl. left. easy.
+  }
+  rewrite H14, H15 in H4.
+  apply H4.
+  unfold not. intros.
+  destruct H16. subst. rewrite String.eqb_refl in H15. easy.
+  destruct H16. subst. rewrite String.eqb_refl in H14. easy. easy. easy.
+  easy. easy. easy. 
+  apply cl_larger with (k := 0). lia. easy. easy. easy.
+  
+  apply IHHt4 with (A := A); easy.
+  easy. (* easy. *) (* admit. *) easy.
   }
   8:{
   subst. simpl.
@@ -2185,10 +2531,11 @@ Proof.
   1:{ simpl. destruct (n =? k). easy. apply convertible_refl. }
 Qed.
 
+
 Lemma natrec_inversion_stronger :
   forall Γ P z s n A,
     has_type_ln Γ (t_NatRec_ln P z s n) A ->
-    exists k body L,
+    exists k body L sbody,
       has_type_ln Γ P (t_Pi t_Nat (t_Type k)) /\
       convertible_ln P (t_Lam t_Nat body) /\
       (forall x : string,
@@ -2198,13 +2545,20 @@ Lemma natrec_inversion_stronger :
               (open_ln body (t_fvar x))
               (open_ln (t_Type k) (t_fvar x))) /\
       (* base case: z : P 0  — using the consistent expanded form *)
-      has_type_ln Γ z
-        (open_rec_ln 0 t_Zero (open_rec_ln 0 (t_bvar 1) body)) /\
+       has_type_ln Γ z (open_rec_ln 0 t_Zero (open_rec_ln 0 (t_bvar 1) body)) /\
       (* step case: s : Π (m:Nat). Π (ih : P m), P (S m)  *)
+      convertible_ln s (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) body) sbody)) /\
       has_type_ln Γ s
         (t_Pi t_Nat
             (t_Pi (open_rec_ln 0 (t_bvar 1) body)
                   (open_rec_ln 0 (t_Succ (t_bvar 1)) body))) /\
+      (forall x y, x <> y ->
+       ~ In x L -> ~ In y L ->
+       (~ In x (map fst Γ) -> ~ In y (map fst Γ) ->
+         has_type_ln ((y, open_rec_ln 0 (t_fvar x) body) :: (x, t_Nat) :: Γ)
+                     (open_rec_ln 0 (t_fvar y) (open_rec_ln 1 (t_fvar x) sbody))
+                     (open_rec_ln 0 (t_Succ (t_fvar x)) body)))
+      /\
       (* scrutinee typing *)
       has_type_ln Γ n t_Nat /\
       (* result type: P n — consistent expanded form *)
@@ -2217,67 +2571,20 @@ Proof.
   induction Hty; intros; try (inversion Heqt).
   - subst.
     cbn in H1.
-    exists k, body, L. repeat split; try assumption.
+    exists k, body, L, sbody. repeat split; try assumption.
     intros. cbn. cbn in H0.
     apply convertible_refl.
   - subst.
     specialize(IHHty P z s n eq_refl).
-    destruct IHHty as (k,(body,(L,IHH))).
-    exists k, body, L.
+    destruct IHHty as (k,(body,(L,(sbody,IHH)))).
+    exists k, body, L, sbody.
     split. easy. split. easy. split. easy.
     split. easy. split. easy. split. easy.
+    split. easy. split. easy.
     apply convertible_sym in H.
     apply convertible_trans with (y := A); easy.
 Qed.
 
-(* Lemma conv_natrec: forall P z s n,
-  t_NatRec_ln P z s (t_Succ n) ≡ₗₙ open_ln (open_ln s n) (t_NatRec_ln P z s n).
-Proof. intros.
-       constructor. constructor. constructor.
-Qed. *)
-
-(* Lemma natrec_inversion_stronger :
-  forall Γ P z s n A,
-    has_type_ln Γ (t_NatRec_ln P z s n) A ->
-    exists k body L,
-      has_type_ln Γ P (t_Pi t_Nat (t_Type k)) /\
-      convertible_ln P (t_Lam t_Nat body) /\
-      (forall x : string, ~ In x L -> ~ In x (map fst Γ) -> has_type_ln ((x, t_Nat) :: Γ) (open_ln body (t_fvar x)) (open_ln (t_Type k) (t_fvar x))) /\
-      has_type_ln Γ z (open_rec_ln 0 t_Zero body) /\
-      has_type_ln Γ s (t_Pi t_Nat (t_Pi (open_rec_ln 0 (t_bvar 1) body) (open_rec_ln 0 (t_Succ (t_bvar 1)) body))) /\
-      has_type_ln Γ n t_Nat /\
-      convertible_ln A (open_rec_ln 0 n body). *)
-(* Lemma natrec_inversion_stronger :
-  forall Γ P z s n A,
-    has_type_ln Γ (t_NatRec_ln P z s n) A ->
-    exists k body L,
-      has_type_ln Γ P (t_Pi t_Nat (t_Type k)) /\
-      convertible_ln P (t_Lam t_Nat body) /\
-      (forall x : string,
-          ~ In x L ->
-          ~ In x (map fst Γ) ->
-          has_type_ln ((x, t_Nat) :: Γ)
-              (open_ln body (t_fvar x))
-              (open_ln (t_Type k) (t_fvar x))) /\
-      (* base case: z : P 0  — using the consistent expanded form *)
-      has_type_ln Γ z
-        (open_rec_ln 0 t_Zero (open_rec_ln 0 (t_bvar 1) body)) /\
-      (* step case: s : Π (m:Nat). Π (ih : P m), P (S m)  *)
-      has_type_ln Γ s
-        (t_Pi t_Nat
-            (t_Pi (open_rec_ln 0 (t_bvar 1) body)
-                  (open_rec_ln 0 (t_Succ (t_bvar 1)) body))) /\
-      (* scrutinee typing *)
-      has_type_ln Γ n t_Nat /\
-      (* result type: P n — consistent expanded form *)
-      convertible_ln A
-        (open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body)).
-Proof.
-  intros Γ P z s n A H.
-  apply natrec_inversion with (T := A) in H. easy. 
-  apply convertible_refl.
-Qed.
- *)
 Lemma succ_inversion :
   forall Γ n T,
     has_type_ln Γ (t_Succ n) T ->
@@ -2424,39 +2731,91 @@ Proof. intros.
        }
        9:{
        subst.
-       apply ty_NatRec_strong with (k := k) (L := L).
+       apply ty_NatRec_strong with (k := k) (L := L) (sbody := sbody).
        apply IHhas_type_ln1 with (A := A) (i := i); easy.
        easy.
        intros.
        assert(HN0: ~ In x0 (map fst (ΓL ++ (x, A) :: ΓR))).
        { unfold not. intros.
-         apply H6. rewrite map_app. rewrite map_app in H7.
-         apply in_app_iff in H7. apply in_app_iff. 
-         destruct H7. left. easy.
-         simpl in H7.
-         destruct H7. right. simpl. left. easy.
+         apply H9. rewrite map_app. rewrite map_app in H10.
+         apply in_app_iff in H10. apply in_app_iff. 
+         destruct H10. left. easy.
+         simpl in H10.
+         destruct H10. right. simpl. left. easy.
          right. right. easy.
        }
-       specialize(H1 x0 H5 HN0 ((x0, t_Nat) :: ΓL) ΓR x A A').
+       specialize(H1 x0 H8 HN0 ((x0, t_Nat) :: ΓL) ΓR x A A').
        apply H1 with (i := i). easy.
        unfold not. intros.
-       apply H2. simpl in H7.
-       destruct H7. subst.
-       contradict H6. rewrite map_app.
+       apply H5. simpl in H10.
+       destruct H10. subst.
+       contradict H9. rewrite map_app.
        apply in_app_iff. right. simpl. left. easy.
        easy.
        easy. simpl.
        apply weakening_fresh.
        unfold not. intros.
-       apply HN0. rewrite map_app. rewrite map_app in H7.
-       apply in_app_iff in H7. destruct H7.
+       apply HN0. rewrite map_app. rewrite map_app in H10.
+       apply in_app_iff in H10. destruct H10.
        simpl.
        apply in_app_iff. left. easy.
        simpl.
        apply in_app_iff. right. right. easy.
        easy.
        apply IHhas_type_ln2 with (A := A) (i := i); easy.
+       cbn. easy.
+       
        apply IHhas_type_ln3 with (A := A) (i := i); easy.
+       
+       intros.
+       specialize(H4 x0 y H8 H9 H10).
+       assert( ~ In x0 (map fst (ΓL ++ (x, A) :: ΓR))).
+       { unfold not. intros.
+         apply H11.
+         rewrite map_app. rewrite in_app_iff.
+         rewrite map_app in H13. apply in_app_iff in H13.
+         destruct H13. left. easy.
+         right. simpl. simpl in H13. easy.
+       }
+       assert( ~ In y (map fst (ΓL ++ (x, A) :: ΓR))).
+       { unfold not. intros.
+         apply H12.
+         rewrite map_app. rewrite in_app_iff.
+         rewrite map_app in H14. apply in_app_iff in H14.
+         destruct H14. left. easy.
+         right. simpl. simpl in H13. easy.
+       }
+       specialize(H4 H13 H14
+       ((y, open_rec_ln 0 (t_fvar x0) body) :: (x0, t_Nat) :: ΓL) ΓR
+       x A A').
+       cbn in H4.
+       apply H4 with (i := i). easy.
+       unfold not. intros.
+       destruct H15. subst. apply H14.
+       rewrite map_app. rewrite in_app_iff. right. left. easy.
+       destruct H15. subst. apply H13.
+       rewrite map_app. rewrite in_app_iff. right. left. easy.
+       easy.
+       easy. 
+       apply weakening_fresh.
+       unfold not. intros.
+       apply H14. rewrite map_app. rewrite in_app_iff.
+       simpl in H15. destruct H15.
+       subst. right. left. easy.
+       rewrite map_app in H15.
+       apply in_app_iff in H15.
+       destruct H15. left. easy. right. right. easy.
+       apply weakening_fresh.
+       unfold not. intros.
+       apply H13.
+       rewrite map_app in H15.
+       apply in_app_iff in H15.
+       destruct H15.
+       rewrite map_app. rewrite in_app_iff.
+       left. easy. 
+       rewrite map_app. rewrite in_app_iff.
+       right. right. easy. easy.
+
        apply IHhas_type_ln4 with (A := A) (i := i); easy.
        }
        4:{
@@ -2691,8 +3050,39 @@ Proof. intros.
        easy. easy.
 Admitted.
 
-Lemma NatRec_succ_type_convertible :
+
+(* Lemma open_rec_ln_outer_noop_gen :
+  forall (body u : term_ln) k,
+    lc_rec_ln (S k) body ->
+    open_rec_ln k u (open_rec_ln k (t_bvar (S k)) body) =
+    open_rec_ln k (t_bvar (S k)) body.
+Proof. intro b.
+       induction b; intros.
+       - simpl in H.
+         cbn.
+         case_eq(n =? k); intros.
+         + cbn. destruct k. easy.
+           assert(S k =? k = false) by admit.
+           rewrite H1. easy.
+         + cbn. rewrite H0. easy.
+       - simpl. easy.
+       - simpl. easy.
+       - simpl. simpl in H. rewrite IHb1; try easy.
+         destruct H as (Ha,Hb).
+         specialize(IHb2 u (S k) Hb).
+         cbn in IHb2.
+         rewrite IHb2. *)
+
+Inductive is_nat : term_ln -> Prop :=
+| is_nat_zero :
+    is_nat t_Zero
+| is_nat_succ : forall n,
+    is_nat n ->
+    is_nat (t_Succ n).
+
+(* Lemma NatRec_succ_type_convertible :
   forall body n P z s,
+    is_nat n ->
     lc_rec_ln 2 body ->
     P ≡ₗₙ t_Lam t_Nat body ->
     convertible_ln
@@ -2700,7 +3090,35 @@ Lemma NatRec_succ_type_convertible :
             (open_rec_ln 1 n (open_rec_ln 0 (t_Succ (t_bvar 1)) body)))
       (open_rec_ln 0 (t_Succ n)
             (open_rec_ln 0 (t_bvar 1) body)).
-Admitted.
+Proof. intros b n P s z Hn.
+       revert b P s z.
+       induction Hn; intros.
+       - cbn.
+         assert(
+         open_rec_ln 0 z (open_rec_ln 1 t_Zero (open_rec_ln 0 (t_Succ (t_bvar 1)) b))
+                ≡ₗₙ open_rec_ln 0 (t_Succ t_Zero) (open_rec_ln 0 (t_bvar 1) b)).
+         cbn.
+         revert H0. revert P s z.
+         induction b; intros.
+         10:{ cbn.
+
+       
+Admitted. *)
+
+Compute open_rec_ln 0 (t_bvar 10) (t_bvar 1).
+
+(* Lemma open_open_comm: forall body n k,
+  lc_rec_ln 1 body ->
+  (open_rec_ln 0 n (open_rec_ln 0 (t_bvar 0) body)) = open_rec_ln k n body.
+  
+Lemma open_open_comm: forall body n k,
+  lc_rec_ln (S k) body ->
+  (open_rec_ln k n (open_rec_ln k (t_bvar k) body)) = open_rec_ln k n body.
+Proof. intro b.
+       induction b; intros.
+       10:{ cbn. rewrite IHb2, IHb4. cbn.
+            simpl in H.
+ *)
 
 Theorem preservation :
   forall Γ t t' T,
@@ -2715,12 +3133,12 @@ Proof. intros.
 (*        assert(T ≡ₗₙ T).
        { apply convertible_refl. }
        specialize(HH H1). *)
-       destruct HH as (k,(body,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,Hg))))))))).
+       destruct HH as (k,(body,(L,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
        apply ty_conv with (A :=  open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body)); try easy.
        apply step_implies_convertible_ln in H0.
        specialize(open_rec_ln_monotone_u (open_rec_ln 0 (t_bvar 1) body) 0 n n' H0); intro HH.
        apply ty_conv with (A :=  open_rec_ln 0 n' (open_rec_ln 0 (t_bvar 1) body)); try easy.
-       apply ty_NatRec_strong with (k := k) (L := L); try easy.
+       apply ty_NatRec_strong with (k := k) (L := L) (sbody := sbody); try easy.
        apply IHstep_ln. easy.
        apply convertible_sym. easy.
        apply convertible_sym. easy.
@@ -2730,10 +3148,13 @@ Proof. intros.
 (*        assert(T ≡ₗₙ T).
        { apply convertible_refl. }
        specialize(HH H1). *)
-       destruct HH as (k,(body,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,Hg))))))))).
+       destruct HH as (k,(body,(L,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
        apply ty_conv with (A := open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body)); try easy.
-       apply ty_NatRec_strong with (k := k) (L := L); try easy.
+       apply ty_NatRec_strong with (k := k) (L := L) (sbody := sbody); try easy.
        simpl.
+       apply step_implies_convertible_ln in H0.
+       apply convertible_sym in H0.
+       apply convertible_trans with (y := s); easy.
        apply IHstep_ln. easy.
        apply convertible_sym. easy.
        }
@@ -2742,9 +3163,9 @@ Proof. intros.
 (*        assert(T ≡ₗₙ T).
        { apply convertible_refl. }
        specialize(HH H1). *)
-       destruct HH as (k,(body,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,Hg))))))))).
+       destruct HH as (k,(body,(L,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
        apply ty_conv with (A := open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body)); try easy.
-       apply ty_NatRec_strong with (k := k) (L := L); try easy.
+       apply ty_NatRec_strong with (k := k) (L := L) (sbody := sbody); try easy.
        simpl.
        apply IHstep_ln. easy.
        apply convertible_sym. easy.
@@ -2754,9 +3175,9 @@ Proof. intros.
 (*        assert(T ≡ₗₙ T).
        { apply convertible_refl. }
        specialize(HH H1). *)
-       destruct HH as (k,(body,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,Hg))))))))).
+       destruct HH as (k,(body,(L,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
        apply ty_conv with (A :=  open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body)); try easy.
-       apply ty_NatRec_strong with (k := k) (L := L); try easy.
+       apply ty_NatRec_strong with (k := k) (L := L) (sbody := sbody); try easy.
        simpl.
        apply IHstep_ln. easy.
        apply step_implies_convertible_ln in H0.
@@ -2766,45 +3187,32 @@ Proof. intros.
        }
        7:{
        cbn.
-       specialize(natrec_inversion_stronger Γ P z s (t_Succ n) T H0); intro HH.
-       destruct HH as (k,(body,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,Hg))))))))).
+       
+       specialize(natrec_inversion_stronger Γ (t_Lam t_Nat Pbody) z (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) (t_Succ n) T H0); intro HH.
+       destruct HH as (k,(body,(L,(sbodyR,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
        apply ty_conv with (A := open_rec_ln 0 (t_Succ n) (open_rec_ln 0 (t_bvar 1) body)); try easy.
-       simpl. pose proof Hc as Hcof_outer.
-       specialize(exists_fresh_not_in_list (L++(map fst Γ)++(fv_ln n)++(fv_ln s)) ""); intros Hi.
-       destruct Hi as (y,(Hy,_)).
-       assert(~ In y L) by admit.
-       assert(~ In y (map fst Γ)) by admit.
-       specialize(Hc y H1 H2).
-       unfold open_ln in Hc.
-       cbn in Hc.
        cbn.
+
        pose proof Hb as Hb1.
        
        apply app_preserves_open with (n := n) in Hb1.
        cbn.
        assert(Hn: has_type_ln Γ n t_Nat).
-       {   apply succ_inversion in Hf. easy. }
-       assert (Hrec_n : has_type_ln Γ (t_NatRec_ln P z s n) (open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body))).
+       {   apply succ_inversion in Hi. easy. }
+       assert (Hrec_n : has_type_ln Γ (t_NatRec_ln (t_Lam t_Nat Pbody) z (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) n) (open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body))).
        { eapply ty_NatRec_strong; eauto.  }
-
-       pose proof (ty_App Γ s n _ _ He Hn) as Hsn.
+       pose proof (ty_App Γ (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) n _ _ Hf Hn) as Hsn.
        cbn in Hsn.
-       assert(Hclb: lc_rec_ln 2 body) by admit.
-       pose proof (ty_App Γ (t_App s n) (t_NatRec_ln P z s n)
-                       (open_rec_ln 0 n (open_rec_ln 0 (t_bvar 1) body))
-                       (open_rec_ln 1 n (open_rec_ln 0 (t_Succ (t_bvar 1)) body))
-                         Hsn Hrec_n) as H_double_app.
-        unfold open_ln in H_double_app.
-        cbn in  H_double_app.
-        unfold open_ln.
-        apply ty_conv with (A := open_rec_ln 0 (t_NatRec_ln P z s n) (open_rec_ln 1 n (open_rec_ln 0 (t_Succ (t_bvar 1)) body))).
-        easy.
-        apply NatRec_succ_type_convertible. easy. easy.
-        apply convertible_sym. easy.
+       pose proof (ty_App Γ 
+        (t_App (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) n)
+        (t_NatRec_ln (t_Lam t_Nat Pbody) z (t_Lam t_Nat (t_Lam (open_rec_ln 0 (t_bvar 1) Pbody) sbody)) n)
+        _ _ Hsn Hrec_n) as HsnNR.
+       cbn in HsnNR.
+       admit.
        }
        6:{
        specialize(natrec_inversion_stronger Γ P z s t_Zero T H); intro HH.
-       destruct HH as (k,(body,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,Hg))))))))).
+       destruct HH as (k,(body,(L,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
        apply ty_conv with (A := open_rec_ln 0 t_Zero (open_rec_ln 0 (t_bvar 1) body)); try easy.
        apply convertible_sym. easy.
        }
