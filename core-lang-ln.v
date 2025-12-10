@@ -183,10 +183,7 @@ Inductive step_ln : term_ln -> term_ln -> Prop :=
         (t_NatRec_ln (t_Lam t_Nat Pbody) z
                      (t_Lam t_Nat (t_Lam t_Nat sbody))
                      (t_Succ n))
-        (open_ln
-        (open_rec_ln 1 n sbody)   (* open outer binder of sbody with predecessor n *)
-           (t_NatRec_ln (t_Lam t_Nat Pbody) z
-                        (t_Lam t_Nat (t_Lam t_Nat sbody)) n))
+        (open_rec_ln 0 (t_NatRec_ln (t_Lam t_Nat Pbody) z (t_Lam t_Nat (t_Lam t_Nat sbody)) n) (open_rec_ln 1 n sbody))
 (* | s_rec_succ_ln : forall Pbody z sbody n,
     nat_value n ->
     step_ln
@@ -277,10 +274,7 @@ Inductive beta_head_ln : term_ln -> term_ln -> Prop :=
         (t_NatRec_ln (t_Lam t_Nat Pbody) z
                      (t_Lam t_Nat (t_Lam t_Nat sbody))
                      (t_Succ n))
-        (open_ln
-        (open_rec_ln 1 n sbody)   (* open outer binder of sbody with predecessor n *)
-           (t_NatRec_ln (t_Lam t_Nat Pbody) z
-                        (t_Lam t_Nat (t_Lam t_Nat sbody)) n)).
+        (open_rec_ln 0 (t_NatRec_ln (t_Lam t_Nat Pbody) z (t_Lam t_Nat (t_Lam t_Nat sbody)) n) (open_rec_ln 1 n sbody)).
 
 Infix "⇝ₕₗₙ" := beta_head_ln (at level 40, no associativity).
 
@@ -3971,7 +3965,7 @@ Fixpoint shift_rec_ln (k : nat) (t : term_ln) : term_ln :=
                   (shift_rec_ln k n)
   end.
 
-Lemma open_shift: forall b u d k, 
+(* Lemma open_shift: forall b u d k, 
 open_rec_ln k u b = open_rec_ln (k+d) u (shift_rec_ln d b).
 Proof. intro b.
        induction b; intros.
@@ -3985,7 +3979,7 @@ Proof. intro b.
        5: { simpl. rewrite IHb1 with (d := d).
             rewrite IHb2 with (d := d). easy.
           }
-       1: { simpl.
+       1: { simpl. *)
 (*
 Lemma strengthening_middle :
   forall Gamma1 Gamma2 x U t A,
