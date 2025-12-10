@@ -184,7 +184,7 @@ Inductive step_ln : term_ln -> term_ln -> Prop :=
                      (t_Lam t_Nat (t_Lam t_Nat sbody))
                      (t_Succ n))
         (open_ln
-           (open_ln (t_Lam t_Nat (t_Lam t_Nat sbody)) n)
+        (open_rec_ln 1 n sbody)   (* open outer binder of sbody with predecessor n *)
            (t_NatRec_ln (t_Lam t_Nat Pbody) z
                         (t_Lam t_Nat (t_Lam t_Nat sbody)) n))
 (* | s_rec_succ_ln : forall Pbody z sbody n,
@@ -278,7 +278,7 @@ Inductive beta_head_ln : term_ln -> term_ln -> Prop :=
                      (t_Lam t_Nat (t_Lam t_Nat sbody))
                      (t_Succ n))
         (open_ln
-           (open_ln (t_Lam t_Nat (t_Lam t_Nat sbody)) n)
+        (open_rec_ln 1 n sbody)   (* open outer binder of sbody with predecessor n *)
            (t_NatRec_ln (t_Lam t_Nat Pbody) z
                         (t_Lam t_Nat (t_Lam t_Nat sbody)) n)).
 
@@ -1240,6 +1240,45 @@ Proof. intro t.
          apply IHt4. easy. easy.
 Qed.
 
+Lemma lc_rec_open_open_rec :
+  forall t u v k,
+    lc_rec_ln (S (S k)) t ->
+    lc_rec_ln 0 u ->
+    lc_rec_ln 0 v ->
+    lc_rec_ln k (open_rec_ln k v (open_rec_ln (S k) u t)).
+Proof. intros.
+       induction t; intros.
+       - cbn. simpl in H.
+         case_eq(n =? S k); intros.
+         + apply lc_rec_open_rec. 
+           apply cl_larger with (k := 0). lia. easy. easy.
+         + simpl.
+           case_eq( n =? k ); intros.
+           * apply cl_larger with (k := 0). lia. easy.
+           * simpl. apply Nat.eqb_neq in H2. apply Nat.eqb_neq in H3.
+           lia.
+       - cbn. easy.
+       - cbn. easy.
+       - simpl. split. apply IHt1. simpl in H. easy.
+         apply lc_rec_open_rec. cbn.
+         simpl in H.
+         apply lc_rec_open_rec. easy. easy. easy.
+       - simpl. split. apply IHt1. simpl in H. easy.
+         apply lc_rec_open_rec. cbn.
+         simpl in H.
+         apply lc_rec_open_rec. easy. easy. easy.
+       - simpl. split. apply IHt1. simpl in H. easy.
+         apply IHt2. simpl in H. easy.
+       - cbn. easy.
+       - cbn. easy.
+       - cbn. apply IHt. simpl in H. easy.
+       - cbn. simpl in H.
+         split. apply IHt1. easy.
+         split. apply IHt2. easy.
+         split. apply IHt3. easy.
+         apply IHt4. easy.
+Qed.
+
 Lemma lc_rec_open_rec0 :
   forall t u k,
     lc_rec_ln 1 t ->
@@ -1249,6 +1288,18 @@ Proof. intros.
        apply cl_larger with (k := 0). lia.
        apply lc_rec_open_rec. easy. easy.
 Qed.
+
+Lemma lc_rec_open_rec1 :
+  forall t u v k,
+    lc_rec_ln 2 t ->
+    lc_rec_ln 0 u ->
+    lc_rec_ln 0 v ->
+    lc_rec_ln k (open_rec_ln 0 v (open_rec_ln 1 u t)).
+Proof. intros.
+       apply cl_larger with (k := 0). lia.
+       apply lc_rec_open_open_rec. easy. easy. easy.
+Qed.
+
 
 Lemma open_wfree: forall b x,
   lc_rec_ln 1 b ->
@@ -1316,9 +1367,11 @@ Proof.
     apply subst_preserve_closdness; easy.
     apply subst_preserve_closdness; easy.
   - simpl.
+    unfold open_ln.
     rewrite open_subst_commute.
     rewrite open_subst_commute.
-    cbn.
+    apply b_natrec_succ_ln_strict.
+(*     cbn.
     assert(open_rec_ln 1 ((t_NatRec_ln (t_Lam t_Nat (subst_ln x v Pbody)) (subst_ln x v z) (t_Lam t_Nat (t_Lam t_Nat (subst_ln x v sbody))) (subst_ln x v n))) t_Nat = t_Nat).
     { simpl. easy. }
     setoid_rewrite <- H at 5.
@@ -1328,7 +1381,7 @@ Proof.
     { simpl. easy. }
     setoid_rewrite <- H4 at 4.
     rewrite <- open_rec_ln_Lam.
-    apply b_natrec_succ_ln_strict.
+    apply b_natrec_succ_ln_strict. *)
     apply subst_preserve_closdness; easy.
     apply subst_preserve_closdness; easy.
     apply subst_preserve_closdness; easy.
@@ -3298,7 +3351,6 @@ Proof. intros.
        easy.
 Qed.
 
-
 (* Lemma open_rec_ln_outer_noop_gen :
   forall (body u : term_ln) k,
     lc_rec_ln (S k) body ->
@@ -3686,14 +3738,11 @@ Proof.
            split. split. easy. split. easy.
            destruct k. easy. apply cl_larger with (k := 2). lia. easy.
            destruct k. easy. apply cl_larger with (k := 0). lia. easy.
-           apply lc_rec_open_rec0.
+           apply lc_rec_open_rec1.
+           easy. easy.
            unfold open_ln.
-           setoid_rewrite open_rec_ln_noop_on_lc at 1.
            simpl.
-           split. easy. split. easy.
-           apply cl_larger with (k := 2). lia. easy.
-           simpl. easy.
-           cbn. easy.
+           split. easy. split. easy. split. easy. easy.
        - subst. cbn.
          apply beta_natrec_P_ln.
          apply IHt1. easy. easy.
@@ -3798,7 +3847,7 @@ Proof. intros.
        destruct HH as (k,(body,(L,(sbodyR,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))). easy.
        apply ty_conv with (A := open_rec_ln 0 (t_Succ n) (open_rec_ln 0 (t_bvar 1) body)); try easy.
        cbn.
-
+       unfold open_ln.
        pose proof Hb as Hb1.
        apply lam_inversion in Hf.
        
@@ -3879,7 +3928,10 @@ Proof. intros.
        rename s into v.
        apply ty_conv with (A := open_ln B v).
        unfold open_ln. cbn.
-
+       
+(*        pose proof He as Hee.
+       apply convertible_pi_inv_precise in Hee.
+ *)
        apply instantiate_one_binder with (A := A) (A0 := A) (L := L) (i := i); try easy.
        apply convertible_refl.
        admit.
