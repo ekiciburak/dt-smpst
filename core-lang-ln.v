@@ -3511,91 +3511,6 @@ Proof. intro b.
          easy.
 Qed.
 
-Lemma subst_typing : forall Γ1 Γ2 x U t T u,
-  has_type_ln (Γ1 ++ (x,U) :: Γ2) t T ->
-  has_type_ln (Γ1 ++ Γ2) u U ->
-  has_type_ln (Γ1 ++ Γ2) (open_rec_ln 0 u t) (open_rec_ln 0 u T).
-Proof. intros.
-       remember (Γ1 ++ (x, U) :: Γ2) as G.
-       revert Γ1 Γ2 HeqG H0. revert x u U.
-       induction H; intros.
-       10:{ apply ty_conv with (A := (open_rec_ln 0 u A)).
-            apply IHhas_type_ln with (x := x) (U := U). easy. easy.
-            admit.
-          }
-       9: { subst.
-            cbn. rewrite open_open_comm.
-            setoid_rewrite open_rec_ln_noop_on_lc at 3.
-            setoid_rewrite open_rec_ln_noop_on_lc at 2.
-            setoid_rewrite open_rec_ln_noop_on_lc at 1.
-            setoid_rewrite open_rec_ln_noop_on_lc at 2.
-            setoid_rewrite open_rec_ln_noop_on_lc at 2.
-            apply ty_NatRec_strong with (k := k) (L := x::L).
-            easy. easy.
-            simpl in IHhas_type_ln1.
-            setoid_rewrite open_rec_ln_noop_on_lc in IHhas_type_ln1.
-            apply IHhas_type_ln1 with (x := x) (u := u) (U := U).
-            easy. easy. easy.
-            intros.
-            assert(~In x0 L) by admit.
-            assert(~ In x0(map fst (Γ1 ++ (x, U) :: Γ2))) by admit.
-            specialize(H1 x0 H10 H11 x u U ((x0, t_Nat) :: Γ1) Γ2).
-            unfold open_ln in H1.
-            rewrite open_open_comm in H1.
-            apply H1. easy.
-            simpl.
-            apply weakening_fresh.
-            admit.
-            easy.
-            easy.
-            simpl. easy.
-            setoid_rewrite open_rec_ln_noop_on_lc in IHhas_type_ln2.
-            apply IHhas_type_ln2 with (x := x) (U := U) (u := u). easy. easy.
-            admit.
-            apply lc_rec_open_rec0. easy. easy.
-            setoid_rewrite open_rec_ln_noop_on_lc in IHhas_type_ln3 at 1.
-            setoid_rewrite open_rec_ln_noop_on_lc in IHhas_type_ln3 at 2.
-            apply IHhas_type_ln3  with (x := x) (u := u) (U := U).
-            easy. easy.
-            simpl. split. easy. split.
-            apply lc_rec_open_rec11. easy. simpl. lia.
-            apply lc_rec_open_rec12. easy. simpl. lia. 
-            simpl. split. easy. split.
-            apply lc_rec_open_rec11. easy. simpl. lia.
-            easy.
-            
-            intros.
-            specialize(H5 x0 y H8).
-            assert(~In x0 L) by admit.
-            assert(~In y L) by admit.
-            assert(~ In x0 (map fst (Γ1 ++ (x, U) :: Γ2))) by admit.
-            assert(~ In y (map fst (Γ1 ++ (x, U) :: Γ2))) by admit.
-            specialize(H5 H13 H14 H15 H16 x u U
-            ((y, open_rec_ln 0 (t_fvar x0) body) :: (x0, t_Nat) :: Γ1)
-            Γ2
-            ).
-            setoid_rewrite open_open_comm in H5 at 1.
-            setoid_rewrite open_open_comm in H5 at 1.
-            apply H5. easy. simpl.
-            apply weakening_fresh. admit.
-            apply weakening_fresh. easy. easy. easy. simpl. easy.
-            apply lc_rec_open_rec. easy. easy. easy.
-            simpl in IHhas_type_ln4.
-            setoid_rewrite open_rec_ln_noop_on_lc in IHhas_type_ln4.
-            apply IHhas_type_ln4 with (x := x) (u := u) (U := U).
-            easy. easy.
-            admit.
-            admit. easy. easy.
-            admit.
-            apply lc_rec_open_rec11. easy. simpl. lia. easy.
-            admit.
-          }
-       1: { subst.
-            apply ty_var. 
-            admit.
-          }
-Admitted.
-
 Lemma instantiate_two_binders :
   forall Γ body sbody L v1 v2,
     NoDup (map fst Γ) ->
@@ -4124,12 +4039,12 @@ Proof.
 Qed.
 
 Theorem preservation :
-  forall Γ t t' T,
+  forall Γ t t' T (ND: NoDup (map fst Γ)),
     has_type_ln Γ t T ->
     step_ln t t' ->
     has_type_ln Γ t' T.
 Proof. intros.
-       revert H. revert Γ T.
+       revert H. revert Γ T ND.
        induction H0; intros.
        11:{
        specialize(natrec_inversion_weaker Γ P z n s T H); intro HH.
@@ -4140,7 +4055,7 @@ Proof. intros.
        apply ty_conv with (A :=  open_rec_ln 0 n' body); try easy.
        subst.
        apply ty_NatRec_strong with (k := k) (L := L); try easy.
-       apply IHstep_ln. easy.
+       apply IHstep_ln. easy. easy.
        apply convertible_sym. easy.
        apply convertible_sym. easy.
        }
@@ -4173,7 +4088,7 @@ Proof. intros.
        subst.
        apply ty_NatRec_strong with (k := k) (L := L); try easy.
        simpl.
-       apply IHstep_ln. easy.
+       apply IHstep_ln. easy. easy.
        apply convertible_sym. easy.
        }
        8:{
@@ -4202,15 +4117,19 @@ Proof. intros.
        pose proof Hb as Hb1.
        apply lam_inversion in Hd.
        apply instantiate_two_binders_strong with (L := L).
-       admit.
+       easy.
        intros. apply He; easy.
        easy.
-       unfold lc_ln. simpl. admit.
-       admit.
+       unfold lc_ln. simpl.
+       split. split. easy. easy.
+       split. easy. split. split. easy.
+       split.
+       apply lc_rec_open_rec11. easy. simpl. lia. easy. easy.
+       apply succ_inversion in Hf. easy.
        apply ty_NatRec_strong with (k := k) (L := L); try easy.
        destruct Hd as (i,(B,(LL,(Hd1,(Hd2,Hd3))))).
-       apply ty_Lam with (i := k) (L := L++LL).
-       admit.
+       apply ty_Lam with (i := 0) (L := L++LL).
+       apply ty_Nat.
        intros.
        unfold open_ln.
        unfold open_ln in Hd2.
@@ -4224,10 +4143,11 @@ Proof. intros.
        
        apply ty_conv with (A := open_rec_ln 0 (t_fvar x) B).
        apply Hd2.
-       admit.
+       unfold not. intros.
+       apply H4. rewrite in_app_iff. right. easy.
        easy.
        apply convertible_sym. easy.
-       admit.
+       apply succ_inversion in Hf. easy.
        apply convertible_sym. easy.
        }
        6:{
@@ -4242,7 +4162,7 @@ Proof. intros.
        apply IHstep_ln in Ha.
        eapply ty_conv with (A := t_Nat).
        apply ty_Succ. easy.
-       apply convertible_sym. easy.
+       apply convertible_sym. easy. easy.
        }
        4:{ 
        apply lam_inversion in H.
@@ -4259,13 +4179,14 @@ Proof. intros.
        apply convertible_tPi_t1 with (t2 := B) in H0.
        apply convertible_sym in H0, Hc.
        apply convertible_trans with (y := t_Pi A B); easy.
+       easy.
        }
        3:{
        apply app_inversion in H1.
        destruct H1 as (A,(B,(Ha,(Hb,Hc)))).
        apply ty_conv with (A := open_ln B t2').
        apply ty_App with (A := A). easy.
-       apply IHstep_ln. easy.
+       apply IHstep_ln. easy. easy.
        apply step_implies_convertible_ln in H0.
        apply open_rec_ln_monotone_u with (b := B) (k := 0) in H0.
        apply convertible_sym in H0, Hc.
@@ -4277,7 +4198,7 @@ Proof. intros.
        apply ty_conv with (A := open_ln B t2).
        apply ty_App with (A := A).
        apply IHstep_ln. easy.
-       easy.
+       easy. easy.
        apply convertible_sym. easy.
        }
        1:{
@@ -4294,7 +4215,6 @@ Proof. intros.
  *)
        apply instantiate_one_binder with (A := A) (A0 := A) (L := L) (i := i); try easy.
        apply convertible_refl.
-       admit.
        intros.
        apply ty_conv with (A := (open_ln B0 (t_fvar x))).
        apply Hd; easy.
