@@ -3511,109 +3511,6 @@ Proof. intro b.
          easy.
 Qed.
 
-Lemma instantiate_two_binders :
-  forall Γ body sbody L v1 v2,
-    NoDup (map fst Γ) ->
-    (* cofinite hypothesis: for any distinct fresh names x,y ... *)
-    (forall x y, x <> y ->
-        ~ In x L -> ~ In y L ->
-        (~ In x (map fst Γ) -> ~ In y (map fst Γ) ->
-           has_type_ln ((y, open_rec_ln 0 (t_fvar x) body) :: (x, t_Nat) :: Γ)
-                       (open_rec_ln 0 (t_fvar y) (open_rec_ln 1 (t_fvar x) sbody))
-                       (open_rec_ln 0 (t_Succ (t_fvar x)) body))) ->
-
-    (* arguments to instantiate with *)
-    lc_ln v1 -> lc_ln v2 ->
-    has_type_ln Γ v1 t_Nat ->
-    (forall x, ~ In x L -> ~ In x (map fst Γ) ->
-     has_type_ln ((x,t_Nat)::Γ) v2 (open_rec_ln 0 (t_fvar x) body)) ->  
-(*     has_type_ln Γ v2 (open_rec_ln 0 v1 body) ->  *)
-
-    (* conclusion: the double-opened sbody types as expected *)
-    has_type_ln Γ (open_rec_ln 0 v2 (open_rec_ln 1 v1 sbody))
-                  (open_rec_ln 0 (t_Succ v1) body).
-Proof. intros.
-       assert((open_rec_ln 0 (t_Succ v1) body) = (open_rec_ln 0 v2 (open_rec_ln 0 (t_Succ v1) body))).
-       { admit. }
-(*        rewrite H5. *)
-       specialize(exists_fresh_not_in_list (L++(map fst Γ)++(fv_ln sbody)++(fv_ln body)++(fv_ln v1)++(fv_ln v2)++fv_ctx Γ) ""); intros.
-       destruct H6 as (y,(Hy,_)).
-       specialize(exists_fresh_not_in_list (y::L++(map fst Γ)++(fv_ln sbody)++(fv_ln body)++(fv_ln v1)++(fv_ln v2)++fv_ctx Γ) ""); intros.
-       destruct H6 as (x,(Hx,_)).
-       specialize(substitution_head 
-       ((x, t_Nat) :: Γ) y (* (subst_ln x v1 *) (open_rec_ln 0 (t_fvar x) body) (* ) *)
-       (open_rec_ln 0 (t_fvar y) (open_rec_ln 1 (t_fvar x) sbody))
-       (open_rec_ln 0 (t_Succ (t_fvar x)) body)
-       v2
-       ); intro HH.
-       assert(NoDup (map fst ((x, t_Nat) :: Γ))) by admit.
-       assert(~ In y (map fst ((x, t_Nat) :: Γ))) by admit.
-       specialize(HH H6 H7 H2).
-       cbn in HH.
-       unfold open_ln in HH.
-       rewrite  open_subst_commute in HH.
-       rewrite  open_subst_commute in HH.
-       rewrite  open_subst_commute in HH.
-(*        rewrite  open_subst_commute in HH. *)
-(*       rewrite  open_subst_commute in HH.
-       rewrite  open_subst_commute in HH.
-       rewrite  open_subst_commute in HH. *)
-       cbn in HH.
-       rewrite String.eqb_refl in HH.
-(*        rewrite String.eqb_refl in HH. *)
-       assert(y <> x) by admit.
-       apply String.eqb_neq in H8.
-       assert ((x =? y)%string = false) by admit.
-       rewrite H8 in HH. cbn in HH.
-(*        rewrite String.eqb_refl in HH.
-       cbn in HH. *)
-(*        setoid_rewrite subst_ln_notin_fv in HH at 10. *)
-(*        setoid_rewrite subst_ln_notin_fv in HH at 9. *)
-(*        setoid_rewrite subst_ln_notin_fv in HH at 8. *)
-(*        setoid_rewrite subst_ln_notin_fv in HH at 7. *)
-(*        setoid_rewrite subst_ln_notin_fv in HH at 6. *)
-(*        setoid_rewrite subst_ln_notin_fv in HH at 5. *)
-(*        setoid_rewrite subst_ln_notin_fv in HH at 4. *)
-(*        setoid_rewrite subst_ln_notin_fv in HH at 3. *)
-       setoid_rewrite subst_ln_notin_fv in HH at 2.
-       setoid_rewrite subst_ln_notin_fv in HH at 1.
-       rewrite context_id in HH.
-
-       specialize(substitution_head 
-       Γ x t_Nat
-       (open_rec_ln 0 v2 (open_rec_ln 1 (t_fvar x) sbody)) (open_rec_ln 0 (t_Succ (t_fvar x)) body)
-       v1
-       ); intro HH2.
-       assert(~ In x (map fst Γ)) by admit.
-       specialize(HH2 H H10 H1 H3).
-       cbn in HH2.
-       unfold open_ln in HH2.
-       rewrite  open_subst_commute in HH2.
-       rewrite  open_subst_commute in HH2.
-       rewrite  open_subst_commute in HH2.
-       cbn in HH2.
-       rewrite String.eqb_refl in HH2.
-(*        setoid_rewrite subst_ln_notin_fv in HH2 at 5.  *)
-(*        setoid_rewrite subst_ln_notin_fv in HH2 at 4.  *)
-       setoid_rewrite subst_ln_notin_fv in HH2 at 3.
-       setoid_rewrite subst_ln_notin_fv in HH2 at 2.
-       setoid_rewrite subst_ln_notin_fv in HH2 at 1.
-       rewrite context_id in HH2.
-       apply HH2.
-       apply HH.
-(*        apply weakening_fresh. easy.
-       specialize(substitution_head 
-       Γ x t_Nat
-       v2
-       (open_rec_ln 0 (t_fvar x) body)
-       v1
-       ); intro HHH. *)
-(*        apply H4. admit. *)
-       admit.
-       (* apply H4. *) (* admit. admit. *)
-       apply H0.
-Admitted.
-
 Lemma instantiate_two_binders_strong :
   forall Γ body sbody L v1 v2,
     NoDup (map fst Γ) ->
@@ -3628,8 +3525,6 @@ Lemma instantiate_two_binders_strong :
     (* arguments to instantiate with *)
     lc_ln v1 -> lc_ln v2 ->
     has_type_ln Γ v1 t_Nat ->
-(*     (forall x, ~ In x L -> ~ In x (map fst Γ) ->
-       has_type_ln ((x,t_Nat)::Γ) v2 (open_rec_ln 0 (t_fvar x) body)) ->  *)
     has_type_ln Γ v2 (open_rec_ln 0 v1 body) ->
 
     (* conclusion: the double-opened sbody types as expected *)
@@ -3643,8 +3538,6 @@ Proof. intros.
        destruct H6 as (y,(Hy,_)).
        specialize(exists_fresh_not_in_list (y::L++(map fst Γ)++(fv_ln sbody)++(fv_ln body)++(fv_ln v1)++(fv_ln v2)++fv_ctx Γ) ""); intros.
        destruct H6 as (x,(Hx,_)).
-       
-       
 
        specialize(substitution_head 
        Γ x t_Nat
@@ -4062,27 +3955,15 @@ Proof. intros.
        10:{
        cbn in *.
        specialize(natrec_inversion_weaker Γ P z n s T H); intro HH.
-(*        assert(T ≡ₗₙ T).
-       { apply convertible_refl. }
-       specialize(HH H1). *)
        destruct HH as (k,(L,(body,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
        apply ty_conv with (A := open_rec_ln 0 n body); try easy.
        subst.
        inversion H0. subst.
        inversion H4.
-(*        apply ty_NatRec_strong with (k := k) (L := L); try easy.
-       simpl.
-       apply step_implies_convertible_ln in H0.
-       apply convertible_sym in H0.
-       apply convertible_trans with (y := s); easy.
-       apply IHstep_ln. easy. *)
        apply convertible_sym. easy.
        }
        9:{
        specialize(natrec_inversion_weaker Γ P z n s T H); intro HH.
-(*        assert(T ≡ₗₙ T).
-       { apply convertible_refl. }
-       specialize(HH H1). *)
        destruct HH as (k,(L,(body,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
        apply ty_conv with (A := open_rec_ln 0 n body); try easy.
        subst.
@@ -4093,19 +3974,10 @@ Proof. intros.
        }
        8:{
        specialize(natrec_inversion_weaker Γ P z n s T H); intro HH.
-(*        assert(T ≡ₗₙ T).
-       { apply convertible_refl. }
-       specialize(HH H1). *)
        destruct HH as (k,(L,(body,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
        apply ty_conv with (A :=  open_rec_ln 0 n body); try easy.
        subst.
        inversion H0. subst. inversion H4.
-(*        apply ty_NatRec_strong with (k := k) (L := L) (sbody := sbody); try easy.
-       simpl.
-       apply IHstep_ln. easy.
-       apply step_implies_convertible_ln in H0.
-       apply convertible_sym in H0.
-       apply convertible_trans with (y := P); easy. *)
        apply convertible_sym. easy.
        }
        7:{
@@ -4209,12 +4081,9 @@ Proof. intros.
        rename s into v.
        apply ty_conv with (A := open_ln B v).
        unfold open_ln. cbn.
-       
-(*        pose proof He as Hee.
-       apply convertible_pi_inv_precise in Hee.
- *)
-       apply instantiate_one_binder with (A := A) (A0 := A) (L := L) (i := i); try easy.
-       apply convertible_refl.
+
+       apply instantiate_one_binder_fine with (A := A) (L := L) (i := i); try easy.
+
        intros.
        apply ty_conv with (A := (open_ln B0 (t_fvar x))).
        apply Hd; easy.
