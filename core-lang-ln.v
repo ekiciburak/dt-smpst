@@ -3531,13 +3531,10 @@ Lemma instantiate_two_binders_strong :
     has_type_ln Γ (open_rec_ln 0 v2 (open_rec_ln 1 v1 sbody))
                   (open_rec_ln 0 (t_Succ v1) body).
 Proof. intros.
-       assert((open_rec_ln 0 (t_Succ v1) body) = (open_rec_ln 0 v2 (open_rec_ln 0 (t_Succ v1) body))).
-       { admit. }
-(*        rewrite H5. *)
        specialize(exists_fresh_not_in_list (L++(map fst Γ)++(fv_ln sbody)++(fv_ln body)++(fv_ln v1)++(fv_ln v2)++fv_ctx Γ) ""); intros.
-       destruct H6 as (y,(Hy,_)).
+       destruct H5 as (y,(Hy,_)).
        specialize(exists_fresh_not_in_list (y::L++(map fst Γ)++(fv_ln sbody)++(fv_ln body)++(fv_ln v1)++(fv_ln v2)++fv_ctx Γ) ""); intros.
-       destruct H6 as (x,(Hx,_)).
+       destruct H5 as (x,(Hx,_)).
 
        specialize(substitution_head 
        Γ x t_Nat
@@ -3545,8 +3542,12 @@ Proof. intros.
        (subst_ln x v1 (open_rec_ln 0 (t_Succ (t_fvar x)) body))
        v1
        ); intro HH2.
-       assert(~ In x (map fst Γ)) by admit.
-       specialize(HH2 H H6 H1 H3).
+       assert(~ In x (map fst Γ)).
+       { unfold not. intros. apply Hx. simpl.
+         right. rewrite in_app_iff. right.
+         rewrite in_app_iff. left. easy.
+       }
+       specialize(HH2 H H5 H1 H3).
        cbn in HH2.
        unfold open_ln in HH2.
        rewrite  open_subst_commute in HH2.
@@ -3574,9 +3575,17 @@ Proof. intros.
        (subst_ln x v1 (open_rec_ln 0 (t_Succ (t_fvar x)) body))
        v2
        ); intro HH.
-       assert(NoDup (map fst ((x, t_Nat) :: Γ))) by admit.
-       assert(~ In y (map fst ((x, t_Nat) :: Γ))) by admit.
-       specialize(HH H7 H8 H2).
+       assert(NoDup (map fst ((x, t_Nat) :: Γ))).
+       { simpl. constructor. easy. easy. }
+       assert(~ In y (map fst ((x, t_Nat) :: Γ))).
+       { unfold not. intros.
+         simpl in H7. destruct H7.
+         subst. apply Hx. simpl. left. easy.
+         apply Hy.
+         rewrite in_app_iff. right.
+         rewrite in_app_iff. left. easy.
+       }
+       specialize(HH H6 H7 H2).
        cbn in HH.
        unfold open_ln in HH.
        rewrite  open_subst_commute in HH.
@@ -3589,18 +3598,22 @@ Proof. intros.
        cbn in HH.
        rewrite String.eqb_refl in HH.
 (*        rewrite String.eqb_refl in HH. *)
-       assert(y <> x) by admit.
-       apply String.eqb_neq in H9.
-       assert ((x =? y)%string = false) by admit.
-       rewrite H10 in HH. cbn in HH.
+       assert(y <> x).
+       { unfold not. intros. subst.
+         apply H7. simpl. left. easy.
+       }
+       apply String.eqb_neq in H8.
+       assert ((x =? y)%string = false).
+       { rewrite String.eqb_sym. easy. }
+       rewrite H9 in HH. cbn in HH.
        rewrite String.eqb_refl in HH.
 (*        rewrite String.eqb_refl in HH.
        cbn in HH. *)
-        setoid_rewrite subst_ln_notin_fv in HH at 10.
-        setoid_rewrite subst_ln_notin_fv in HH at 9.
-        setoid_rewrite subst_ln_notin_fv in HH at 8.
+       setoid_rewrite subst_ln_notin_fv in HH at 10.
+       setoid_rewrite subst_ln_notin_fv in HH at 9.
+       setoid_rewrite subst_ln_notin_fv in HH at 8.
        setoid_rewrite subst_ln_notin_fv in HH at 7.
-        setoid_rewrite subst_ln_notin_fv in HH at 6.
+       setoid_rewrite subst_ln_notin_fv in HH at 6.
        setoid_rewrite subst_ln_notin_fv in HH at 5.
        setoid_rewrite subst_ln_notin_fv in HH at 4.
        setoid_rewrite subst_ln_notin_fv in HH at 3.
@@ -3609,12 +3622,30 @@ Proof. intros.
        rewrite context_id in HH.
        apply HH.
        apply weakening_fresh. easy. easy.
-       clear H5.
        assert(has_type_ln ((y, open_rec_ln 0 (t_fvar x) body) :: (x, t_Nat) :: Γ)
               (open_rec_ln 0 (t_fvar y) (open_rec_ln 1 (t_fvar x) sbody)) (open_rec_ln 0 (t_Succ (t_fvar x)) body)).
-       { apply H0. admit. admit. admit. admit. admit. }
-       assert(NoDup (map fst ([(y, open_rec_ln 0 (t_fvar x) body)] ++ Γ))) by admit.
-       assert(~ In x (map fst ([(y, open_rec_ln 0 (t_fvar x) body)] ++ Γ))) by admit.
+       { apply H0. 
+         apply String.eqb_neq. easy.
+         unfold not. intros.
+         apply Hx. simpl. right. rewrite in_app_iff. left. easy.
+         unfold not. intros.
+         apply Hy. rewrite in_app_iff. left. easy.
+         unfold not. intros.
+         apply Hx. simpl. right. rewrite in_app_iff. right. rewrite in_app_iff. left. easy.
+         unfold not. intros.
+         apply Hy. rewrite in_app_iff. right. rewrite in_app_iff. left. easy.
+       }
+       assert(NoDup (map fst ([(y, open_rec_ln 0 (t_fvar x) body)] ++ Γ))).
+       { simpl. constructor. 
+         unfold not. intros.
+         apply Hy. rewrite in_app_iff. right. rewrite in_app_iff. left. easy. easy.
+       }
+       assert(~ In x (map fst ([(y, open_rec_ln 0 (t_fvar x) body)] ++ Γ))).
+       { simpl. unfold not. intros.
+         destruct H12. subst. apply H7. left. easy.
+         unfold not. intros.
+         apply Hx. simpl. right. rewrite in_app_iff. right. rewrite in_app_iff. left. easy.
+       }
        specialize(substitution_general [(y, open_rec_ln 0 (t_fvar x) body)]
        Γ x t_Nat
        (open_rec_ln 0 (t_fvar y) (open_rec_ln 1 (t_fvar x) sbody))
@@ -3623,13 +3654,13 @@ Proof. intros.
        H11 H12
        ); intro HH3.
        simpl in HH3.
-       specialize(HH3 H5 H3 H1).
+       specialize(HH3 H10 H3 H1).
        rewrite  open_subst_commute in HH3.
        rewrite  open_subst_commute in HH3.
        rewrite  open_subst_commute in HH3.
        rewrite  open_subst_commute in HH3.
        cbn in HH3.
-       rewrite H10 in HH3.
+       rewrite H9 in HH3.
        rewrite String.eqb_refl in HH3.
        setoid_rewrite subst_ln_notin_fv in HH3 at 3.
        setoid_rewrite subst_ln_notin_fv in HH3 at 2.
@@ -3638,10 +3669,171 @@ Proof. intros.
        specialize(fresh_commute_middle []); intro Ha.
        simpl in Ha.
        apply Ha.
-       admit. admit. admit.
-       apply weakening_fresh. admit.
+       unfold not. intros.
+       subst.
+       rewrite String.eqb_refl in H8. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros.
+       apply Hy. rewrite in_app_iff. right. rewrite in_app_iff. left. easy.
+       apply weakening_fresh.
+       simpl.
+       unfold not. intros.
+       destruct H13. subst.
+       apply H7. simpl. left. easy.
+       unfold not. intros.
+       apply Hx. simpl. right. rewrite in_app_iff. right. rewrite in_app_iff. left. easy.
        apply HH3.
-Admitted.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       easy.
+       apply cl_larger with (k := 0). lia. easy.
+       easy. easy.
+       unfold not. intros. apply Hy. simpl.
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hy. simpl.
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hy. simpl.
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hy. simpl.
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hy. simpl.
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hy. simpl.
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       easy.
+       apply cl_larger with (k := 0). lia. easy. easy. easy.
+       apply cl_larger with (k := 0). lia. easy. easy. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       unfold not. intros. apply Hx. simpl.
+       right. rewrite in_app_iff. right.
+       rewrite in_app_iff. right. 
+       rewrite in_app_iff. right.
+       rewrite in_app_iff. left. easy.
+       easy.
+       apply cl_larger with (k := 0). lia. easy. easy. easy.
+       apply cl_larger with (k := 0). lia. easy.
+Qed.
 
 Lemma beta_preserve_pi :
   forall A B t',
