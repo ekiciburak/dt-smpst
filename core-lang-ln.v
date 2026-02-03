@@ -4172,7 +4172,7 @@ Proof. intros.
        inversion H0. subst. inversion H4.
        apply convertible_sym. easy.
        }
-       7:{
+     7:{
        specialize(natrec_inversion_stronger Γ Pbody z (t_Succ n) sbody T H3); intro HH.
        destruct HH as (k,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,Hg)))))))).
        apply ty_conv with (A := open_rec_ln 0 (t_Succ n) Pbody); try easy.
@@ -4192,6 +4192,8 @@ Proof. intros.
        apply succ_inversion in Hf. easy.
        apply ty_NatRec_strong with (k := k) (L := L); try easy.
        destruct Hd as (i,(B,(LL,(Hd1,(Hd2,Hd3))))).
+       apply ty_conv with (A := t_Pi t_Nat B); try (apply convertible_sym; easy).
+      
        apply ty_Lam with (i := 0) (L := L++LL).
        apply ty_Nat.
        intros.
@@ -4199,18 +4201,10 @@ Proof. intros.
        unfold open_ln in Hd2.
        assert(HC: lc_rec_ln 0 (t_fvar x)).
        { simpl. easy. }
-       assert((t_Pi (open_rec_ln 0 (t_bvar 0) Pbody) (open_rec_ln 0 (t_Succ (t_bvar 1)) Pbody)) ≡ₗₙ B) by admit.
-       specialize(convertible_open_compat
-       (t_Pi (open_rec_ln 0 (t_bvar 0) Pbody) (open_rec_ln 0 (t_Succ (t_bvar 1)) Pbody))
-       B 0 (t_fvar x) HC H6
-       ); intro HH.
-       
-       apply ty_conv with (A := open_rec_ln 0 (t_fvar x) B).
        apply Hd2.
        unfold not. intros.
        apply H4. rewrite in_app_iff. right. easy.
        easy.
-       apply convertible_sym. easy.
        apply succ_inversion in Hf. easy.
        apply convertible_sym. easy.
        }
@@ -4286,8 +4280,6 @@ Proof. intros.
        apply convertible_sym. easy.
        }
 Admitted.
-
-
 
 
 
