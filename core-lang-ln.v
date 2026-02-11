@@ -5394,6 +5394,26 @@ Proof. intros. revert k s s' H0.
       }
 Qed.
 
+Lemma convertible_n_par_ln_monotone_v:
+  forall b b' k u,
+    convertible_n_par_ln b b' ->
+    convertible_n_par_ln (open_rec_ln k u b) (open_rec_ln k u b').
+Proof. intros.
+       revert k u.
+       induction H; intros.
+       - constructor. apply par_conv_open. easy.
+         apply par_conv_refl.
+        - (* rst_refl *) apply rst_refl.
+        - (* rst_sym *) apply rst_sym.
+          apply IHclos_refl_sym_trans.
+        - (* rst_trans *) apply rst_trans with (y := (open_rec_ln k u y)); eauto.
+          apply IHclos_refl_sym_trans1.
+          apply IHclos_refl_sym_trans2.
+Qed.
+
+Search convertible_ln.
+
+
 (* Lemma convertible_in_parallel :
   forall t u,
     convertible_n_ln t u ->
