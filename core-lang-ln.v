@@ -282,7 +282,6 @@ Inductive beta_head_ln : term_ln -> term_ln -> Prop :=
 
 Infix "⇝ₕₗₙ" := beta_head_ln (at level 40, no associativity).
 
-
 (* ----------------------------- *)
 (* Full contextual β (LN)        *)
 (* ----------------------------- *)
@@ -422,6 +421,7 @@ Fixpoint insert_at {A : Type} (n : nat) (x : A) (Γ : list A) : list A :=
   | S _, [] => [x]          (* if n is larger than the length, append at end *)
   end.
 
+
 Definition ctx_ln := list (string * term_ln).
 
 Fixpoint lookup_ln (Γ : ctx_ln) (x : string) : option term_ln :=
@@ -429,10 +429,6 @@ Fixpoint lookup_ln (Γ : ctx_ln) (x : string) : option term_ln :=
   | [] => None
   | (y,T)::Γ' => if String.eqb x y then Some T else lookup_ln Γ' x
   end.
-
-Definition fresh (x : string) (Γ : ctx_ln) : Prop := ~ In x (map fst Γ).
-
-Print nat_rec.
 
 (* cofinite-style typing judgment *)
 Inductive has_type_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
@@ -520,6 +516,7 @@ Inductive has_type_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
     convertible_ln A B ->
     has_type_ln Γ t B.
 
+Definition fresh (x : string) (Γ : ctx_ln) : Prop := ~ In x (map fst Γ).
 Check nat_rec.
 
 Definition P_const : term_ln := t_Lam t_Nat t_Nat.
@@ -4123,163 +4120,1879 @@ Proof.
     eapply rst_trans; eauto.
 Qed.
 
+Definition whnf (t : term_ln) : Prop :=
+  forall t', ~ beta_head_ln t t'.
+
+Lemma invert_has_type_Type :
+  forall Γ y i,
+    has_type_ln Γ y (t_Type i) ->
+    (exists j, y = t_Type j /\ i = S j)
+     \/ 
+    (exists A B i' j', y = t_Pi A B /\ i = Nat.max i' j')
+     \/ 
+    (y = t_Nat /\ i = 0)
+     \/ 
+    (exists A, has_type_ln Γ y A /\ convertible_ln A (t_Type i)).
+Proof. intros.
+       remember (t_Type i) as T.
+       revert i HeqT.
+       induction H; intros; subst; try easy.
+       - right. right. right.
+         exists (t_Type i).
+         split.
+         + (* has_type_ln Γ (t_fvar x) (t_Type i) *)
+           apply ty_var. assumption.
+         + (* convertible_ln (t_Type i) (t_Type i) by reflexivity *)
+           apply convertible_refl.
+       - inversion HeqT.
+         subst.
+         left. exists i. easy.
+       - inversion HeqT. subst.
+         right. left. exists A, B, i, j. easy.
+       - unfold open_ln in HeqT.
+         right. right. right.
+         exists (open_rec_ln 0 t2 B).
+         split.
+         apply ty_App with (A := A); easy.
+         apply convertible_refl.
+       - inversion HeqT. subst.
+         right. right. left. easy.
+       - unfold open_ln in HeqT.
+         right. right. right.
+         exists (open_rec_ln 0 n body).
+         split.
+         apply ty_NatRec_strong with (k := k) (L := L); easy.
+         apply convertible_refl.
+       - right. right. right.
+         exists A. easy.
+Qed.
+
 Theorem preservation :
   forall Γ t t' T (ND: NoDup (map fst Γ)),
     has_type_ln Γ t T ->
     step_ln t t' ->
     has_type_ln Γ t' T.
 Proof. intros.
-       revert H. revert Γ T ND.
-       induction H0; intros.
-       11:{
-       specialize(natrec_inversion_weaker Γ P z n s T H); intro HH.
-       destruct HH as (k,(L,(body,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
-       apply ty_conv with (A :=  open_rec_ln 0 n body); try easy.
-       apply step_implies_convertible_ln in H0.
-       specialize(open_rec_ln_monotone_u body 0 n n' H0); intro HH.
-       apply ty_conv with (A :=  open_rec_ln 0 n' body); try easy.
-       subst.
-       apply ty_NatRec_strong with (k := k) (L := L); try easy.
-       apply IHstep_ln. easy. easy.
-       apply convertible_sym. easy.
-       apply convertible_sym. easy.
-       }
+       revert H0. revert t' ND.
+       induction H; intros.
        10:{
-       cbn in *.
-       specialize(natrec_inversion_weaker Γ P z n s T H); intro HH.
-       destruct HH as (k,(L,(body,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
-       apply ty_conv with (A := open_rec_ln 0 n body); try easy.
-       subst.
-       inversion H0. subst.
-       inversion H4.
-       apply convertible_sym. easy.
+       apply ty_conv with (A := A); try easy.
+       apply IHhas_type_ln; easy.
        }
        9:{
-       specialize(natrec_inversion_weaker Γ P z n s T H); intro HH.
-       destruct HH as (k,(L,(body,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
-       apply ty_conv with (A := open_rec_ln 0 n body); try easy.
-       subst.
-       apply ty_NatRec_strong with (k := k) (L := L); try easy.
-       simpl.
-       apply IHstep_ln. easy. easy.
-       apply convertible_sym. easy.
-       }
-       8:{
-       specialize(natrec_inversion_weaker Γ P z n s T H); intro HH.
-       destruct HH as (k,(L,(body,(sbody,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,Hj)))))))))))).
-       apply ty_conv with (A :=  open_rec_ln 0 n body); try easy.
-       subst.
-       inversion H0. subst. inversion H4.
-       apply convertible_sym. easy.
-       }
-     7:{
-       specialize(natrec_inversion_stronger Γ Pbody z (t_Succ n) sbody T H3); intro HH.
-       destruct HH as (k,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,Hg)))))))).
-       apply ty_conv with (A := open_rec_ln 0 (t_Succ n) Pbody); try easy.
-       cbn.
-       unfold open_ln.
-       pose proof Hb as Hb1.
-       apply lam_inversion in Hd.
-       apply instantiate_two_binders_strong with (L := L).
-       easy.
-       intros. apply He; easy.
-       easy.
-       unfold lc_ln. simpl.
-       split. split. easy. easy.
-       split. easy. split. split. easy.
-       split.
-       apply lc_rec_open_rec11. easy. simpl. lia. easy. easy.
-       apply succ_inversion in Hf. easy.
-       apply ty_NatRec_strong with (k := k) (L := L); try easy.
-       destruct Hd as (i,(B,(LL,(Hd1,(Hd2,Hd3))))).
-       apply ty_conv with (A := t_Pi t_Nat B); try (apply convertible_sym; easy).
-      
-       apply ty_Lam with (i := 0) (L := L++LL).
-       apply ty_Nat.
-       intros.
-       unfold open_ln.
-       unfold open_ln in Hd2.
-       assert(HC: lc_rec_ln 0 (t_fvar x)).
-       { simpl. easy. }
-       apply Hd2.
-       unfold not. intros.
-       apply H4. rewrite in_app_iff. right. easy.
-       easy.
-       apply succ_inversion in Hf. easy.
-       apply convertible_sym. easy.
-       }
-       6:{
-       specialize(natrec_inversion_stronger Γ Pbody z t_Zero sbody T H2); intro HH.
-       destruct HH as (k,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,Hg)))))))).
-       apply ty_conv with (A := open_rec_ln 0 t_Zero Pbody); try easy.
-       apply convertible_sym. easy.
+       inversion H7.
+       - subst. easy.
+       - subst.
+         specialize(instantiate_two_binders_strong); intro HH.
+         eapply HH with (L := L); try easy.
+         unfold lc_ln.
+         simpl.
+         split. split. easy. easy.
+         split. easy. split. split. easy.
+         split. apply lc_rec_open_rec11.
+         easy. simpl. lia. easy. easy.
+         apply succ_inversion in H6. easy.
+         eapply ty_NatRec_strong with (k := k) (L := L); try easy.
+         apply succ_inversion in H6. easy.
+       - subst. inversion H13. subst.
+         inversion H11.
+       - subst. 
+         eapply ty_NatRec_strong with (k := k) (L := L); try easy.
+         apply IHhas_type_ln2; easy.
+       - subst. inversion H13. subst.
+         inversion H11.
+       - subst.
+         apply ty_conv with (A := (open_rec_ln 0 n' body)).
+         eapply ty_NatRec_strong with (k := k) (L := L); try easy.
+         apply IHhas_type_ln4; try easy.
+         apply open_rec_ln_monotone_u.
+         apply step_implies_convertible_ln in H13.
+         apply convertible_sym. easy.
+      }
+      4:{
+      inversion H2. subst.
+      apply ty_conv with (A := (t_Pi A' B)).
+      apply ty_Lam with (i := i) (L := L); try easy.
+      apply IHhas_type_ln; easy.
+      pose proof H6 as H66.
+      apply step_implies_convertible_ln in H6.
+      intros.
+      specialize(context_conversion_general []); intro HH.
+      simpl in HH.
+      apply HH with (A := A) (i := i); try easy.
+      apply IHhas_type_ln; easy.
+      apply H0; easy.
+      apply step_implies_convertible_ln in H6.
+      apply convertible_tPi_t1. 
+      apply convertible_sym. easy.
+      }
+      4:{
+      inversion H1.
+      - subst.
+        unfold open_ln.
+        apply lam_inversion in H.
+        destruct H as (i,(B0,(L,(Ha,(Hb,Hc))))).
+        specialize(instantiate_one_binder_fine); intro HH.
+        unfold open_ln in *.
+        apply HH with (A := A0) (L := L) (i := i); try easy.
+        intros.
+        admit.
+        admit.
+      - subst.
+        apply ty_App with (A := A); try easy.
+        apply IHhas_type_ln1. easy.
+        easy.
+      - subst.
+        apply ty_conv with (A := (open_ln B t2')).
+        apply ty_App with (A := A); try easy.
+        apply IHhas_type_ln2. easy.
+        easy.
+        apply step_implies_convertible_ln in H6.
+        apply open_rec_ln_monotone_u.
+        apply convertible_sym. easy.
+      }
+      1:{
+      inversion H0.
+      }
+      1:{ inversion H0. }
+      1:{ inversion H2. }
+      1:{ inversion H0. }
+      1:{ inversion H0. }
+      1:{ inversion H0. subst.
+          apply ty_Succ.
+          apply IHhas_type_ln. easy.
+          easy.
+        }
+Admitted.
+
+
+Fixpoint notin_bvar (k : nat) (t : term_ln) : Prop :=
+  match t with
+  | t_bvar n => n <> k
+  | t_fvar _ => True
+  | t_Type _ => True
+  | t_Pi A B => notin_bvar k A /\ notin_bvar (S k) B
+  | t_Lam A b => notin_bvar k A /\ notin_bvar (S k) b
+  | t_App t1 t2 => notin_bvar k t1 /\ notin_bvar k t2
+  | t_Nat => True
+  | t_Zero => True
+  | t_Succ n => notin_bvar k n
+  | t_NatRec_ln P z s n =>
+      notin_bvar k P /\
+      notin_bvar k z /\
+      notin_bvar k s /\
+      notin_bvar k n
+  end.
+
+Lemma open_rec_irrelevant :
+  forall t u k,
+    notin_bvar k t ->
+    open_rec_ln k u t = t.
+Proof. intro t.
+       induction t; intros.
+       10:{
+       simpl in H.
+       simpl. rewrite IHt1, IHt2, IHt3, IHt4; easy.
        }
        5:{
-       apply succ_inversion in H.
-       destruct H as (Ha,Hb).
-       apply IHstep_ln in Ha.
-       eapply ty_conv with (A := t_Nat).
-       apply ty_Succ. easy.
-       apply convertible_sym. easy. easy.
+       simpl in H.
+       simpl.
+       rewrite IHt1, IHt2; easy.
        }
-       4:{ 
-       apply lam_inversion in H.
-       destruct H as (i,(B,(L,(Ha,(Hb,Hc))))).
-       apply IHstep_ln in Ha.
-       apply step_implies_convertible_ln in H0.
-       eapply ty_conv with (A := t_Pi A' B).
-       apply ty_Lam with (i := i) (L := L). easy.
-       intros.
-       specialize(Hb x H H1).
-       specialize(context_conversion_general []); intro HH.
-       simpl in HH.
-       apply HH with (A := A) (i := i); easy.
-       apply convertible_tPi_t1 with (t2 := B) in H0.
-       apply convertible_sym in H0, Hc.
-       apply convertible_trans with (y := t_Pi A B); easy.
-       easy.
-       }
-       3:{
-       apply app_inversion in H1.
-       destruct H1 as (A,(B,(Ha,(Hb,Hc)))).
-       apply ty_conv with (A := open_ln B t2').
-       apply ty_App with (A := A). easy.
-       apply IHstep_ln. easy. easy.
-       apply step_implies_convertible_ln in H0.
-       apply open_rec_ln_monotone_u with (b := B) (k := 0) in H0.
-       apply convertible_sym in H0, Hc.
-       apply convertible_trans with (y := open_rec_ln 0 t2 B); easy.
-       }
-       2:{
-       apply app_inversion in H.
-       destruct H as (A,(B,(Ha,(Hb,Hc)))).
-       apply ty_conv with (A := open_ln B t2).
-       apply ty_App with (A := A).
-       apply IHstep_ln. easy.
-       easy. easy.
-       apply convertible_sym. easy.
+       4:{
+       simpl in H.
+       simpl.
+       rewrite IHt1, IHt2; easy.
        }
        1:{
-       apply app_inversion in H2.
-       destruct H2 as (A0,(B,(Ha,(Hb,Hc)))).
-       apply  lam_inversion in Ha.
-       destruct Ha as (i,(B0,(L,(Ha,(Hd,He))))).
-       rename s into v.
-       apply ty_conv with (A := open_ln B v).
-       unfold open_ln. cbn.
-
-       apply instantiate_one_binder_fine with (A := A) (L := L) (i := i); try easy.
-
-       intros.
-       apply ty_conv with (A := (open_ln B0 (t_fvar x))).
-       apply Hd; easy.
-       unfold open_ln.
-       apply convertible_open_compat. simpl. easy.
-       admit. (**)
-       admit.
-       apply convertible_sym. easy.
+       simpl.
+       simpl in H.
+       case_eq (n =? k); intros.
+       rewrite Nat.eqb_eq in H0. subst. easy.
+       easy.
        }
-Admitted.
+       6:{
+       simpl. simpl in H.
+       rewrite IHt; easy.
+       }
+       5:{
+       simpl. easy.
+       }
+       4:{
+       simpl. easy.
+       }
+       3:{
+       simpl. simpl in H.
+       rewrite IHt1, IHt2; easy.
+       }
+       2:{
+       simpl. easy.
+       }
+       1:{
+       simpl. easy.
+       }
+Qed.
+
+Lemma notin_bvar_subst :
+  forall t x v k,
+    notin_bvar k t ->
+    (forall n, n >= k -> notin_bvar n v) ->
+    notin_bvar k (subst_ln x v t).
+Proof. intro t.
+       induction t; intros.
+       5:{ simpl. simpl in H.
+           split. apply IHt1; easy.
+           apply IHt2. easy.
+           intros. apply H0. lia.
+         }
+       4:{ simpl. simpl in H.
+           split. apply IHt1; easy.
+           apply IHt2. easy.
+           intros. apply H0. lia.
+         }
+       1:{ simpl. simpl in H. easy. }
+       1:{ simpl. simpl in H.
+           case_eq((x =? s)%string); intros.
+           + apply H0. lia.
+           + simpl. easy.
+         }
+       6:{ simpl. simpl in H.
+           split. apply IHt1; easy.
+           split. apply IHt2; easy.
+           split. apply IHt3; easy.
+           apply IHt4; easy.
+         }
+       5:{ simpl. simpl in H.
+           apply IHt; easy.
+         } 
+       4:{ simpl. easy. }
+       3:{ simpl. easy. }
+       2:{ simpl. simpl in H.
+           split. apply IHt1; easy.
+           apply IHt2. easy.
+           intros. apply H0. lia.
+         }
+       1:{ simpl. easy. }
+Qed.
+
+Lemma lc_implies_notin_bvar :
+  forall v k n,
+    lc_rec_ln k v ->
+    n >= k ->
+    notin_bvar n v.
+Proof. intro v.
+       induction v; intros.
+       10:{ simpl. simpl in H.
+            split. eapply IHv1; eauto. easy.
+            split. eapply IHv2; eauto. easy.
+            split. eapply IHv3; eauto. easy.
+            eapply IHv4; eauto. easy.
+          }
+       5: { simpl in H. simpl.
+            split.
+            eapply IHv1; eauto. easy.
+            eapply IHv2; eauto.
+            apply cl_larger with (k := S k). simpl. lia.
+            easy.
+          }
+       4: { simpl in H. simpl.
+            split.
+            eapply IHv1; eauto. easy.
+            eapply IHv2; eauto.
+            apply cl_larger with (k := S k). simpl. lia.
+            easy.
+          }
+        1:{ simpl. simpl in H. lia. }
+        1:{ simpl. easy. }
+        2:{ simpl. simpl in H.
+            split.
+            eapply IHv1; eauto. easy.
+            eapply IHv2; eauto. easy.
+          }
+        4:{ simpl. simpl in H.
+            eapply IHv; eauto. 
+          }
+        3:{ simpl. easy. }
+        2:{ simpl. easy. }
+        1:{ simpl. easy. }
+Qed.
+
+(* ================================================= *)
+(* 1. Computational core: βι reduction (confluent)  *)
+(* ================================================= *)
+
+(* Inductive beta_head_n_ln : term_ln -> term_ln -> Prop :=
+
+| b_beta_app_n :
+    forall A b s,
+      lc_rec_ln 0 A ->
+      lc_rec_ln 1 b ->
+      lc_rec_ln 0 s ->
+      beta_head_n_ln
+        (t_App (t_Lam A b) s)
+        (open_ln b s)
+
+| b_natrec_zero_n :
+    forall Pbody sbody z,
+      lc_rec_ln 1 Pbody ->
+      lc_rec_ln 2 sbody ->
+      lc_rec_ln 0 z ->
+      beta_head_n_ln
+        (t_NatRec_ln
+           (t_Lam t_Nat Pbody)
+           z
+           (t_Lam t_Nat
+             (t_Lam (open_rec_ln 0 (t_bvar 0) Pbody) sbody))
+           t_Zero)
+        z
+
+| b_natrec_succ_n :
+    forall Pbody sbody z n,
+      lc_rec_ln 1 Pbody ->
+      lc_rec_ln 2 sbody ->
+      lc_rec_ln 0 z ->
+      lc_rec_ln 0 n ->
+      beta_head_n_ln
+        (t_NatRec_ln
+           (t_Lam t_Nat Pbody)
+           z
+           (t_Lam t_Nat
+             (t_Lam (open_rec_ln 0 (t_bvar 0) Pbody) sbody))
+           (t_Succ n))
+        (open_rec_ln
+           0
+           (t_NatRec_ln
+              (t_Lam t_Nat Pbody)
+              z
+              (t_Lam t_Nat
+                (t_Lam (open_rec_ln 0 (t_bvar 0) Pbody) sbody))
+              n)
+           (open_rec_ln 1 n sbody)). *)
+
+Inductive beta_head_n_ln : term_ln -> term_ln -> Prop :=
+
+(* ---------------- β (application) ---------------- *)
+
+| b_beta_app_n :
+    forall A b s,
+      lc_rec_ln 1 b ->
+      lc_rec_ln 0 s ->
+      beta_head_n_ln
+        (t_App (t_Lam A b) s)
+        (open_rec_ln 0 s b)
+
+(* ---------------- NatRec zero ---------------- *)
+
+| b_natrec_zero_n :
+    forall P z s,
+      lc_rec_ln 0 P ->
+      lc_rec_ln 0 z ->
+      lc_rec_ln 0 s ->
+      beta_head_n_ln
+        (t_NatRec_ln P z s t_Zero)
+        z
+
+(* ---------------- NatRec succ ---------------- *)
+
+| b_natrec_succ_n :
+    forall P z s n,
+      lc_rec_ln 0 P ->
+      lc_rec_ln 0 z ->
+      lc_rec_ln 0 s ->
+      lc_rec_ln 0 n ->
+      beta_head_n_ln
+        (t_NatRec_ln P z s (t_Succ n))
+        (open_rec_ln 0
+           (t_NatRec_ln P z s n)
+           (open_rec_ln 1 n s)).
+           
+Inductive beta_n_ln : term_ln -> term_ln -> Prop :=
+
+| beta_head_step_n :
+    forall t u,
+      beta_head_n_ln t u ->
+      beta_n_ln t u
+
+| beta_app1_n :
+    forall t1 t1' t2,
+      beta_n_ln t1 t1' ->
+      beta_n_ln (t_App t1 t2) (t_App t1' t2)
+
+| beta_app2_n :
+    forall v1 t2 t2',
+      value_ln v1 ->
+      beta_n_ln t2 t2' ->
+      beta_n_ln (t_App v1 t2) (t_App v1 t2')
+
+| beta_succ_n :
+    forall n n',
+      beta_n_ln n n' ->
+      beta_n_ln (t_Succ n) (t_Succ n')
+
+| beta_natrec_scrut_n :
+    forall P z s n n',
+      beta_n_ln n n' ->
+      beta_n_ln
+        (t_NatRec_ln P z s n)
+        (t_NatRec_ln P z s n').
+
+(* ================================================= *)
+(* 2. η-rule (conversion only, LN-correct)           *)
+(* ================================================= *)
+
+Inductive eta_ln : term_ln -> term_ln -> Prop :=
+| eta_lam_ln :
+    forall A b,
+      lc_rec_ln 1 b ->
+      notin_bvar 0 b ->
+      eta_ln
+        (t_Lam A
+           (t_App (open_rec_ln 0 (t_bvar 0) b)
+                  (t_bvar 0)))
+        b.
+
+(* ================================================= *)
+(* 3. Declarative conversion steps: β + η + congruence *)
+(* ================================================= *)
+
+Inductive conv_step_n_ln : term_ln -> term_ln -> Prop :=
+
+| conv_beta_n :
+    forall t u,
+      beta_n_ln t u ->
+      conv_step_n_ln t u
+
+| conv_eta_n :
+    forall t u,
+      eta_ln t u ->
+      conv_step_n_ln t u
+
+(* ---- congruence rules ---- *)
+
+| conv_lam_A :
+    forall A A' b,
+      conv_step_n_ln A A' ->
+      conv_step_n_ln (t_Lam A b) (t_Lam A' b)
+
+| conv_lam_b :
+    forall A b b',
+      conv_step_n_ln b b' ->
+      conv_step_n_ln (t_Lam A b) (t_Lam A b')
+
+| conv_pi_A :
+    forall A A' B,
+      conv_step_n_ln A A' ->
+      conv_step_n_ln (t_Pi A B) (t_Pi A' B)
+
+| conv_pi_B :
+    forall A B B',
+      conv_step_n_ln B B' ->
+      conv_step_n_ln (t_Pi A B) (t_Pi A B')
+
+| conv_app_l :
+    forall t1 t1' t2,
+      conv_step_n_ln t1 t1' ->
+      conv_step_n_ln (t_App t1 t2) (t_App t1' t2)
+
+| conv_app_r :
+    forall t1 t2 t2',
+      conv_step_n_ln t2 t2' ->
+      conv_step_n_ln (t_App t1 t2) (t_App t1 t2')
+
+| conv_succ :
+    forall n n',
+      conv_step_n_ln n n' ->
+      conv_step_n_ln (t_Succ n) (t_Succ n')
+
+| conv_natrec_P :
+    forall P P' z s n,
+      conv_step_n_ln P P' ->
+      conv_step_n_ln (t_NatRec_ln P z s n)
+                     (t_NatRec_ln P' z s n)
+
+| conv_natrec_z :
+    forall P z z' s n,
+      conv_step_n_ln z z' ->
+      conv_step_n_ln (t_NatRec_ln P z s n)
+                     (t_NatRec_ln P z' s n)
+
+| conv_natrec_s :
+    forall P z s s' n,
+      conv_step_n_ln s s' ->
+      conv_step_n_ln (t_NatRec_ln P z s n)
+                     (t_NatRec_ln P z s' n)
+
+| conv_natrec_n :
+    forall P z s n n',
+      conv_step_n_ln n n' ->
+      conv_step_n_ln (t_NatRec_ln P z s n)
+                     (t_NatRec_ln P z s n').
+
+Inductive par_conv_n_ln : term_ln -> term_ln -> Prop :=
+
+| par_conv_refl :
+    forall t,
+      par_conv_n_ln t t
+
+(* β in parallel *)
+| par_conv_beta :
+    forall t u,
+      beta_n_ln t u ->
+      par_conv_n_ln t u
+
+(* (* η in parallel *)
+| par_conv_eta :
+    forall t u,
+      eta_ln t u ->
+      par_conv_n_ln t u *)
+
+(* full structural recursion *)
+
+| par_conv_lam :
+    forall A A' b b',
+      par_conv_n_ln A A' ->
+      par_conv_n_ln b b' ->
+      par_conv_n_ln (t_Lam A b)
+                    (t_Lam A' b')
+
+| par_conv_pi :
+    forall A A' B B',
+      par_conv_n_ln A A' ->
+      par_conv_n_ln B B' ->
+      par_conv_n_ln (t_Pi A B)
+                    (t_Pi A' B')
+
+| par_conv_app :
+    forall t1 t1' t2 t2',
+      par_conv_n_ln t1 t1' ->
+      par_conv_n_ln t2 t2' ->
+      par_conv_n_ln (t_App t1 t2)
+                    (t_App t1' t2')
+
+| par_conv_succ :
+    forall n n',
+      par_conv_n_ln n n' ->
+      par_conv_n_ln (t_Succ n)
+                    (t_Succ n')
+
+| par_conv_natrec :
+    forall P P' z z' s s' n n',
+      par_conv_n_ln P P' ->
+      par_conv_n_ln z z' ->
+      par_conv_n_ln s s' ->
+      par_conv_n_ln n n' ->
+      par_conv_n_ln (t_NatRec_ln P z s n)
+                    (t_NatRec_ln P' z' s' n').
+
+
+(* ================================================= *)
+(* 4. Declarative conversion (βη-congruence)         *)
+(* ================================================= *)
+
+Definition convertible_n_ln : term_ln -> term_ln -> Prop :=
+  clos_refl_sym_trans term_ln conv_step_n_ln.
+
+Infix "≡ₙ" := convertible_n_ln (at level 70, no associativity).
+
+Definition convertible_n_par_ln : term_ln -> term_ln -> Prop :=
+  clos_refl_sym_trans term_ln par_conv_n_ln.
+
+
+(* ================================================= *)
+(* 5. (Optional) Algorithmic / joinability conversion *)
+(* ================================================= *)
+
+Definition conv_join_n_ln (t u : term_ln) : Prop :=
+  exists w,
+    clos_refl_trans term_ln beta_n_ln t w /\
+    clos_refl_trans term_ln beta_n_ln u w.
+
+Lemma conv_step_n_ln_subst :
+  forall A B x v,
+    lc_rec_ln 0 v ->
+    conv_step_n_ln A B ->
+    conv_step_n_ln (subst_ln x v A) (subst_ln x v B).
+Proof.
+  intros A B x v Hv Hconv.
+  revert x v Hv.
+  induction Hconv.
+  - induction H.
+    + induction H; intros.
+      ++ simpl.
+         unfold open_ln.
+         rewrite open_subst_commute; try easy.
+         constructor.
+         constructor.
+         constructor.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+      ++ simpl.
+         constructor.
+         constructor.
+         constructor.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+     ++ simpl.
+         rewrite open_subst_commute; try easy.
+         rewrite open_subst_commute; try easy.
+         constructor.
+         constructor.
+         simpl.
+         constructor.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply cl_larger with (k := 0). lia. easy.
+   + intros.
+     apply conv_app_l.
+     apply IHbeta_n_ln.
+     easy.
+   + intros.
+     apply conv_app_r.
+     apply IHbeta_n_ln.
+     easy.
+   + intros.
+     simpl.
+     apply conv_succ.
+     apply IHbeta_n_ln; easy.
+   + intros.
+     apply conv_natrec_n.
+     apply IHbeta_n_ln; easy.
+ - inversion H; subst.
+   intros.
+   apply conv_eta_n.
+   simpl.
+   rewrite open_subst_commute. 
+   apply eta_lam_ln.
+   apply subst_preserve_closdness; easy.
+   simpl.
+   apply notin_bvar_subst.
+   easy.
+   intros.
+   apply lc_implies_notin_bvar with (k := 0); easy. easy.
+ - intros.
+   simpl.
+   apply conv_lam_A.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_lam_b.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_pi_A.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_pi_B.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_app_l.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_app_r.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_succ.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_natrec_P.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_natrec_z.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_natrec_s.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_natrec_n.
+   apply IHHconv; easy.
+Qed.
+
+(* Lemma conv_step_n_ln_subst :
+  forall A B x v,
+    lc_rec_ln 0 v ->
+    conv_step_n_ln A B ->
+    conv_step_n_ln (subst_ln x v A) (subst_ln x v B).
+Proof.
+  intros A B x v Hv Hconv.
+  revert x v Hv.
+  induction Hconv.
+  - induction H.
+    + induction H; intros.
+      ++ simpl.
+         unfold open_ln.
+         rewrite open_subst_commute; try easy.
+         constructor.
+         constructor.
+         constructor.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+      ++ simpl.
+         rewrite open_subst_commute; try easy.
+         constructor.
+         constructor.
+         constructor.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+     ++ simpl.
+         rewrite open_subst_commute; try easy.
+         rewrite open_subst_commute; try easy.
+         rewrite open_subst_commute; try easy.
+         constructor.
+         constructor.
+         simpl.
+         rewrite open_subst_commute; try easy.
+         constructor.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply cl_larger with (k := 0). lia. easy.
+   + intros.
+     apply conv_app_l.
+     apply IHbeta_n_ln.
+     easy.
+   + intros.
+     apply conv_app_r.
+     apply IHbeta_n_ln.
+     easy.
+   + intros.
+     simpl.
+     apply conv_succ.
+     apply IHbeta_n_ln; easy.
+   + intros.
+     apply conv_natrec_n.
+     apply IHbeta_n_ln; easy.
+ - inversion H; subst.
+   intros.
+   apply conv_eta_n.
+   simpl.
+   rewrite open_subst_commute. 
+   apply eta_lam_ln.
+   apply subst_preserve_closdness; easy.
+   simpl.
+   apply notin_bvar_subst.
+   easy.
+   intros.
+   apply lc_implies_notin_bvar with (k := 0); easy. easy.
+ - intros.
+   simpl.
+   apply conv_lam_A.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_lam_b.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_pi_A.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_pi_B.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_app_l.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_app_r.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_succ.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_natrec_P.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_natrec_z.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_natrec_s.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply conv_natrec_n.
+   apply IHHconv; easy.
+Qed. *)
+
+Lemma convertible_n_ln_subst :
+  forall A B x v,
+    lc_rec_ln 0 v ->
+    convertible_n_ln A B ->
+    convertible_n_ln (subst_ln x v A) (subst_ln x v B).
+Proof. intros.
+       induction H0; subst.
+       - apply conv_step_n_ln_subst with (x := x) (v := v) in H0.
+         constructor. easy.
+         easy.
+        - (* rst_refl *) apply rst_refl.
+        - (* rst_sym *) apply rst_sym; assumption.
+        - (* rst_trans *) eapply rst_trans; eauto.
+Qed.
+
+(* Lemma convertible_n_ln_subst :
+  forall A B x v,
+    lc_rec_ln 0 v ->
+    convertible_n_ln A B ->
+    convertible_n_ln (subst_ln x v A) (subst_ln x v B).
+Proof. intros.
+       induction H0; subst.
+       - apply conv_step_n_ln_subst with (x := x) (v := v) in H0.
+         constructor. easy.
+         easy.
+        - (* rst_refl *) apply rst_refl.
+        - (* rst_sym *) apply rst_sym; assumption.
+        - (* rst_trans *) eapply rst_trans; eauto.
+Qed.
+ *)
+
+(* Lemma conv_step_in_par :
+  forall t u,
+    conv_step_n_ln t u ->
+    par_conv_n_ln t u.
+Proof. intros.
+       induction H; intros.
+       - constructor. easy.
+       - apply par_conv_eta. easy.
+       - apply par_conv_lam; try easy.
+         apply par_conv_refl.
+       - apply par_conv_lam. 
+         apply par_conv_refl.
+         easy.
+       - apply par_conv_pi.
+         easy.
+         apply par_conv_refl.
+       - apply par_conv_pi.
+         apply par_conv_refl.
+         easy.
+       - apply par_conv_app.
+         easy.
+         apply par_conv_refl.
+       - apply par_conv_app.
+         apply par_conv_refl.
+         easy.
+       - apply par_conv_succ.
+         easy.
+       - apply par_conv_natrec.
+         easy.
+         apply par_conv_refl.
+         apply par_conv_refl.
+         apply par_conv_refl.
+       - apply par_conv_natrec.
+         apply par_conv_refl.
+         easy.
+         apply par_conv_refl.
+         apply par_conv_refl.
+       - apply par_conv_natrec.
+         apply par_conv_refl.
+         apply par_conv_refl.
+         easy.
+         apply par_conv_refl.
+       - apply par_conv_natrec.
+         apply par_conv_refl.
+         apply par_conv_refl.
+         apply par_conv_refl.
+         easy.
+Qed.
+ *)
+
+(* Lemma conv_step_in_par :
+  forall t u,
+    conv_step_n_ln t u ->
+    par_conv_n_ln t u.
+Proof. intros.
+       induction H; intros.
+       - constructor. easy.
+       - apply par_conv_eta. easy.
+       - apply par_conv_lam; try easy.
+         apply par_conv_refl.
+       - apply par_conv_lam. 
+         apply par_conv_refl.
+         easy.
+       - apply par_conv_pi.
+         easy.
+         apply par_conv_refl.
+       - apply par_conv_pi.
+         apply par_conv_refl.
+         easy.
+       - apply par_conv_app.
+         easy.
+         apply par_conv_refl.
+       - apply par_conv_app.
+         apply par_conv_refl.
+         easy.
+       - apply par_conv_succ.
+         easy.
+       - apply par_conv_natrec.
+         easy.
+         apply par_conv_refl.
+         apply par_conv_refl.
+         apply par_conv_refl.
+       - apply par_conv_natrec.
+         apply par_conv_refl.
+         easy.
+         apply par_conv_refl.
+         apply par_conv_refl.
+       - apply par_conv_natrec.
+         apply par_conv_refl.
+         apply par_conv_refl.
+         easy.
+         apply par_conv_refl.
+       - apply par_conv_natrec.
+         apply par_conv_refl.
+         apply par_conv_refl.
+         apply par_conv_refl.
+         easy.
+Qed.
+ *)
+Lemma conv_step_n_par_ln_subst :
+  forall A B x v,
+    lc_rec_ln 0 v ->
+    par_conv_n_ln A B ->
+    par_conv_n_ln (subst_ln x v A) (subst_ln x v B).
+Proof.
+  intros A B x v Hv Hconv.
+  revert x v Hv.
+  induction Hconv.
+  - constructor.
+  - induction H.
+    + induction H; intros.
+      ++ simpl.
+         unfold open_ln.
+         rewrite open_subst_commute; try easy.
+         constructor.
+         constructor.
+         constructor.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+      ++ simpl.
+         constructor.
+         constructor.
+         constructor.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+     ++ simpl.
+         rewrite open_subst_commute; try easy.
+         rewrite open_subst_commute; try easy.
+         constructor.
+         constructor.
+         simpl.
+         constructor.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply subst_preserve_closdness; easy.
+         apply cl_larger with (k := 0). lia. easy.
+   + intros.
+     apply par_conv_app.
+     apply IHbeta_n_ln.
+     easy.
+     apply par_conv_refl.
+   + intros.
+     apply par_conv_app.
+     apply par_conv_refl.
+     apply IHbeta_n_ln.
+     easy.
+   + intros.
+     simpl.
+     apply par_conv_succ.
+     apply IHbeta_n_ln; easy.
+   + intros.
+     apply par_conv_natrec.
+     apply par_conv_refl.
+     apply par_conv_refl.
+     apply par_conv_refl.
+     apply IHbeta_n_ln; easy.
+(*  - inversion H; subst.
+   intros.
+   apply par_conv_eta.
+   simpl.
+   rewrite open_subst_commute. 
+   apply eta_lam_ln.
+   apply subst_preserve_closdness; easy.
+   apply notin_bvar_subst.
+   easy.
+   intros.
+   apply lc_implies_notin_bvar with (k := 0); easy. easy. *)
+ - intros.
+   simpl.
+   apply par_conv_lam.
+   apply IHHconv1; easy.
+   apply IHHconv2; easy.
+ - intros.
+   simpl.
+   apply par_conv_pi.
+   apply IHHconv1; easy.
+   apply IHHconv2; easy.
+ - intros.
+   simpl.
+   apply par_conv_app.
+   apply IHHconv1; easy.
+   apply IHHconv2; easy.
+ - intros.
+   simpl.
+   apply par_conv_succ.
+   apply IHHconv; easy.
+ - intros.
+   simpl.
+   apply par_conv_natrec.
+   apply IHHconv1; easy.
+   apply IHHconv2; easy.
+   apply IHHconv3; easy.
+   apply IHHconv4; easy.
+Qed.
+
+Lemma convertible_n_par_ln_subst :
+  forall A B x v,
+    lc_rec_ln 0 v ->
+    convertible_n_par_ln A B ->
+    convertible_n_par_ln (subst_ln x v A) (subst_ln x v B).
+Proof. intros.
+       induction H0; subst.
+       - apply conv_step_n_par_ln_subst with (x := x) (v := v) in H0.
+         constructor. easy.
+         easy.
+        - (* rst_refl *) apply rst_refl.
+        - (* rst_sym *) apply rst_sym; assumption.
+        - (* rst_trans *) eapply rst_trans; eauto.
+Qed.
+
+Lemma par_conv_n_ln_monotone_u :
+  forall b k u u',
+    par_conv_n_ln u u' ->
+    par_conv_n_ln (open_rec_ln k u b)
+                  (open_rec_ln k u' b).
+Proof.
+  induction b; intros k u u' Hconv; cbn.
+  10:{
+  apply par_conv_natrec.
+  apply IHb1; easy.
+  apply IHb2; easy.
+  apply IHb3; easy.
+  apply IHb4; easy.
+  }
+  9:{
+  simpl.
+  apply par_conv_succ.
+  apply IHb; easy.
+  }
+  8:{
+  constructor.
+  }
+  7:{
+  constructor.
+  }
+  6:{
+  simpl.
+  apply par_conv_app.
+  apply IHb1; easy.
+  apply IHb2; easy.
+  }
+  5:{
+  simpl.
+  apply par_conv_lam.
+  apply IHb1; easy.
+  apply IHb2; easy.
+  }
+  4:{
+  simpl.
+  apply par_conv_pi.
+  apply IHb1; easy.
+  apply IHb2; easy.
+  }
+  3:{
+  constructor.
+  }
+  2:{
+  constructor.
+  }
+  1:{
+  case_eq(n =? k); intros.
+  - easy.
+  - apply par_conv_refl.
+  }
+Qed.
+
+Lemma convertible_n_par_ln_monotone_u :
+  forall b k u u',
+    convertible_n_par_ln u u' ->
+    convertible_n_par_ln (open_rec_ln k u b) (open_rec_ln k u' b).
+Proof. intros.
+       induction H; intros.
+       - constructor. apply par_conv_n_ln_monotone_u. easy.
+        - (* rst_refl *) apply rst_refl.
+        - (* rst_sym *) apply rst_sym; assumption.
+        - (* rst_trans *) eapply rst_trans; eauto.
+Qed.
+
+Lemma par_conv_open_beta :
+  forall t u k s s',
+    par_conv_n_ln t u ->
+    par_conv_n_ln s s' ->
+    par_conv_n_ln (open_rec_ln k s t)
+                  (open_rec_ln k s' u).
+Proof. intros.
+       revert k s s' H0.
+       induction H; intros.
+       7:{
+       simpl. apply par_conv_natrec.
+       apply IHpar_conv_n_ln1; easy.
+       apply IHpar_conv_n_ln2; easy.
+       apply IHpar_conv_n_ln3; easy.
+       apply IHpar_conv_n_ln4; easy.
+       }
+       3:{
+       simpl. apply par_conv_lam.
+       apply IHpar_conv_n_ln1; easy.
+       apply IHpar_conv_n_ln2; easy.
+       }
+      3:{
+       simpl. apply par_conv_pi.
+       apply IHpar_conv_n_ln1; easy.
+       apply IHpar_conv_n_ln2; easy.
+      }
+      3:{
+       simpl. apply par_conv_app.
+       apply IHpar_conv_n_ln1; easy.
+       apply IHpar_conv_n_ln2; easy.
+      }
+      1:{
+      simpl.
+      apply par_conv_n_ln_monotone_u. easy.
+      }
+      1:{ simpl.
+      induction H; intros.
+      - subst. induction H; intros.
+        + subst. simpl.
+          setoid_rewrite open_rec_ln_noop_on_lc at 2.
+          setoid_rewrite open_rec_ln_noop_on_lc at 2.
+          setoid_rewrite open_rec_ln_noop_on_lc at 2.
+          constructor. constructor. constructor; easy.
+          apply lc_rec_open_rec0; easy.
+          induction k; intros; try easy.
+          apply cl_larger with (k := k). lia. easy.
+          induction k; intros; try easy.
+          apply cl_larger with (k := S k). lia. easy.
+        + subst. simpl.
+          setoid_rewrite open_rec_ln_noop_on_lc at 1.
+          setoid_rewrite open_rec_ln_noop_on_lc at 1.
+          setoid_rewrite open_rec_ln_noop_on_lc at 1.
+          setoid_rewrite open_rec_ln_noop_on_lc at 1.
+          constructor. constructor. constructor; easy.
+          apply cl_larger with (k := 0). lia. easy.
+          induction k; intros; try easy.
+          apply cl_larger with (k := 0). lia. easy.
+          induction k; intros; try easy.
+          apply cl_larger with (k := k). lia. easy.
+          induction k; intros; try easy.
+          apply cl_larger with (k := k). lia. easy.
+        + subst.
+          simpl.
+          setoid_rewrite open_rec_ln_noop_on_lc at 1.
+          setoid_rewrite open_rec_ln_noop_on_lc at 1.
+          setoid_rewrite open_rec_ln_noop_on_lc at 1.
+          setoid_rewrite open_rec_ln_noop_on_lc at 1.
+          setoid_rewrite open_rec_ln_noop_on_lc at 1.
+          2:{ apply lc_rec_open_rec0.
+              apply lc_rec_open_rec.
+              induction k; intros; try easy.
+              apply cl_larger with (k := 0). lia. easy.
+              easy.
+              simpl. easy.
+            }
+          constructor. constructor. constructor; easy.
+          apply cl_larger with (k := 0). lia. easy.
+          induction k; intros; try easy.
+          apply cl_larger with (k := 0). lia. easy.
+          induction k; intros; try easy.
+          apply cl_larger with (k := k). lia. easy.
+          induction k; intros; try easy.
+          apply cl_larger with (k := k). lia. easy.
+      - simpl. subst.
+        apply par_conv_app. easy.
+        apply par_conv_n_ln_monotone_u. easy.
+      - simpl. subst.
+        apply par_conv_app.
+        apply par_conv_n_ln_monotone_u. easy.
+        easy.
+      - simpl.
+        apply par_conv_succ. easy.
+      - simpl.
+        apply par_conv_natrec.
+        apply par_conv_n_ln_monotone_u. easy.
+        apply par_conv_n_ln_monotone_u. easy.
+        apply par_conv_n_ln_monotone_u. easy.
+        easy.
+      }
+      1:{ simpl.
+          apply par_conv_succ.
+          apply IHpar_conv_n_ln; easy.
+      }
+Qed.
+
+Lemma par_conv_open :
+  forall b b' s s' k,
+    par_conv_n_ln b b' ->
+    par_conv_n_ln s s' ->
+    par_conv_n_ln (open_rec_ln k s b)
+                  (open_rec_ln k s' b').
+Proof. intros. revert k s s' H0.
+       induction H; intros.
+       7:{
+       simpl. apply par_conv_natrec.
+       apply IHpar_conv_n_ln1; easy.
+       apply IHpar_conv_n_ln2; easy.
+       apply IHpar_conv_n_ln3; easy.
+       apply IHpar_conv_n_ln4; easy.
+       }
+       3:{
+       simpl. apply par_conv_lam.
+       apply IHpar_conv_n_ln1; easy.
+       apply IHpar_conv_n_ln2; easy.
+      }
+      3:{
+       simpl. apply par_conv_pi.
+       apply IHpar_conv_n_ln1; easy.
+       apply IHpar_conv_n_ln2; easy.
+      }
+      3:{
+       simpl. apply par_conv_app.
+       apply IHpar_conv_n_ln1; easy.
+       apply IHpar_conv_n_ln2; easy.
+      }
+      1:{
+      simpl.
+      apply par_conv_n_ln_monotone_u. easy.
+      }
+      1:{ simpl.
+      apply par_conv_open_beta.
+      constructor. easy. easy.
+      }
+      1:{
+      simpl.
+      apply par_conv_succ.
+      apply IHpar_conv_n_ln; easy.
+      }
+Qed.
+
+(* Lemma convertible_in_parallel :
+  forall t u,
+    convertible_n_ln t u ->
+    convertible_n_par_ln t u.
+Proof.
+  intros t u H.
+  induction H.
+  - (* rst_step *)
+    apply rst_step.
+    apply conv_step_in_par.
+    assumption.
+  - (* rst_refl *)
+    apply rst_refl.
+  - (* rst_sym *)
+    apply rst_sym; assumption.
+  - (* rst_trans *)
+    eapply rst_trans; eauto.
+Qed.
+ *)
+
+Lemma beta_head_preserves_lc :
+  forall t t' k,
+    beta_head_n_ln t t' ->
+    lc_rec_ln k t ->
+    lc_rec_ln k t'.
+Proof. intros.
+       revert k H0.
+       induction H; intros.
+       - simpl. simpl in H1.
+         apply lc_rec_open_rec0; easy.
+       - simpl in H2. easy.
+       - simpl in H3.
+         apply lc_rec_open_rec0; try easy.
+         Search lc_rec_ln.
+         apply lc_rec_open_rec; try easy.
+         apply cl_larger with (k := 0). lia. easy.
+Qed.
+
+Lemma beta_n_preserves_lc :
+  forall t t' k,
+    beta_n_ln t t' ->
+    lc_rec_ln k t ->
+    lc_rec_ln k t'.
+Proof.
+  intros.
+  revert k H0.
+  induction H; intros.
+  - apply beta_head_preserves_lc with (k := k) in H; easy.
+  - simpl. simpl in H0. split.
+    apply IHbeta_n_ln. easy. easy.
+  - simpl. simpl in H1.
+    split. easy.
+    apply IHbeta_n_ln. easy.
+  - simpl. simpl in H0.
+    apply IHbeta_n_ln. easy.
+  - simpl. simpl in H0.
+    split. easy. split. easy. split. easy.
+    apply IHbeta_n_ln. easy.
+Qed.
+
+Lemma par_conv_preserves_lc :
+  forall t t' k,
+    par_conv_n_ln t t' ->
+    lc_rec_ln k t ->
+    lc_rec_ln k t'.
+Proof.
+  intros.
+  revert k H0.
+  induction H; intros.
+  - easy.
+  - apply beta_n_preserves_lc with (k := k) in H; easy.
+  - simpl. simpl in H1.
+    split.
+    apply IHpar_conv_n_ln1. easy.
+    apply IHpar_conv_n_ln2. easy.
+  - simpl. simpl in H1.
+    split.
+    apply IHpar_conv_n_ln1. easy.
+    apply IHpar_conv_n_ln2. easy.
+  - simpl. simpl in H1.
+    split.
+    apply IHpar_conv_n_ln1. easy.
+    apply IHpar_conv_n_ln2. easy.
+  - simpl. simpl in H0.
+    apply IHpar_conv_n_ln. easy.
+  - simpl. simpl in H3.
+    split.
+    apply IHpar_conv_n_ln1. easy.
+    split.
+    apply IHpar_conv_n_ln2. easy.
+    split.
+    apply IHpar_conv_n_ln3. easy.
+    apply IHpar_conv_n_ln4. easy.
+Qed.
+
+Lemma par_conv_diamond :
+  forall t u v,
+    par_conv_n_ln t u ->
+    par_conv_n_ln t v ->
+    exists w,
+      par_conv_n_ln u w /\
+      par_conv_n_ln v w.
+Proof. intros.
+       revert v H0.
+       induction H; intros.
+       - intros. exists v. split. easy.
+         apply par_conv_refl.
+       - revert v H0. induction H; intros.
+         + revert v H0. induction H; intros.
+           * inversion H1.
+             ** subst. exists (open_ln b s).
+                split. apply par_conv_refl.
+                constructor. constructor. constructor; easy.
+             ** subst. inversion H2.
+                *** subst. inversion H3. subst.
+                    exists (open_ln b s).
+                    split. apply par_conv_refl.
+                    apply par_conv_refl.
+                *** subst. inversion H6.
+                    subst. inversion H3.
+                *** subst.
+                    exists (open_ln b t2').
+                    split.
+                    unfold open_ln.
+                    apply par_conv_n_ln_monotone_u.
+                    constructor. easy.
+                    constructor. constructor. constructor; try easy.
+                    apply beta_n_preserves_lc with (k := 0) in H7; easy.
+             ** subst.
+                inversion H4.
+                *** subst.
+                    exists (open_ln b t2').
+                    split.
+                    unfold open_ln.
+                    apply par_conv_n_ln_monotone_u.
+                    easy.
+                    constructor. constructor. constructor; try easy.
+                    apply par_conv_preserves_lc with (k := 0) in H6; easy.
+                *** subst.
+                    inversion H2. subst. inversion H3.
+                *** subst. 
+                    exists(open_ln b' t2').
+                    split.
+                    unfold open_ln.
+                    apply par_conv_open; easy.
+                    constructor. constructor. constructor.
+                    apply par_conv_preserves_lc with (k := 1) in H8; easy.
+                    apply par_conv_preserves_lc with (k := 0) in H6; easy.
+           * inversion H2.
+             ** subst. exists z.
+                split. constructor.
+                constructor. constructor. constructor; easy.
+             ** subst. inversion H3. 
+                *** subst.
+                    inversion H4. subst. exists v.
+                    split. constructor. constructor.
+                *** subst. inversion H9.
+                    subst. inversion H4.
+             ** subst. 
+                inversion H11.
+                ++ subst. exists z'.
+                   split. easy.
+                   constructor. constructor. constructor.
+                   apply par_conv_preserves_lc with (k := 0) in H7; easy.
+                   apply par_conv_preserves_lc with (k := 0) in H9; easy.
+                   apply par_conv_preserves_lc with (k := 0) in H10; easy.
+                ++ subst. inversion H3. subst.
+                   inversion H4.
+           * inversion H3.
+             ** subst.
+                exists((open_rec_ln 0 (t_NatRec_ln P z s n) (open_rec_ln 1 n s))).
+                split. apply par_conv_refl.
+                constructor. constructor. constructor; easy.
+             ** subst. inversion H4.
+                ++ subst. inversion H5.
+                   subst.
+                   exists(open_rec_ln 0 (t_NatRec_ln P z s n) (open_rec_ln 1 n s)).
+                   split; constructor.
+                ++ subst.
+                   inversion H10. subst.
+                   inversion H5. subst.
+                   exists (open_rec_ln 0 (t_NatRec_ln P z s n'0) (open_rec_ln 1 n'0 s)).
+                   split.
+                   apply par_conv_open.
+                   apply par_conv_n_ln_monotone_u. constructor. easy.
+(*                    inversion H0.
+                   subst.
+                   inversion H10. subst.
+                   inversion H5.
+                   subst.
+                   apply par_conv_refl.
+                   subst. *)
+                   apply par_conv_natrec.
+                   apply par_conv_refl.
+                   apply par_conv_refl.
+                   apply par_conv_refl. 
+                   constructor. easy.
+                   subst.
+(*                    apply par_conv_natrec.
+                   apply par_conv_refl.
+                   apply par_conv_refl.
+                   apply par_conv_refl.  *)
+                   constructor. constructor. constructor; try easy.
+                   apply beta_n_preserves_lc with (k := 0) in H6; easy.
+             ** subst.
+                inversion H12. subst.
+                exists ((open_rec_ln 0 (t_NatRec_ln P' z' s' n) (open_rec_ln 1 n s'))).
+                split.
+                apply par_conv_open.
+                apply par_conv_open.
+                easy. apply par_conv_refl.
+                apply par_conv_natrec; try easy.
+                apply par_conv_refl.
+                constructor. constructor. constructor; try easy.
+                apply par_conv_preserves_lc with (k := 0) in H8; easy.
+                apply par_conv_preserves_lc with (k := 0) in H10; easy.
+                apply par_conv_preserves_lc with (k := 0) in H11; easy.
+                subst.
+                inversion H4. subst.
+                inversion H5.
+                subst.
+                exists ((open_rec_ln 0 (t_NatRec_ln P' z' s' n'0) (open_rec_ln 1 n'0 s'))).
+                split.
+                apply par_conv_open.
+                apply par_conv_open.
+                easy. constructor. easy.
+                apply par_conv_natrec; try easy. constructor. easy.
+                constructor. constructor. constructor; try easy.
+                apply par_conv_preserves_lc with (k := 0) in H8; easy.
+                apply par_conv_preserves_lc with (k := 0) in H10; easy.
+                apply par_conv_preserves_lc with (k := 0) in H11; easy.
+                apply beta_n_preserves_lc with (k := 0) in H6; easy.
+                subst.
+                exists ((open_rec_ln 0 (t_NatRec_ln P' z' s' n'0) (open_rec_ln 1 n'0 s'))).
+                split.
+                apply par_conv_open.
+                apply par_conv_open.
+                easy. easy.
+                apply par_conv_natrec; try easy.
+                constructor. constructor. constructor; try easy.
+                apply par_conv_preserves_lc with (k := 0) in H8; easy.
+                apply par_conv_preserves_lc with (k := 0) in H10; easy.
+                apply par_conv_preserves_lc with (k := 0) in H11; easy.
+                apply par_conv_preserves_lc with (k := 0) in H5; easy.
+         + inversion H0.
+           ++ subst.
+              exists (t_App t1' t2) .
+              split.
+              apply par_conv_refl.
+              apply par_conv_app. constructor. easy.
+              apply par_conv_refl.
+           ++ subst.
+              inversion H1.
+              * subst. inversion H2. subst.
+                inversion H. subst.
+                inversion H3.
+              * subst.
+                assert( par_conv_n_ln t1 t1'0).
+                constructor. easy.
+                apply IHbeta_n_ln in H2.
+                destruct H2 as (w,(Ha,Hb)).
+                exists (t_App w t2) .
+                split.
+                apply par_conv_app. easy.
+                apply par_conv_refl.
+                apply par_conv_app. easy.
+                apply par_conv_refl.
+              * subst.
+                exists(t_App t1' t2').
+                split. 
+                apply par_conv_app. constructor. constructor. easy.
+                apply par_conv_app. constructor. easy. 
+                apply par_conv_refl.
+            ++ subst.
+               apply IHbeta_n_ln in H3.
+               destruct H3 as (w,(Ha,Hb)).
+               exists (t_App w t2') .
+               split.
+               apply par_conv_app. easy. easy.
+               apply par_conv_app. easy.
+               apply par_conv_refl.
+         + inversion H1.
+           ++ subst.
+              exists(t_App v1 t2').
+              split. 
+              apply par_conv_app. 
+              apply par_conv_refl.
+              apply par_conv_refl.
+              apply par_conv_app.
+              apply par_conv_refl. constructor. easy.
+           ++ subst.
+              inversion H2.
+              * subst. inversion H3. subst.
+                exists (open_rec_ln 0 t2' b).
+                split.
+                constructor. constructor. constructor. easy.
+                apply beta_n_preserves_lc with (k := 0) in H0; easy.
+                apply par_conv_n_ln_monotone_u. constructor. easy.
+              * subst.
+                exists(t_App t1' t2').
+                split. 
+                apply par_conv_app. constructor. easy.
+                apply par_conv_refl.
+                apply par_conv_app. constructor. constructor. easy. 
+              * subst. 
+                assert(par_conv_n_ln t2 t2'0).
+                constructor. easy.
+                apply IHbeta_n_ln in H3.
+                destruct H3 as (w,(Ha,Hb)).
+                exists (t_App v1 w) .
+                split.
+                apply par_conv_app. constructor. easy.
+                apply par_conv_app. constructor. easy.
+           ++ subst.
+              apply IHbeta_n_ln in H6.
+              destruct H6 as (w,(Ha,Hb)).
+              exists (t_App t1' w) .
+              split.
+              apply par_conv_app. easy. easy.
+              apply par_conv_app. constructor. easy.
+          + inversion H0.
+            ++ subst.
+               exists (t_Succ n').
+               split.
+               constructor. apply par_conv_succ. constructor. easy.
+            ++ subst. inversion H1.
+               * subst. inversion H2.
+               * subst. 
+                 assert(par_conv_n_ln n n'0).
+                 constructor. easy.
+                 apply IHbeta_n_ln in H2.
+                 destruct H2 as (w,(Ha,Hb)).
+                 exists (t_Succ w) .
+                 split.
+                 apply par_conv_succ. easy.
+                 apply par_conv_succ. easy.
+            ++ subst. 
+               apply IHbeta_n_ln in H2.
+               destruct H2 as (w,(Ha,Hb)).
+               exists (t_Succ w) .
+               split.
+               apply par_conv_succ. easy.
+               apply par_conv_succ. easy.
+           + inversion H0.
+             ++ subst.
+                exists (t_NatRec_ln P z s n').
+                split.
+                apply par_conv_natrec; constructor.
+                apply par_conv_natrec; constructor.
+                easy.
+             ++ subst.
+                inversion H1.
+                * subst.
+                  inversion H2.
+                  ** subst. inversion H.
+                     subst.
+                     inversion H3.
+                  ** subst. 
+                     inversion H.
+                     subst. inversion H3.
+                     subst.
+                     exists((open_rec_ln 0 (t_NatRec_ln P z s n'0) (open_rec_ln 1 n'0 s))).
+                     split.
+                     constructor. constructor. constructor; try easy.
+                     apply beta_n_preserves_lc with (k := 0) in H4; easy.
+                     apply par_conv_open.
+                     apply par_conv_n_ln_monotone_u. constructor. easy.
+                     apply par_conv_natrec; constructor.
+                     easy.
+                * subst.
+                  assert(par_conv_n_ln n n'0).
+                  constructor. easy.
+                  apply IHbeta_n_ln in H2.
+                  destruct H2 as (w,(Ha,Hb)).
+                  exists (t_NatRec_ln P z s w) .
+                  split.
+                  apply par_conv_natrec; try (apply par_conv_refl).
+                  easy.
+                  apply par_conv_natrec; try (apply par_conv_refl).
+                  easy.
+             ++ subst.
+                apply IHbeta_n_ln in H9.
+                destruct H9 as (w,(Ha,Hb)).
+                exists (t_NatRec_ln P' z' s' w) .
+                split.
+                apply par_conv_natrec; try easy.
+                apply par_conv_natrec; try (apply par_conv_refl).
+                easy.
+        - inversion H1.
+          + subst.
+            exists(t_Lam A' b').
+            split.
+            apply par_conv_lam; constructor.
+            apply par_conv_lam; easy.
+          + subst.
+            inversion H2.
+            subst.
+            inversion H3.
+          + subst.
+            apply IHpar_conv_n_ln1 in H4.
+            apply IHpar_conv_n_ln2 in H6.
+            destruct H4 as (w1,(Ha,Hb)).
+            destruct H6 as (w2,(Hc,Hd)).
+            exists(t_Lam w1 w2).
+            split.
+            apply par_conv_lam; easy.
+            apply par_conv_lam; easy.
+        - inversion H1.
+          + subst.
+            exists(t_Pi A' B').
+            split.
+            apply par_conv_pi; constructor.
+            apply par_conv_pi; easy.
+          + subst.
+            inversion H2.
+            subst.
+            inversion H3.
+          + subst.
+            apply IHpar_conv_n_ln1 in H4.
+            apply IHpar_conv_n_ln2 in H6.
+            destruct H4 as (w1,(Ha,Hb)).
+            destruct H6 as (w2,(Hc,Hd)).
+            exists(t_Pi w1 w2).
+            split.
+            apply par_conv_pi; easy.
+            apply par_conv_pi; easy.
+        - inversion H1.
+          + subst.
+            exists(t_App t1' t2').
+            split.
+            apply par_conv_app; constructor.
+            apply par_conv_app; easy.
+          + subst.
+            inversion H2.
+            subst.
+            inversion H3.
+            * subst.
+              inversion H. subst.
+              exists(open_rec_ln 0 t2' b).
+              split. 
+              constructor. constructor. constructor.
+              easy.
+              apply par_conv_preserves_lc with (k := 0) in H0; easy.
+              apply par_conv_n_ln_monotone_u. easy.
+              subst.
+              inversion H4. subst.
+              inversion H5.
+              subst.
+              exists(open_rec_ln 0 t2' b').
+              split.
+              constructor. constructor. constructor.
+              apply par_conv_preserves_lc with (k := 1) in H10; easy.
+              apply par_conv_preserves_lc with (k := 0) in H0; easy.
+              apply par_conv_open; easy.
+            * subst.
+              assert(par_conv_n_ln t1 t1'0).
+              constructor. easy.
+              apply IHpar_conv_n_ln1 in H3.
+              destruct H3 as (w,(Ha,Hb)).
+              exists(t_App w t2').
+              split.
+              apply par_conv_app. easy.
+              apply par_conv_refl.
+              apply par_conv_app. easy.
+              easy.
+            * subst.
+              assert(par_conv_n_ln t2 t2'0).
+              constructor. easy.
+              apply IHpar_conv_n_ln2 in H3.
+              destruct H3 as (w,(Ha,Hb)).
+              exists(t_App t1' w).
+              split.
+              apply par_conv_app.
+              apply par_conv_refl. easy.
+              apply par_conv_app. easy.
+              easy.
+          + subst.
+            apply IHpar_conv_n_ln1 in H4.
+            apply IHpar_conv_n_ln2 in H6.
+            destruct H4 as (w1,(Ha,Hb)).
+            destruct H6 as (w2,(Hc,Hd)).
+            exists(t_App w1 w2).
+            split.
+            apply par_conv_app; easy.
+            apply par_conv_app; easy.
+        - inversion H0.
+          + subst. 
+            exists (t_Succ n').
+            split.
+            apply par_conv_refl.
+            apply par_conv_succ. easy.
+          + subst. inversion H1. subst. inversion H2.
+            subst.
+            assert(par_conv_n_ln n n'0).
+            constructor. easy.
+            apply IHpar_conv_n_ln in H2.
+            destruct H2 as (w,(Ha,Hb)).
+            exists(t_Succ w).
+            split.
+            apply par_conv_succ. easy.
+            apply par_conv_succ. easy.
+          + subst.
+            apply IHpar_conv_n_ln in H2.
+            destruct H2 as (w,(Ha,Hb)).
+            exists(t_Succ w).
+            split.
+            apply par_conv_succ. easy.
+            apply par_conv_succ. easy.
+        - inversion H3.
+          + subst.
+            exists(t_NatRec_ln P' z' s' n') .
+            split.
+            apply par_conv_natrec; constructor.
+            apply par_conv_natrec; easy.
+          + subst.
+            inversion H4. subst.
+            ++ inversion H5.
+               subst.
+               inversion H2. subst.
+               exists z'.
+               split.
+               constructor. constructor. constructor.
+               apply par_conv_preserves_lc with (k := 0) in H; easy.
+               apply par_conv_preserves_lc with (k := 0) in H0; easy.
+               apply par_conv_preserves_lc with (k := 0) in H1; easy.
+               easy. subst. 
+               subst.
+               inversion H6. subst. inversion H7.
+               subst.
+               inversion H2. subst.
+               exists(open_rec_ln 0 (t_NatRec_ln P' z' s' n0) (open_rec_ln 1 n0 s')).
+               split.
+               constructor. constructor. constructor.
+               apply par_conv_preserves_lc with (k := 0) in H; easy.
+               apply par_conv_preserves_lc with (k := 0) in H0; easy.
+               apply par_conv_preserves_lc with (k := 0) in H1; easy.
+               easy.
+               apply par_conv_open.
+               apply par_conv_open.
+               easy. constructor.
+               apply par_conv_natrec; try easy.
+               constructor.
+               subst.
+               inversion H6. subst.
+               inversion H7. subst.
+
+               exists(open_rec_ln 0 (t_NatRec_ln P' z' s' n'0) (open_rec_ln 1 n'0 s')).
+               split.
+               constructor. constructor. constructor.
+               apply par_conv_preserves_lc with (k := 0) in H; easy.
+               apply par_conv_preserves_lc with (k := 0) in H0; easy.
+               apply par_conv_preserves_lc with (k := 0) in H1; easy.
+               apply beta_n_preserves_lc with (k := 0) in H8; easy.
+               apply par_conv_open.
+               apply par_conv_open.
+               easy. constructor. easy.
+               apply par_conv_natrec; try easy.
+               constructor. easy.
+               subst.
+               exists(open_rec_ln 0 (t_NatRec_ln P' z' s' n'0) (open_rec_ln 1 n'0 s')).
+               split.
+               constructor. constructor. constructor.
+               apply par_conv_preserves_lc with (k := 0) in H; easy.
+               apply par_conv_preserves_lc with (k := 0) in H0; easy.
+               apply par_conv_preserves_lc with (k := 0) in H1; easy.
+               apply par_conv_preserves_lc with (k := 0) in H7; easy.
+               apply par_conv_open.
+               apply par_conv_open.
+               easy. easy.
+               apply par_conv_natrec; try easy.
+            ++ subst.
+               assert(par_conv_n_ln n n'0).
+               constructor. easy.
+               apply IHpar_conv_n_ln4 in H5.
+               destruct H5 as (w,(Ha,Hb)).
+               exists (t_NatRec_ln P' z' s' w).
+               split.
+               apply par_conv_natrec; try (apply par_conv_refl).
+               easy.
+               apply par_conv_natrec; try easy.
+          + subst.
+            apply IHpar_conv_n_ln1 in H8.
+            apply IHpar_conv_n_ln2 in H10.
+            apply IHpar_conv_n_ln3 in H11.
+            apply IHpar_conv_n_ln4 in H12.
+            destruct H8 as (w1,(Ha,Hb)).
+            destruct H10 as (w2,(Hc,Hd)).
+            destruct H11 as (w3,(He,Hf)).
+            destruct H12 as (w4,(Hg,Hh)).
+            exists(t_NatRec_ln w1 w2 w3 w4).
+            split.
+            apply par_conv_natrec; easy.
+            apply par_conv_natrec; easy.
+Qed.
+
+Definition conv_join_par_n_ln (t u : term_ln) : Prop :=
+  exists w,
+    clos_refl_trans term_ln par_conv_n_ln t w /\
+    clos_refl_trans term_ln par_conv_n_ln u w.
 
 
 

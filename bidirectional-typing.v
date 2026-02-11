@@ -468,6 +468,12 @@ Inductive has_type_s_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
                      (t_Type j)) ->
     has_type_s_ln Γ (t_Pi A B) (t_Type (Nat.max i j))
 
+(* application *)
+| ty_s_App : forall Γ t1 t2 A B,
+    has_type_s_ln Γ t1 (t_Pi A B) ->
+    has_type_c_ln Γ t2 A ->
+    has_type_s_ln Γ (t_App t1 t2) (open_ln B t2)
+
 (* naturals *)
 | ty_s_Nat : forall Γ,
     has_type_s_ln Γ t_Nat (t_Type 0)
@@ -525,11 +531,7 @@ Inductive has_type_s_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
       (open_rec_ln 0 n body) *)
 
 with has_type_c_ln : ctx_ln -> term_ln -> term_ln -> Prop :=
-(* application *)
-| ty_c_App : forall Γ t1 t2 A B,
-    has_type_c_ln Γ t1 (t_Pi A B) ->
-    has_type_c_ln Γ t2 A ->
-    has_type_c_ln Γ (t_App t1 t2) (open_ln B t2)
+
 (* checking subsumption via conversion *)
 | ty_c_conv : forall Γ t A B,
     has_type_s_ln Γ t A ->
@@ -917,19 +919,19 @@ Proof.
        apply H; try easy. 
      }
   7: { intros.
-       apply ty_c_App with (A := A).
-       - apply H; try easy.
-       - apply H0; try easy.
-     }
-  6: { intros.
        apply ty_s_Succ.
        apply H; try easy.
      }
-  5: { intros.
+  6: { intros.
        apply ty_s_Zero.
      }
-  4: { intros.
+  5: { intros.
        apply ty_s_Nat.
+     }
+  4: { intros.
+       apply ty_s_App with (A := A).
+       - apply H; try easy.
+       - apply H0; try easy.
      }
   3: { intros.
        apply ty_s_Pi with (L := (x::y::L)).
@@ -1061,18 +1063,18 @@ Proof.
        easy.
      }
   7: { intros.
-       apply ty_c_App with (A := A).
-       - apply H. easy.
-       - apply H0. easy.
-     }
-  6: { intros.
        apply ty_s_Succ. apply H. easy.
      }
-  5: { intros.
+  6: { intros.
        apply ty_s_Zero.
      }
-  4: { intros.
+  5: { intros.
        apply ty_s_Nat.
+     }
+  4: { intros.
+       apply ty_s_App with (A := A).
+       - apply H. easy.
+       - apply H0. easy.
      }
   3: { intros.
        apply ty_s_Pi with (i := i) (L := x::L++(map fst Γ)).
@@ -1961,7 +1963,7 @@ Lemma env_subst_mutual :
      forall x v,
        ~ In x (map fst Γ) ->
        lc_ln v ->
-       has_type_c_ln
+       has_type_s_ln
          (subst_ctx x v Γ)
          (subst_ln x v t)
          (subst_ln x v T))
@@ -1983,7 +1985,7 @@ Proof.
           forall x v,
             ~ In x (map fst Γ) ->
             lc_ln v ->
-            has_type_c_ln
+            has_type_s_ln
               (subst_ctx x v Γ)
               (subst_ln x v t)
               (subst_ln x v T))
@@ -2099,7 +2101,7 @@ Proof.
          easy. easy.
      }
   8: { intros.
-       apply ty_c_conv2 with (A := (subst_ln x v A)).
+       apply ty_c_conv with (A := (subst_ln x v A)).
        - apply H; easy.
        - apply convertible_subst. easy. easy.
      }
@@ -2108,44 +2110,44 @@ Proof.
        + rewrite String.eqb_eq in H1. subst.
          apply lookup_not_in in e. easy. easy.
        + simpl. rewrite H1.
-         apply ty_c_conv with (A := (subst_ln x0 v T)).
+(*          apply ty_c_conv with (A := (subst_ln x0 v T)). *)
          apply ty_s_var.
          rewrite ctx_subst_some with (T := T). easy. 
          apply String.eqb_neq in H1. easy.
          easy.
-         apply convertible_refl.
+(*          apply convertible_refl. *)
      }
   6: { intros.
+(*        apply ty_c_conv with (A :=  (subst_ln x v t_Nat)). *)
+       simpl. apply ty_s_Succ.
+       apply H; easy.
+(*        apply convertible_refl. *)
+     }
+  5: { intros. simpl.
+(*        apply ty_c_conv with (A := t_Nat). *)
+       apply ty_s_Zero.
+(*        apply convertible_refl. *)
+     }
+  4: { intros. simpl.
+(*        apply ty_c_conv with (A := ((t_Type 0))). *)
+       apply ty_s_Nat.
+(*        apply convertible_refl. *)
+     }
+  3: { intros.
        simpl.
        unfold open_ln.
        rewrite open_subst_commute.
-       apply ty_c_App with (A := (subst_ln x v A)); try easy.
+(*        apply ty_c_conv with (A := (open_rec_ln 0 (subst_ln x v t2) (subst_ln x v B))). *)
+       apply ty_s_App with (A := (subst_ln x v A)); try easy.
        - specialize(H x v H1 H2).
          simpl in H.
          apply H.
        - apply H0; easy.
        - easy.
     }
-  5: { intros.
-       apply ty_c_conv with (A :=  (subst_ln x v t_Nat)).
-       simpl. apply ty_s_Succ.
-       apply H; easy.
-       apply convertible_refl.
-     }
-  4: { intros. simpl.
-       apply ty_c_conv with (A := t_Nat).
-       apply ty_s_Zero.
-       apply convertible_refl.
-     }
-  3: { intros. simpl.
-       apply ty_c_conv with (A := ((t_Type 0))).
-       apply ty_s_Nat.
-       apply convertible_refl.
-     }
-
  2: { intros.
       simpl.
-      apply ty_c_conv with (A := (t_Type (Nat.max i j))).
+(*       apply ty_c_conv with (A := (t_Type (Nat.max i j))). *)
       apply ty_s_Pi with (i := i) (L :=x::L).
       - simpl in H. apply H; easy.
       - intros.
@@ -2165,12 +2167,12 @@ Proof.
           apply H3. simpl. left. easy. }
         rewrite H7 in H0.
         apply H0. easy.
-      - apply convertible_refl.
+(*       - apply convertible_refl. *)
      }
   1: { intros.
-       apply ty_c_conv with (A := (subst_ln x v (t_Type (S i)))).
+(*        apply ty_c_conv with (A := (subst_ln x v (t_Type (S i)))). *)
        simpl. apply ty_s_Type.
-       apply convertible_refl.
+(*        apply convertible_refl. *)
      }
 Admitted.
 
@@ -2179,7 +2181,7 @@ Lemma env_subst_s :
     ~ In x (map fst Γ) ->
     lc_ln v ->
     has_type_s_ln Γ t T ->
-    has_type_c_ln
+    has_type_s_ln
       (subst_ctx x v Γ)
       (subst_ln x v t)
       (subst_ln x v T).
@@ -2320,18 +2322,17 @@ Proof.
  8: { intros.
        apply H; easy.
      }
- 7: { intros. simpl in H1. 
+ 7: { intros.
+      simpl in H0.
+      apply H; easy.
+    }
+ 6: { intros. simpl in H. easy. }
+ 5: { intros. simpl in H. easy. }
+ 4: { intros. simpl in H1. 
       apply in_app_iff in H1.
       destruct H1. apply H. easy.
       apply H0. easy.
     }
- 6: { intros.
-      simpl in H0.
-      apply H; easy.
-    }
- 5: { intros. simpl in H. easy. }
- 4: { intros. simpl in H. easy. }
-
  3: { intros.
       simpl in H1.
       apply in_app_iff in H1.
@@ -2866,9 +2867,9 @@ Theorem substitution_general_mutual :
        Γ = ΓL ++ (x, A) :: ΓR ->
        NoDup (map fst (ΓL ++ ΓR)) ->
        ~ In x (map fst (ΓL ++ ΓR)) ->
-       has_type_c_ln ΓR v A ->
+       has_type_s_ln ΓR v A ->
        lc_ln v ->
-       has_type_c_ln
+       has_type_s_ln
          (subst_ctx x v (ΓL ++ ΓR))
          (subst_ln x v t)
          (subst_ln x v B))
@@ -2879,7 +2880,7 @@ Theorem substitution_general_mutual :
        Γ = ΓL ++ (x, A) :: ΓR ->
        NoDup (map fst (ΓL ++ ΓR)) ->
        ~ In x (map fst (ΓL ++ ΓR)) ->
-       has_type_c_ln ΓR v A ->
+       has_type_s_ln ΓR v A ->
        lc_ln v ->
        has_type_c_ln
          (subst_ctx x v (ΓL ++ ΓR))
@@ -2894,9 +2895,9 @@ Proof.
             Γ = ΓL ++ (x, A) :: ΓR ->
             NoDup (map fst (ΓL ++ ΓR)) ->
             ~ In x (map fst (ΓL ++ ΓR)) ->
-            has_type_c_ln ΓR v A ->
+            has_type_s_ln ΓR v A ->
             lc_ln v ->
-            has_type_c_ln
+            has_type_s_ln
               (subst_ctx x v (ΓL ++ ΓR))
               (subst_ln x v t)
               (subst_ln x v B))
@@ -2906,7 +2907,7 @@ Proof.
             Γ = ΓL ++ (x, A) :: ΓR ->
             NoDup (map fst (ΓL ++ ΓR)) ->
             ~ In x (map fst (ΓL ++ ΓR)) ->
-            has_type_c_ln ΓR v A ->
+            has_type_s_ln ΓR v A ->
             lc_ln v ->
             has_type_c_ln
               (subst_ctx x v (ΓL ++ ΓR))
@@ -3088,42 +3089,43 @@ Proof.
         apply H0. easy. easy. easy. easy. easy.
      }
   8: { intros.
-       subst. apply ty_c_conv2 with (A := (subst_ln x v A)).
+       subst. apply ty_c_conv with (A := (subst_ln x v A)).
        apply H with (A := A0). easy. easy. easy. 
        easy. easy.
        apply convertible_subst. easy. easy.
      }
   7: { intros.
+       simpl.
+(*        apply ty_c_conv with (A := t_Nat).  *)
+       apply ty_s_Succ. simpl in H. 
+       apply H with (A := A); easy.
+(*        apply convertible_refl.  *)
+     }
+  6: { intros.
+       simpl.
+(*        apply ty_c_conv with (A := t_Nat).  *)
+       apply ty_s_Zero.
+(*        apply convertible_refl.  *)
+     }
+  5: { intros.
+       simpl.
+(*        apply ty_c_conv with (A := (t_Type 0)).  *)
+       apply ty_s_Nat.
+(*        apply convertible_refl.  *)
+     }
+  4: { intros.
        simpl. unfold open_ln.
        rewrite open_subst_commute.
-       apply ty_c_App with (A := (subst_ln x v A)).
+(*        apply ty_c_conv with (A := (open_rec_ln 0 (subst_ln x v t2) (subst_ln x v B))).  *)
+       apply ty_s_App with (A := (subst_ln x v A)).
        - specialize(H ΓL ΓR x A0 v).
          simpl in H.
          apply H; easy.
        - apply H0 with (A := A0); easy.
        - easy.
      }
-  6: { intros.
-       simpl.
-       apply ty_c_conv with (A := t_Nat). 
-       apply ty_s_Succ. simpl in H. 
-       apply H with (A := A); easy.
-       apply convertible_refl. 
-     }
-  5: { intros.
-       simpl.
-       apply ty_c_conv with (A := t_Nat). 
-       apply ty_s_Zero.
-       apply convertible_refl. 
-     }
-  4: { intros.
-       simpl.
-       apply ty_c_conv with (A := (t_Type 0)). 
-       apply ty_s_Nat.
-       apply convertible_refl. 
-     }
   3: { intros.
-       apply ty_c_conv with (A := (subst_ln x v (t_Type (Nat.max i j)))). 
+(*        apply ty_c_conv with (A := (subst_ln x v (t_Type (Nat.max i j)))).  *)
        apply ty_s_Pi with (i := i) (L := x::L++(map fst (ΓL ++ ΓR))).
        - fold subst_ln.
          simpl in H. apply H with (A := A0); easy.
@@ -3163,12 +3165,12 @@ Proof.
         rewrite open_subst_commute in H0. simpl in H0.
         rewrite H1 in H0. simpl in H0.
         apply H0. easy.
-      - apply convertible_refl.
+(*       - apply convertible_refl. *)
      }
   2: { intros.
-       apply ty_c_conv with (A := (subst_ln x v (t_Type (S i)))).
+(*        apply ty_c_conv with (A := (subst_ln x v (t_Type (S i)))). *)
        simpl. apply ty_s_Type.
-       apply convertible_refl.
+(*        apply convertible_refl. *)
      }
   1: { intros.
        subst. simpl. 
@@ -3181,15 +3183,15 @@ Proof.
           subst.
           assert((subst_ctx x v (ΓL ++ ΓR)) = (subst_ctx x v ΓL ++ subst_ctx x v ΓR)) by apply subst_ctx_app_or.
           rewrite H. clear H.
-          apply weakening_ctx_c. 
+          apply weakening_ctx_s. 
           assert((subst_ln x v v) = v).
-          { apply subst_ln_id_from_typing_c with (ΓR := ΓR) (A := A); try easy.
+          { apply subst_ln_id_from_typing_s with (ΓR := ΓR) (A := A); try easy.
             unfold not. intros. apply H1.
             rewrite map_app.
             apply in_app_iff. right. easy.
           }
           rewrite <- H at 2.
-          apply env_subst_c; try easy.
+          apply env_subst_s; try easy.
           { unfold not. intros. apply H1.
             rewrite map_app.
             apply in_app_iff. right. easy.
@@ -3203,7 +3205,7 @@ Proof.
           rewrite map_app in H0.
           easy.
           easy.
-        - apply ty_c_conv with (A :=  (subst_ln x0 v T)).
+        - (* apply ty_c_conv with (A :=  (subst_ln x0 v T)). *)
           apply ty_s_var. simpl.
           assert(lookup_ln (ΓL ++ ΓR) x = Some T).
           { apply in_map_neq with (x0 := x0) (A := A); try easy.
@@ -3211,7 +3213,7 @@ Proof.
           }
           rewrite ctx_subst_some with (T := T). easy.
           apply String.eqb_neq in H. easy. easy.
-          apply convertible_refl.
+(*           apply convertible_refl. *)
     }
 Qed.
 
@@ -3220,9 +3222,9 @@ Lemma substitution_general_s :
     NoDup (map fst (ΓL ++ ΓR)) ->
     ~ In x (map fst (ΓL ++ ΓR)) ->
     has_type_s_ln (ΓL ++ (x, A) :: ΓR) t B ->
-    has_type_c_ln ΓR v A ->
+    has_type_s_ln ΓR v A ->
     lc_ln v ->
-    has_type_c_ln
+    has_type_s_ln
       (subst_ctx x v (ΓL ++ ΓR))
       (subst_ln x v t)
       (subst_ln x v B).
@@ -3237,7 +3239,7 @@ Lemma substitution_general_c :
     NoDup (map fst (ΓL ++ ΓR)) ->
     ~ In x (map fst (ΓL ++ ΓR)) ->
     has_type_c_ln (ΓL ++ (x, A) :: ΓR) t B ->
-    has_type_c_ln ΓR v A ->
+    has_type_s_ln ΓR v A ->
     lc_ln v ->
     has_type_c_ln
       (subst_ctx x v (ΓL ++ ΓR))
@@ -3254,10 +3256,10 @@ Corollary substitution_head_s :
     NoDup (map fst Γ) ->
     ~ In x (map fst Γ) ->
     lc_ln v ->
-    has_type_c_ln Γ v A ->
-    has_type_c_ln ((x, A) :: Γ) t B ->
-    has_type_c_ln (subst_ctx x v Γ) (subst_ln x v t) (subst_ln x v B).
-Proof. intros. specialize (substitution_general_c []); intro HH.
+    has_type_s_ln Γ v A ->
+    has_type_s_ln ((x, A) :: Γ) t B ->
+    has_type_s_ln (subst_ctx x v Γ) (subst_ln x v t) (subst_ln x v B).
+Proof. intros. specialize (substitution_general_s []); intro HH.
        simpl in HH.
        apply HH with (A := A); easy.
 Qed.
@@ -3267,7 +3269,7 @@ Corollary substitution_head_c :
     NoDup (map fst Γ) ->
     ~ In x (map fst Γ) ->
     lc_ln v ->
-    has_type_c_ln Γ v A ->
+    has_type_s_ln Γ v A ->
     has_type_c_ln ((x, A) :: Γ) t B ->
     has_type_c_ln (subst_ctx x v Γ) (subst_ln x v t) (subst_ln x v B).
 Proof. intros. specialize (substitution_general_c []); intro HH.
@@ -3970,7 +3972,7 @@ Lemma app_inversion_mutual :
      forall t1 t2,
        t = t_App t1 t2 ->
        exists A B,
-         has_type_c_ln Γ t1 (t_Pi A B) /\
+         has_type_s_ln Γ t1 (t_Pi A B) /\
          has_type_c_ln Γ t2 A /\
          T = open_ln B t2)
   /\
@@ -3979,7 +3981,7 @@ Lemma app_inversion_mutual :
      forall t1 t2,
        t = t_App t1 t2 ->
        exists A B,
-         has_type_c_ln Γ t1 (t_Pi A B) /\
+         has_type_s_ln Γ t1 (t_Pi A B) /\
          has_type_c_ln Γ t2 A /\
          convertible_ln (open_ln B t2) T).
 Proof. apply has_type_ln_mutind; intros; try easy.
@@ -3994,8 +3996,8 @@ Proof. apply has_type_ln_mutind; intros; try easy.
            exists A, B.
            
            split. easy. 
-           split. easy.
-           apply convertible_refl.
+           split. easy. easy.
+(*            apply convertible_refl. *)
          }
        1:{ subst.
            specialize(H t1 t2 eq_refl).
@@ -4011,7 +4013,7 @@ Lemma app_inversion_s :
   forall Γ t1 t2 T,
     has_type_s_ln Γ (t_App t1 t2) T ->
     exists A B,
-      has_type_c_ln Γ t1 (t_Pi A B) /\
+      has_type_s_ln Γ t1 (t_Pi A B) /\
       has_type_c_ln Γ t2 A /\
       T = open_ln B t2.
 Proof.
@@ -4025,7 +4027,7 @@ Lemma app_inversion_c :
   forall Γ t1 t2 T,
     has_type_c_ln Γ (t_App t1 t2) T ->
     exists A B,
-      has_type_c_ln Γ t1 (t_Pi A B) /\
+      has_type_s_ln Γ t1 (t_Pi A B) /\
       has_type_c_ln Γ t2 A /\
       convertible_ln (open_ln B t2) T.
 Proof.
@@ -4458,7 +4460,6 @@ Proof. intro G.
          rewrite in_app_iff. right. easy.
 Qed.
 
-
 Lemma open_open_comm: forall b u n k,
   lc_rec_ln (S k) b ->
   lc_rec_ln k n ->
@@ -4514,7 +4515,7 @@ Lemma instantiate_one_binder_c :
          (open_ln B (t_fvar x))) ->
     lc_ln v ->
     (* value in synthesis mode *)
-    has_type_c_ln Γ v A0 ->
+    has_type_s_ln Γ v A0 ->
     has_type_c_ln Γ (open_ln b v) (open_ln B v).
 Proof. intros.
        specialize(exists_fresh_not_in_list (L++(map fst Γ)++(fv_ln b)++(fv_ln B)++fv_ctx Γ) ""); intros.
@@ -4586,8 +4587,8 @@ Lemma instantiate_two_binders_strong_c :
     (* arguments *)
     lc_ln v1 ->
     lc_ln v2 ->
-    has_type_c_ln Γ v1 t_Nat ->
-    has_type_c_ln Γ v2 (open_rec_ln 0 v1 body) ->
+    has_type_s_ln Γ v1 t_Nat ->
+    has_type_s_ln Γ v2 (open_rec_ln 0 v1 body) ->
 
     (* conclusion *)
     has_type_c_ln Γ
@@ -4684,7 +4685,7 @@ Proof. intros.
        setoid_rewrite subst_ln_notin_fv in HH at 1.
        rewrite context_id in HH.
        apply HH.
-       apply weakening_fresh_c. easy. easy.
+       apply weakening_fresh_s. easy. easy.
        assert(has_type_c_ln ((y, open_rec_ln 0 (t_fvar x) body) :: (x, t_Nat) :: Γ)
               (open_rec_ln 0 (t_fvar y) (open_rec_ln 1 (t_fvar x) sbody)) (open_rec_ln 0 (t_Succ (t_fvar x)) body)).
        { apply H0. 
@@ -4912,7 +4913,7 @@ Lemma context_conversion_general_mutual :
        Γ = ΓL ++ (x, A) :: ΓR ->
        ~ In x (map fst (ΓL ++ ΓR)) ->
        convertible_ln A A' ->
-       has_type_c_ln (ΓL ++ ΓR) A' (t_Type i) ->
+       has_type_s_ln (ΓL ++ ΓR) A' (t_Type i) ->
        has_type_c_ln
          (ΓL ++ (x, A') :: ΓR)
          t
@@ -4927,13 +4928,20 @@ Lemma context_conversion_general_mutual :
        Γ = ΓL ++ (x, A) :: ΓR ->
        ~ In x (map fst (ΓL ++ ΓR)) ->
        convertible_ln A A' ->
-       has_type_c_ln (ΓL ++ ΓR) A' (t_Type i) ->
+       has_type_s_ln (ΓL ++ ΓR) A' (t_Type i) ->
        has_type_c_ln
          (ΓL ++ (x, A') :: ΓR)
          t
          T).
 Proof. apply has_type_ln_mutind; intros; try easy.
-       11:{
+       4:{
+       apply ty_c_conv with (A := (open_ln B t2)); try easy.
+       apply ty_s_App with (A := A). 
+       apply H with (A := A0) (i := i). subst. easy.
+       easy. easy. easy.
+       apply H0 with (A := A0) (i := i); try easy.
+       }
+       10:{
        apply ty_c_conv2 with (A := A); try easy.
        apply H with (A := A0) (i := i); easy.
        }
@@ -4956,13 +4964,7 @@ Proof. apply has_type_ln_mutind; intros; try easy.
          apply String.eqb_neq in H. easy.
          apply convertible_refl.
        }
-       6:{
-       apply ty_c_App with (A := A). 
-       apply H with (A := A0) (i := i). subst. easy.
-       easy. easy. easy.
-       apply H0 with (A := A0) (i := i); easy.
-       }
-    8: { subst.
+    9: { subst.
             apply ty_c_NatRec_strong with (k := k) (L := L); try easy.
             - apply H with (A := A) (i := i); easy.
             - intros.
@@ -5045,7 +5047,7 @@ Proof. apply has_type_ln_mutind; intros; try easy.
               right. right. easy. easy.
             - apply H4 with (A := A) (i := i); easy.
           }
-       7:{ apply ty_c_Lam with (i := i) (L := L++(map fst Γ)).
+       8:{ apply ty_c_Lam with (i := i) (L := L++(map fst Γ)).
             - apply H with (A := A0) (i := i0); try easy.
             - intros.
               subst.
@@ -5086,9 +5088,11 @@ Proof. apply has_type_ln_mutind; intros; try easy.
               apply in_app_iff. right. right. easy.
               easy.
           }
-       2: { apply ty_c_conv with (A:= (t_Type (Nat.max i j))).
-           apply ty_s_Pi with (i := i) (L := L++(map fst Γ)).
+       2: {  apply ty_c_conv with (A:= (t_Type (Nat.max i j))). 
+              apply ty_s_Pi with (i := i) (L := L++(map fst Γ)).
             - apply H with (A := A0) (i := i0); try easy.
+              apply ty_c_conv with (A :=  (t_Type i0)). easy.
+              apply convertible_refl.
             - intros.
               subst.
               assert(HN0: ~ In x0 L).
@@ -5126,9 +5130,17 @@ Proof. apply has_type_ln_mutind; intros; try easy.
               destruct H1. 
               apply in_app_iff. left. easy.
               apply in_app_iff. right. right. easy.
-              easy.
+              apply ty_c_conv with (A :=  (t_Type i0)). easy.
+              apply convertible_refl.
            - apply convertible_refl.  
           }
+       2:{
+       apply ty_c_conv with (A := (open_ln B t2)); try easy.
+       apply ty_s_App with (A := A). 
+       apply H with (A := A0) (i := i). subst. easy.
+       easy. easy. easy.
+       apply H0 with (A := A0) (i := i); easy.
+       }
        5: {
           apply ty_c_conv2 with (A := A); try easy.
           apply H with (A := A0) (i := i); easy.
