@@ -5778,7 +5778,11 @@ Proof. intros.
        easy.
        apply rst_sym. easy.
        simpl.
-       admit.
+       constructor.
+       unfold not. intros.
+       simpl in H5. destruct H5. subst. easy.
+       easy.
+       constructor. easy. easy.
        easy.
        apply rst_sym. easy.
        apply rst_sym. easy.
@@ -5810,20 +5814,23 @@ Proof. intros.
        apply ty_App with (A := A1). easy. easy.
        apply rst_sym. easy.
        simpl.
-       admit.
+       constructor. easy. easy.
        apply ty_conv with (A := (t_App P t_Zero)). easy.
-       admit.
+       constructor. apply par_conv_app. easy. constructor.
        apply ty_conv with (A := (t_Pi t_Nat (t_Pi (t_App P (t_bvar 0)) (t_App P (t_Succ (t_bvar 1)))))).
        easy.
-       admit.
+       constructor. apply par_conv_pi. constructor.
+       apply par_conv_pi. apply par_conv_app. easy. constructor.
+       apply par_conv_app. easy. constructor.
        intros.
        apply ty_conv with (A := (t_App P (t_Succ (t_fvar x)))).
        specialize(context_conversion_general []); intro HH.
        simpl in HH.
        apply HH with (A := (t_App P (t_fvar x))) (i := k).
-       simpl.
-       admit.
-       admit.
+       simpl. unfold not. intros.
+       destruct H5. subst. easy.
+       easy.
+       constructor. apply par_conv_app. easy. constructor.
        specialize(Hb x H1 H3).
        apply app_inversion in Hb.
        destruct Hb as (A1,(B1,(Hb,(Hl,Hm)))).
@@ -5831,9 +5838,10 @@ Proof. intros.
        apply ty_conv with (A := (open_ln B1 (t_fvar x))).
        apply ty_App with (A := A1). easy. easy.
        apply rst_sym. easy.
-       admit.
+       simpl.
+       constructor. easy. easy.
        apply He; easy.
-       admit.
+       constructor. apply par_conv_app. easy. constructor.
        apply rst_trans with (y := (t_App P n)); try easy.
        apply rst_sym.
        constructor.
