@@ -505,20 +505,20 @@ Inductive conv_step_n_ln : term_ln -> term_ln -> Prop :=
       conv_step_n_ln A A' ->
       conv_step_n_ln (t_Lam A b) (t_Lam A' b)
 
-| conv_lam_b :
+(* | conv_lam_b :
     forall A b b',
       conv_step_n_ln b b' ->
-      conv_step_n_ln (t_Lam A b) (t_Lam A b')
+      conv_step_n_ln (t_Lam A b) (t_Lam A b') *)
 
-| conv_pi_A :
+(* | conv_pi_A :
     forall A A' B,
       conv_step_n_ln A A' ->
-      conv_step_n_ln (t_Pi A B) (t_Pi A' B)
+      conv_step_n_ln (t_Pi A B) (t_Pi A' B) *)
 
-| conv_pi_B :
+(* | conv_pi_B :
     forall A B B',
       conv_step_n_ln B B' ->
-      conv_step_n_ln (t_Pi A B) (t_Pi A B')
+      conv_step_n_ln (t_Pi A B) (t_Pi A B') *)
 
 | conv_app_l :
     forall t1 t1' t2,
@@ -1777,18 +1777,18 @@ Proof.
    simpl.
    apply conv_lam_A.
    apply IHHconv; easy.
- - intros.
+(*  - intros.
    simpl.
    apply conv_lam_b.
-   apply IHHconv; easy.
- - intros.
+   apply IHHconv; easy. *)
+(*  - intros.
    simpl.
    apply conv_pi_A.
-   apply IHHconv; easy.
- - intros.
+   apply IHHconv; easy. *)
+(*  - intros.
    simpl.
    apply conv_pi_B.
-   apply IHHconv; easy.
+   apply IHHconv; easy. *)
  - intros.
    simpl.
    apply conv_app_l.
@@ -5640,12 +5640,12 @@ Proof.
     apply par_conv_beta; assumption.
   - (* lam A *)
     apply par_conv_lam; [assumption | apply par_conv_refl].
-  - (* lam b *)
-    apply par_conv_lam; [apply par_conv_refl | assumption].
-  - (* pi A *)
-    apply par_conv_pi; [assumption | apply par_conv_refl].
-  - (* pi B *)
-    apply par_conv_pi; [apply par_conv_refl | assumption].
+(*   - (* lam b *)
+    apply par_conv_lam; [apply par_conv_refl | assumption]. *)
+(*   - (* pi A *)
+    apply par_conv_pi; [assumption | apply par_conv_refl].  *)
+(*   - (* pi B *)
+    apply par_conv_pi; [apply par_conv_refl | assumption].  *)
   - (* app l *)
     apply par_conv_app; [assumption | apply par_conv_refl].
   - (* app r *)
@@ -5740,5 +5740,157 @@ Proof. intros.
          constructor. constructor. easy.
          apply rst_sym. easy.
      }
+  8:{ intros.
+       apply natrec_inversion_app in H.
+       destruct H as (k,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hh,(Hi,(Hj,Hk)))))))))))).
+       apply ty_conv with (A := (t_App P n')).
+       apply ty_NatRec_strong with (k := k) (L := L); try easy.
+       apply conv_step_to_par in H0.
+       apply par_conv_preserves_lc with (t := n). easy. easy.
+       apply IHconv_step_n_ln; easy.
+       apply conv_step_to_par in H0.
+       apply rst_trans with (y := (t_App P n)); try easy.
+       apply rst_sym.
+       constructor.
+       apply par_conv_app.
+       constructor.  easy.
+       apply rst_sym. easy.
+     }
+  7:{ intros.
+       apply conv_step_to_par in H0.
+       apply natrec_inversion_app in H.
+       destruct H as (k,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hh,(Hi,(Hj,Hk)))))))))))).
+       apply ty_conv with (A := (t_App P n)).
+       apply ty_NatRec_strong with (k := k) (L := L); try easy.
+       apply par_conv_preserves_lc with (t := s). easy. easy.
+       apply IHconv_step_n_ln; easy.
+       intros.
+       specialize(He x y H H1 H2 H3 H4).
+       apply app_inversion in He.
+       destruct He as (A,(B,(He,(Hl,Hm)))).
+       apply ty_conv with ((open_ln B (t_fvar y))).
+       apply ty_App with (A := A).
+       apply app_inversion in He.
+       destruct He as (A1,(B1,(He,(Hn,Ho)))).
+       apply IHconv_step_n_ln in He.
+       apply ty_conv with (A := (open_ln B1 (t_fvar x))).
+       apply ty_App with (A := A1). easy.
+       easy.
+       apply rst_sym. easy.
+       simpl.
+       admit.
+       easy.
+       apply rst_sym. easy.
+       apply rst_sym. easy.
+     }
+  6: { intros.
+       apply conv_step_to_par in H0.
+       apply natrec_inversion_app in H.
+       destruct H as (k,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hh,(Hi,(Hj,Hk)))))))))))).
+       apply ty_conv with (A := (t_App P n)).
+       apply ty_NatRec_strong with (k := k) (L := L); try easy.
+       apply par_conv_preserves_lc with (t := z). easy. easy.
+       apply IHconv_step_n_ln; easy.
+       apply rst_sym. easy.
+     }
+  5: { intros.
+       apply conv_step_to_par in H0.
+       apply natrec_inversion_app in H.
+       destruct H as (k,(L,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hh,(Hi,(Hj,Hk)))))))))))).
+       apply ty_conv with (A := (t_App P' n)).
+       apply ty_NatRec_strong with (k := k) (L := L); try easy.
+       apply par_conv_preserves_lc with (t := P). easy. easy.
+       apply IHconv_step_n_ln; easy.
+       intros.
+       specialize(Hb x H H1).
+       apply app_inversion in Hb.
+       destruct Hb as (A1,(B1,(Hb,(Hl,Hm)))).
+       apply IHconv_step_n_ln in Hb.
+       apply ty_conv with (A := (open_ln B1 (t_fvar x))).
+       apply ty_App with (A := A1). easy. easy.
+       apply rst_sym. easy.
+       simpl.
+       admit.
+       apply ty_conv with (A := (t_App P t_Zero)). easy.
+       admit.
+       apply ty_conv with (A := (t_Pi t_Nat (t_Pi (t_App P (t_bvar 0)) (t_App P (t_Succ (t_bvar 1)))))).
+       easy.
+       admit.
+       intros.
+       apply ty_conv with (A := (t_App P (t_Succ (t_fvar x)))).
+       specialize(context_conversion_general []); intro HH.
+       simpl in HH.
+       apply HH with (A := (t_App P (t_fvar x))) (i := k).
+       simpl.
+       admit.
+       admit.
+       specialize(Hb x H1 H3).
+       apply app_inversion in Hb.
+       destruct Hb as (A1,(B1,(Hb,(Hl,Hm)))).
+       apply IHconv_step_n_ln in Hb.
+       apply ty_conv with (A := (open_ln B1 (t_fvar x))).
+       apply ty_App with (A := A1). easy. easy.
+       apply rst_sym. easy.
+       admit.
+       apply He; easy.
+       admit.
+       apply rst_trans with (y := (t_App P n)); try easy.
+       apply rst_sym.
+       constructor.
+       apply par_conv_app.
+       easy. constructor.
+       apply rst_sym. easy.
+    }
+  3:{ intros.
+      apply conv_step_to_par in H0.
+      apply app_inversion in H.
+      destruct H as (A,(B,(Ha,(Hb,Hc)))).
+      apply ty_conv with (A := (open_ln B t2')).
+      apply ty_App with (A := A).
+      easy.
+      apply IHconv_step_n_ln; easy.
+      apply rst_trans with (y := (open_ln B t2)); try easy.
+      apply rst_sym.
+       unfold open_ln.
+      apply convertible_n_par_ln_monotone_u.
+      constructor. easy.
+      apply rst_sym. easy.
+    }
+  1:{ intros.
+      apply conv_step_to_par in H0.
+      apply lam_inversion in H.
+      destruct H as (i,(B,(L,(Ha,(Hb,Hc))))).
+      apply ty_conv with (A := (t_Pi A' B)).
+      apply ty_Lam with (i := i) (L := L); try easy.
+      apply IHconv_step_n_ln; easy.
+      intros.
+      specialize(context_conversion_general []); intro HH.
+      simpl in HH.
+      apply HH with (A := A) (i := i); try easy.
+      constructor. easy.
+      apply IHconv_step_n_ln; easy.
+      apply Hb; easy.
+      apply rst_trans with (y := (t_Pi A B)); try easy.
+      apply rst_sym.
+      constructor. apply par_conv_pi. easy. constructor.
+      apply rst_sym. easy.
+    }
+  1:{ intros.
+      apply conv_step_to_par in H0.
+      apply app_inversion in H.
+      destruct H as (A,(B,(Ha,(Hb,Hc)))).
+      apply ty_conv with (A := (open_ln B t2)).
+      apply ty_App with (A := A).
+      apply IHconv_step_n_ln; easy.
+      easy.
+      apply rst_sym. easy.
+    }
+  1:{ intros.
+      apply succ_inversion in H.
+      apply ty_conv with (A := t_Nat).
+      apply ty_Succ.
+      apply IHconv_step_n_ln; easy.
+      apply rst_sym. easy.
+    }
 Admitted.
 
