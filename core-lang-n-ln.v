@@ -5662,6 +5662,84 @@ Proof.
     apply par_conv_natrec; [apply par_conv_refl | apply par_conv_refl | apply par_conv_refl | assumption].
 Qed.
 
+Lemma par_conv_pi_shape :
+  forall A B u,
+    par_conv_n_ln (t_Pi A B) u ->
+    exists A' B',
+      u = t_Pi A' B'.
+Admitted.
+
+Definition par_star :=
+  clos_refl_trans term_ln par_conv_n_ln.
+
+Lemma par_strip :
+  forall t u v,
+    par_conv_n_ln t u ->
+    par_star t v ->
+    exists w,
+      par_star u w /\
+      par_conv_n_ln v w.
+Proof. intros.
+       revert u H.
+       induction H0; intros.
+       - apply par_conv_diamond with (u := u) in H; try easy.
+         destruct H as (w,(H,Hb)).
+         exists w. split. constructor; easy. easy. 
+       - exists u.
+         split. apply rt_refl. easy.
+       - apply IHclos_refl_trans1 in H.
+         destruct H as (w,(Ha,Hb)).
+         apply IHclos_refl_trans2 in Hb.
+         destruct Hb as (w2,(Hb,Hc)).
+         exists w2.
+         split. apply rt_trans with (y := w); easy.
+         easy.
+Qed.
+
+Lemma par_star_confluent :
+  forall t u v,
+    par_star t u ->
+    par_star t v ->
+    exists w,
+      par_star u w /\ par_star v w.
+Proof. intros.
+       revert v H0.
+       induction H; intros.
+       - apply par_strip with (v := v) in H; try easy.
+         destruct H as (w,(Ha,Hb)).
+         exists w. split. easy. constructor. easy.
+       - exists v. split. easy. apply rt_refl.
+       - assert( clos_refl_trans term_ln par_conv_n_ln x z).
+         apply rt_trans with (y := y); easy.
+         destruct (IHclos_refl_trans1 v H1) as [w1 [Hyw1 Hvw1]].
+         destruct (IHclos_refl_trans2 w1 Hyw1) as [w [Hzw Hw1w]].
+         exists w.
+         split. easy.
+         apply rt_trans with (y := w1); easy.
+Qed.
+
+Lemma convertible_common :
+  forall t u,
+    convertible_n_par_ln t u ->
+    exists w,
+      par_star t w /\
+      par_star u w.
+Proof. intros.
+       induction H; intros.
+       - exists y. split. constructor. easy. constructor. apply par_conv_refl.
+       - exists x. split. constructor. apply par_conv_refl. constructor. apply par_conv_refl.
+       - destruct IHclos_refl_sym_trans as (w,(Ha,Hb)).
+         exists w. easy.
+       - destruct IHclos_refl_sym_trans1 as (w1,(Ha,Hb)).
+         destruct IHclos_refl_sym_trans2 as (w2,(Hc,Hd)).
+         specialize(par_star_confluent _ _ _ Hb Hc) as HH.
+         destruct HH as (w3,(He,Hf)).
+         exists w3.
+         split.
+         apply rt_trans with (y := w1); easy.
+         apply rt_trans with (y := w2); easy.
+Qed.
+
 Theorem preservation :
   forall Γ t t' T (ND: NoDup (map fst Γ)),
     has_type_ln Γ t T ->
