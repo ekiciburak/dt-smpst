@@ -5740,6 +5740,77 @@ Proof. intros.
          apply rt_trans with (y := w2); easy.
 Qed.
 
+Lemma par_star_pi_shape :
+  forall A B w,
+    par_star (t_Pi A B) w ->
+    exists A' B',
+      w = t_Pi A' B'.
+Admitted.
+
+Lemma par_star_pi_inv :
+  forall A B A' B',
+    par_star (t_Pi A B) (t_Pi A' B') ->
+    par_star A A' /\
+    par_star B B'.
+Admitted.
+
+Lemma star_to_convertible :
+  forall t u,
+    par_star t u ->
+    convertible_n_par_ln t u.
+Proof.
+  intros t u H.
+  induction H.
+  - constructor. easy. (* rst_refl *)
+  - apply rst_refl.
+  - apply rst_trans with (y := y); easy.
+Qed.
+
+Lemma pi_injective :
+  forall A1 B1 A2 B2,
+    convertible_n_par_ln (t_Pi A1 B1) (t_Pi A2 B2) ->
+    convertible_n_par_ln A1 A2 /\
+    convertible_n_par_ln B1 B2.
+Proof.
+  intros A1 B1 A2 B2 Hconv.
+
+  destruct (convertible_common _ _ Hconv)
+    as [w [H1 H2]].
+
+  destruct (par_star_pi_shape _ _ _ H1)
+    as [A' [B' Hw1]].
+
+  destruct (par_star_pi_shape _ _ _ H2)
+    as [A'' [B'' Hw2]].
+
+  rewrite Hw1 in Hw2.
+  inversion Hw2; subst.
+
+  destruct (par_star_pi_inv _ _ _ _ H1)
+    as [HA1 HB1].
+
+  destruct (par_star_pi_inv _ _ _ _ H2)
+    as [HA2 HB2].
+
+  split.
+  - (* A1 ~ A2 *)
+    eapply rst_trans.
+    + apply star_to_convertible.
+      exact HA1.
+    + eapply rst_sym.
+      apply star_to_convertible.
+      exact HA2.
+
+  - (* B1 ~ B2 *)
+    eapply rst_trans.
+    + apply star_to_convertible.
+      exact HB1.
+    + eapply rst_sym.
+      apply star_to_convertible.
+      exact HB2.
+Qed.
+
+
 Theorem preservation :
   forall Γ t t' T (ND: NoDup (map fst Γ)),
     has_type_ln Γ t T ->
@@ -5761,8 +5832,10 @@ Proof. intros.
            apply ty_conv with (A := (open_ln B2 (t_fvar x))).
            apply Hd; try easy.
            apply rst_sym.
-           admit.
-           admit.
+           apply pi_injective in He.
+           apply convertible_n_par_ln_monotone_v. easy.
+           apply pi_injective in He.
+           apply ty_conv with (A := A1); easy.
            apply rst_sym. easy.
          + specialize(natrec_inversion_app Γ P z s t_Zero T H2); intro HH.
            destruct HH as (k,(L,(body,(Ha,(Hb,(Hc,(Hd,(He,(Hf,(Hg,(Hi,(Hj,Hk)))))))))))).
@@ -5978,5 +6051,5 @@ Proof. intros.
       apply IHconv_step_n_ln; easy.
       apply rst_sym. easy.
     }
-Admitted.
+Qed.
 
