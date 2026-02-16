@@ -5667,7 +5667,28 @@ Lemma par_conv_pi_shape :
     par_conv_n_ln (t_Pi A B) u ->
     exists A' B',
       u = t_Pi A' B'.
-Admitted.
+Proof. intros.
+       remember (t_Pi A B) as t.
+       revert A B Heqt.
+       induction H.
+       - intros. subst. exists A, B. easy.
+       - induction H.
+         + induction H; intros; try easy.
+         + revert t2 IHbeta_n_ln.
+           induction H; intros; try easy.
+         + revert v1 IHbeta_n_ln H.
+           induction H0; intros; try easy.
+         + revert IHbeta_n_ln.
+           induction H; intros; try easy.
+         + revert P z s IHbeta_n_ln.
+           induction H; easy.
+       - intros. easy.
+       - intros. inversion Heqt. subst.
+         exists A', B'. easy.
+       - intros. easy.
+       - intros. easy.
+       - intros. easy.
+Qed.
 
 Definition par_star :=
   clos_refl_trans term_ln par_conv_n_ln.
@@ -5745,14 +5766,47 @@ Lemma par_star_pi_shape :
     par_star (t_Pi A B) w ->
     exists A' B',
       w = t_Pi A' B'.
-Admitted.
+Proof. intros.
+       remember (t_Pi A B) as t.
+       revert A B Heqt.
+       induction H; intros.
+       - subst. apply par_conv_pi_shape in H.
+         easy.
+       - subst. exists A, B. easy.
+       - subst.
+         specialize(IHclos_refl_trans1 A B eq_refl).
+         destruct IHclos_refl_trans1 as (A1,(B1,Ha)).
+         apply IHclos_refl_trans2 in Ha.
+         easy.
+Qed.
 
 Lemma par_star_pi_inv :
   forall A B A' B',
     par_star (t_Pi A B) (t_Pi A' B') ->
     par_star A A' /\
     par_star B B'.
-Admitted.
+Proof. intros.
+       remember (t_Pi A B) as t.
+       remember (t_Pi A' B') as u.
+       revert A B A' B' Heqt Hequ.
+       induction H; intros.
+       - subst.
+         inversion H.
+         + subst. split. apply rt_refl. apply rt_refl.
+         + subst. inversion H0.
+           subst. inversion H1.
+         + subst. split. constructor. easy. constructor. easy.
+       - subst. inversion Hequ. subst.
+         split. apply rt_refl. apply rt_refl.
+       - subst.
+         apply par_star_pi_shape in H.
+         destruct H as (A1,(B1,H)).
+         specialize(IHclos_refl_trans1 A B A1 B1 eq_refl H).
+         specialize(IHclos_refl_trans2 A1 B1 A' B' H eq_refl).
+         split.
+         apply rt_trans with (y := A1); easy.
+         apply rt_trans with (y := B1); easy.
+Qed.
 
 Lemma star_to_convertible :
   forall t u,
