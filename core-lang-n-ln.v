@@ -5864,7 +5864,6 @@ Proof.
       exact HB2.
 Qed.
 
-
 Theorem preservation :
   forall Γ t t' T (ND: NoDup (map fst Γ)),
     has_type_ln Γ t T ->
