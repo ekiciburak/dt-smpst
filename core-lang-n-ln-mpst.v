@@ -42,7 +42,7 @@ Inductive term_ln : Type :=
 
   (* ---------------- Session Types ---------------- *)
 
-  | t_Session   : term_ln
+(*   | t_Session   : term_ln *)
   | t_End       : term_ln
 
   | t_SendTy    :
@@ -102,11 +102,7 @@ Inductive term_ln : Type :=
       string      (* peer *)
       -> term_ln  (* channel *)
       -> list (string * term_ln)  (* branches *)
-      -> term_ln
-.
-
-(*   | t_Data      : term_ln
-  | t_Payload   : term_ln. *)
+      -> term_ln.
 
 
 Fixpoint open_rec_ln (k : nat) (u : term_ln) (t : term_ln) : term_ln :=
@@ -153,15 +149,15 @@ Fixpoint open_rec_ln (k : nat) (u : term_ln) (t : term_ln) : term_ln :=
 
   (* ---------- session types ---------- *)
 
-  | t_Session =>
+(*   | t_Session =>
       t_Session
-
+ *)
   | t_End =>
       t_End
 
   | t_SendTy r A Se =>
       t_SendTy r (open_rec_ln k u A)
-                 (open_rec_ln k u Se)
+                 (open_rec_ln (S k) u Se)
 
   | t_RecvTy r A Se =>
       t_RecvTy r
@@ -219,8 +215,6 @@ Fixpoint open_rec_ln (k : nat) (u : term_ln) (t : term_ln) : term_ln :=
       (map (fun '(l,b) =>
               (l, open_rec_ln k u b))
            branches)
-(*   | t_Data    => t_Data
-  | t_Payload => t_Payload *)
   end.
 
 
@@ -270,20 +264,20 @@ Fixpoint close_rec_ln (k : nat) (x : string) (t : term_ln) : term_ln :=
 
   (* ---------- session types ---------- *)
 
-  | t_Session =>
+(*   | t_Session =>
       t_Session
-
+ *)
   | t_End =>
       t_End
 
   | t_SendTy r A Se =>
       t_SendTy r (close_rec_ln k x A)
-                 (close_rec_ln k x Se)
+                 (close_rec_ln (S k) x Se)
 
   | t_RecvTy r A Se =>
       t_RecvTy r
         (close_rec_ln k x A)
-        (close_rec_ln k x Se)
+        (close_rec_ln (S k) x Se)
 
 
   (* ---------- session operations ---------- *)
@@ -338,8 +332,6 @@ Fixpoint close_rec_ln (k : nat) (x : string) (t : term_ln) : term_ln :=
               (l, close_rec_ln k x b))
            branches)
 
-(*   | t_Data    => t_Data
-  | t_Payload => t_Payload *)
   end.
 
 
@@ -390,8 +382,8 @@ Fixpoint subst_ln (x : string) (u : term_ln) (t : term_ln) : term_ln :=
 
   (* ---------- session types ---------- *)
 
-  | t_Session =>
-      t_Session
+(*   | t_Session =>
+      t_Session *)
 
   | t_End =>
       t_End
@@ -457,8 +449,6 @@ Fixpoint subst_ln (x : string) (u : term_ln) (t : term_ln) : term_ln :=
       (map (fun '(l,b) =>
               (l, subst_ln x u b))
            branches)
-(*   | t_Data    => t_Data
-  | t_Payload => t_Payload *)
   end.
 
 
@@ -505,15 +495,15 @@ Fixpoint lc_rec_ln (k : nat) (t : term_ln) {struct t} : Prop :=
 
   (* ---------- session types ---------- *)
 
-  | t_Session =>
-      True
+(*   | t_Session =>
+      True *)
 
   | t_End =>
       True
 
   | t_SendTy r A Se =>
       lc_rec_ln k A /\
-      lc_rec_ln k Se
+      lc_rec_ln (S k) Se
 
   | t_RecvTy r A Se =>
       lc_rec_ln k A /\
@@ -659,15 +649,15 @@ Fixpoint notin_bvar (k : nat) (t : term_ln) {struct t} : Prop :=
 
   (* ---------- session types ---------- *)
 
-  | t_Session =>
+(*   | t_Session =>
       True
-
+ *)
   | t_End =>
       True
 
   | t_SendTy r A Se =>
       notin_bvar k A /\
-      notin_bvar k Se
+      notin_bvar (S k) Se
 
   | t_RecvTy r A Se =>
       notin_bvar k A /\
@@ -732,7 +722,6 @@ Fixpoint notin_bvar (k : nat) (t : term_ln) {struct t} : Prop :=
               notin_bvar k b /\ nb_branches bs'
           end
       in notin_bvar k c /\ nb_branches branches
-
   end.
 
 (* simple lookup for a local branch body by label *)
@@ -1004,8 +993,8 @@ Inductive par_conv_n_ln : term_ln -> term_ln -> Prop :=
 
 (* ---------- session types ---------- *)
 
-| par_conv_Session :
-    par_conv_n_ln t_Session t_Session
+(* | par_conv_Session :
+    par_conv_n_ln t_Session t_Session *)
 
 | par_conv_End :
     par_conv_n_ln t_End t_End
@@ -1114,9 +1103,6 @@ with par_conv_branches :
       par_conv_branches bs bs' ->
       par_conv_branches ((l,b)::bs)
                         ((l,b')::bs').
-                        
-(*  | par_conv_Data:
-    par_conv_n_ln t_Data t_Data. *)
 
 (* ================================================= *)
 (* 4. Declarative conversion (βη-congruence)         *)
@@ -1165,23 +1151,23 @@ Inductive gtype :=
 | g_msg :
     string -> string ->
     term_ln ->
-    gtype
+    gtype      (* continuation binds one term variable *)
     -> gtype
 | g_choice :
     string -> string ->
     list (string * gtype)
     -> gtype
 | g_natrec :
-    term_ln
-    -> gtype
-    -> gtype
-    -> term_ln
+    term_ln    (* scrutinee *)
+    -> gtype   (* zero branch *)
+    -> gtype   (* successor branch, binds predecessor *)
+    -> term_ln    (* scrutinee *)
     -> gtype
 | g_bvar : nat -> gtype.
 
 Fixpoint open_rec_gtype
   (k : nat)
-  (U : gtype)
+  (u : term_ln)
   (G : gtype)
   : gtype :=
   match G with
@@ -1190,31 +1176,65 @@ Fixpoint open_rec_gtype
       g_end
 
   | g_bvar n =>
-      if Nat.eqb n k then U else g_bvar n
+      g_bvar n
 
   | g_msg p q A G' =>
       g_msg p q
-        A
-        (open_rec_gtype k U G')
+        (open_rec_ln k u A)
+        (open_rec_gtype k u G')
 
-| g_choice p q branches =>
-    g_choice p q
-      (map (fun '(l,G') =>
-              (l, open_rec_gtype k U G'))
-           branches)
+  | g_choice p q branches =>
+      g_choice p q
+        (map (fun '(lbl, G') =>
+                (lbl, open_rec_gtype k u G'))
+             branches)
 
-  | g_natrec P z s n =>
+  | g_natrec P G0 Gs n =>
       g_natrec
-        P
-        (open_rec_gtype k U z)
-        (open_rec_gtype k U s)
-        n
+        (open_rec_ln k u P)
+        (open_rec_gtype k u G0)
+        (open_rec_gtype (S k) u Gs)
+        (open_rec_ln k u n)
+  end.
+  
+Definition open_gtype := open_rec_gtype 0.
+
+Fixpoint subst_term_gtype
+  (x : string)
+  (u : term_ln)
+  (G : gtype)
+  : gtype :=
+  match G with
+
+  | g_end =>
+      g_end
+
+  | g_bvar n =>
+      g_bvar n
+
+  | g_msg p q A G' =>
+      g_msg p q
+        (subst_ln x u A)
+        (subst_term_gtype x u G')
+
+  | g_choice p q branches =>
+      g_choice p q
+        (map (fun '(lbl, G') =>
+                (lbl, subst_term_gtype x u G'))
+             branches)
+
+  | g_natrec P G0 Gs n =>
+      g_natrec
+        (subst_ln x u P)
+        (subst_term_gtype x u G0)
+        (subst_term_gtype x u Gs)
+        (subst_ln x u n)
   end.
 
-Definition open_gtype (G U : gtype) :=
-  open_rec_gtype 0 U G.
-
-Fixpoint lc_rec_gtype (k : nat) (G : gtype) : Prop :=
+Fixpoint lc_rec_gtype
+  (k : nat)
+  (G : gtype)
+  : Prop :=
   match G with
 
   | g_end =>
@@ -1228,22 +1248,22 @@ Fixpoint lc_rec_gtype (k : nat) (G : gtype) : Prop :=
       lc_rec_gtype k G'
 
   | g_choice _ _ branches =>
-      let fix lc_branches bs :=
+      let fix go bs :=
           match bs with
           | [] => True
-          | (_,G')::bs' =>
-              lc_rec_gtype k G' /\ lc_branches bs'
+          | (_, G') :: bs' =>
+              lc_rec_gtype k G' /\ go bs'
           end
-      in lc_branches branches
-      
-  | g_natrec P z s n =>
+      in go branches
+
+  | g_natrec P G0 Gs n =>
       lc_rec_ln k P /\
-      lc_rec_gtype k z /\
-      lc_rec_gtype k s /\
+      lc_rec_gtype k G0 /\
+      lc_rec_gtype (S k) Gs /\
       lc_rec_ln k n
   end.
 
-Definition lc_gtype G := lc_rec_gtype 0 G.
+Definition lc_gtype := lc_rec_gtype 0.
 
 Fixpoint term_eqb (t1 : term_ln) {struct t1} : term_ln -> bool :=
   fun t2 =>
@@ -1280,8 +1300,8 @@ Fixpoint term_eqb (t1 : term_ln) {struct t1} : term_ln -> bool :=
         term_eqb s1 s2 &&
         term_eqb n1 n2
 
-    | t_Session, t_Session => true
-    | t_End, t_End => true
+(*     | t_Session, t_Session => true *)
+    | t_End, t_End => true 
 
     | t_SendTy r1 A1 S1, t_SendTy r2 A2 S2 =>
         String.eqb r1 r2 && term_eqb A1 A2 && term_eqb S1 S2
@@ -1359,7 +1379,6 @@ Fixpoint term_eqb (t1 : term_ln) {struct t1} : term_ln -> bool :=
               end
           in branches_eqb bs1 bs2
         )
-
     | _, _ => false
     end.
 
@@ -1458,7 +1477,7 @@ Fixpoint local_session_wfb (t : term_ln) : bool :=
   | t_bvar _ => true
   | t_fvar _ => true
   | t_chan _ => true
-  | t_Session => true
+(*   | t_Session => true *)
   | t_End => true
 
   (* -------- Process-level terms (ignore) -------- *)
@@ -1471,7 +1490,6 @@ Fixpoint local_session_wfb (t : term_ln) : bool :=
   | t_Par _ _ => true
   | t_Select _ _ _ _ => true
   | t_Branch _ _ _ => true
-
   end.
 
 Definition local_session_wf (t : term_ln) : Prop :=
@@ -1492,12 +1510,18 @@ Fixpoint project (r : string) (G : gtype)
       else
         project r G'
 
+
   | g_natrec P z s n =>
-      match project r z, project r s with
-      | Some Sz, Some Ss =>
-          Some (t_NatRec_ln P Sz (t_Lam t_Nat (t_Lam t_Session Ss)) n)
-      | _, _ => None
-      end
+    match project r z, project r s with
+    | Some Sz, Some Ss =>
+        Some
+          (t_NatRec_ln
+             P
+             Sz
+             (t_Lam t_Nat Ss)
+             n)
+    | _, _ => None
+    end 
 
   | g_choice p q branches =>
 
@@ -1653,8 +1677,6 @@ Definition project_branches_with_globals (r : string) (G : gtype)
   | _ => None
   end.
 
-
-
 Module GM := FMapAVL.Make(String_as_OT).
 
 Definition gctx := GM.t (gtype ).
@@ -1681,12 +1703,28 @@ Definition gctx_wf (Σ : gctx) : Prop :=
     lookup_g Σ s = Some G ->
     gtype_nonempty G.
 
+Definition sub_lctx (Δz Δ : lctx) : Prop :=
+  forall e T,
+    LM.find e Δz = Some T ->
+    LM.find e Δ = Some T.
+
+Definition unfold_step P z step x :=
+  open_ln
+    (open_ln step (t_fvar x))
+    (t_NatRec_ln P z step (t_fvar x)).
+
+Definition map_open_ln (u : term_ln) (Δ : lctx) : lctx :=
+  LM.fold (fun e T acc => LM.add e (open_ln T u) acc) Δ empty_lctx.
 
 Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
 
 (* ========================= *)
 (* Variables                 *)
 (* ========================= *)
+  (* variable *)
+| ty_var : forall Γ Δ x T,
+    lookup_ln Γ x = Some T ->
+    has_type_ln Γ Δ (t_fvar x) T
 
 | ty_var_l :
     forall Γ Δ s r S,
@@ -1725,10 +1763,12 @@ Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
         (t_Lam A b)
         (t_Pi A B)
 
+(* application rule: argument must be pure; open the function's captured Δ with the arg *)
 | ty_App :
     forall Γ Δ t1 t2 A B,
       has_type_ln Γ Δ t1 (t_Pi A B) ->
       has_type_ln Γ empty_lctx t2 A ->
+
       has_type_ln Γ Δ
         (t_App t1 t2)
         (open_ln B t2)
@@ -1762,6 +1802,8 @@ Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
       lc_rec_ln 0 s ->
       lc_rec_ln 0 n ->
 
+(*       sub_lctx Δz Δ -> *)
+
       (* Motive pure *)
       has_type_ln Γ empty_lctx P
         (t_Pi t_Nat (t_Type k)) ->
@@ -1774,11 +1816,9 @@ Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
            empty_lctx
            (t_App P (t_fvar x))
            (t_Type k)) ->
-
       (* Base case may use Δ *)
-      has_type_ln Γ Δ
-        z
-        (t_App P t_Zero) ->
+      
+      has_type_ln Γ Δ z (t_App P t_Zero) ->
 
       (* Step function pure *)
       has_type_ln Γ empty_lctx
@@ -1812,21 +1852,17 @@ Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
 (* Session Types (pure)      *)
 (* ========================= *)
 
-| ty_Session :
-    forall Γ,
-      has_type_ln Γ empty_lctx t_Session (t_Type 0)
-
 | ty_End :
     forall Γ,
-      has_type_ln Γ empty_lctx t_End t_Session
+      has_type_ln Γ empty_lctx t_End (t_Type 0)
 
 | ty_SendTy :
     forall Γ r A S i,
       has_type_ln Γ empty_lctx A (t_Type i) ->
-      has_type_ln Γ empty_lctx S t_Session ->
+      has_type_ln Γ empty_lctx S (t_Type 0) ->
       has_type_ln Γ empty_lctx
         (t_SendTy r A S)
-        t_Session
+        (t_Type 0)
 
 | ty_RecvTy :
     forall Γ r A S i L,
@@ -1836,10 +1872,10 @@ Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
          ~ In x (map fst Γ) ->
          has_type_ln ((x,A)::Γ) empty_lctx
            (open_ln S (t_fvar x))
-           t_Session) ->
+           (t_Type 0)) ->
       has_type_ln Γ empty_lctx
         (t_RecvTy r A S)
-        t_Session
+        (t_Type 0)
 
 (* typing for select/branch session *types* (they inhabit t_Session) *)
 
@@ -1848,69 +1884,50 @@ Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
       local_session_wf (t_SelectTy r branches) ->
       (forall lbl Se,
          In (lbl, Se) branches ->
-         has_type_ln Γ empty_lctx Se t_Session) ->
+         has_type_ln Γ empty_lctx Se (t_Type 0)) ->
       has_type_ln Γ empty_lctx
         (t_SelectTy r branches)
-        t_Session
+        (t_Type 0)
 
 | ty_BranchTy :
     forall Γ r branches,
       local_session_wf (t_BranchTy r branches) ->
       (forall lbl Se,
          In (lbl, Se) branches ->
-         has_type_ln Γ empty_lctx Se t_Session) ->
+         has_type_ln Γ empty_lctx Se (t_Type 0)) ->
       has_type_ln Γ empty_lctx
         (t_BranchTy r branches)
-        t_Session
+        (t_Type 0)
 
 (* ========================= *)
 (* Session Terms             *)
 (* ========================= *)
 
-| ty_SendV :
-    forall Γ Δ s p q A S v P,
+| ty_SendV : forall Γ Δ s p q A S v P T, 
+    LM.find (s,p) Δ = Some T ->
+    (* check the *stored* channel type T is a send-type *)
+    convertible_n_par_ln T (t_SendTy q A S) ->
+    has_type_ln Γ empty_lctx v A ->
+    (* continuation type depends on v: instantiate S with v *)
+    has_type_ln Γ (LM.add (s,p) (open_ln S v) Δ) P t_End ->
+    has_type_ln Γ Δ (t_SendV q (t_chan (s,p)) v P) t_End
 
-      LM.find (s,p) Δ = Some (t_SendTy q A S) ->
+| ty_Recv : forall Γ Δ s p q A S body T L,
+    LM.find (s,p) Δ = Some T ->
+    convertible_n_par_ln T (t_RecvTy q A S) ->
+    (forall x, ~ In x L -> ~ In x (map fst Γ) ->
+       has_type_ln ((x,A)::Γ) (LM.add (s,p) (open_ln S (t_fvar x)) Δ)
+                   (open_ln body (t_fvar x)) t_End) ->
+    has_type_ln Γ Δ (t_Recv q (t_chan (s,p)) body) t_End
 
-      has_type_ln Γ empty_lctx v A ->
-
-      has_type_ln Γ
-        (LM.add (s,p) S (LM.remove (s,p) Δ))
-        P
-        t_End ->
-
-      has_type_ln Γ Δ
-        (t_SendV q (t_chan (s,p)) v P)
-        t_End
-
-| ty_Recv :
-    forall Γ Δ s p q A S body L,
-
-      LM.find (s,p) Δ = Some (t_RecvTy q A S) ->
-
-      (forall x,
-         ~ In x L ->
-         ~ In x (map fst Γ) ->
-         has_type_ln 
-           ((x,A)::Γ)
-           (LM.add (s,p) (open_ln S (t_fvar x))
-              (LM.remove (s,p) Δ))
-           (open_ln body (t_fvar x))
-           t_End) ->
-
-      has_type_ln Γ Δ
-        (t_Recv q (t_chan (s,p)) body)
-        t_End
-
-(* Selector typing: choose label l and continue with P.
-   local_cont is the continuation term supplied by the programmer.
-   local_cont : term_ln
-*)
 | ty_Select :
-    forall Γ Δ s p q branches l S local_cont,
+    forall Γ Δ s p q T branches l S local_cont,
 
-      LM.find (s,p) Δ =
-        Some (t_SelectTy q branches) ->
+      LM.find (s,p) Δ = Some T ->
+
+      convertible_n_par_ln
+        T
+        (t_SelectTy q branches) ->
 
       In (l, S) branches ->
 
@@ -1923,14 +1940,15 @@ Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
         (t_Select q l (t_chan (s,p)) local_cont)
         t_End
 
-(* Brancher typing: local_branches is the list of (label * body) supplied by programmer.
-   local_branches : list (string * term_ln)
-*)
-| ty_Branch :
-    forall Γ Δ s p q branches local_branches,
 
-      LM.find (s,q) Δ =
-        Some (t_BranchTy p branches) ->
+| ty_Branch :
+    forall Γ Δ s p q T branches local_branches,
+
+      LM.find (s,q) Δ = Some T ->
+
+      convertible_n_par_ln
+        T
+        (t_BranchTy p branches) ->
 
       (forall lbl S,
          In (lbl, S) branches ->
@@ -1944,30 +1962,23 @@ Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
       has_type_ln Γ Δ
         (t_Branch p (t_chan (s,q)) local_branches)
         t_End
-
 (* ========================= *)
 (* Parallel                  *)
 (* ========================= *)
 
 
 | ty_Close :
-    forall Γ Δ s r,
-      LM.find (s,r) Δ = Some t_End ->
+    forall Γ Δ s r T,
+
+      LM.find (s,r) Δ = Some T ->
+
+      convertible_n_par_ln T t_End ->
+
       has_type_ln Γ
-        (LM.remove (s,r) Δ)
+        Δ
         (t_Close (t_chan (s,r)))
         t_End
 
-(* | ty_Wait :
-    forall Σ Γ Δ s r,
-
-      LM.find (s,r) Δ = Some t_End ->
-
-      has_type_ln Σ Γ
-        (LM.remove (s,r) Δ)
-        (t_Wait (t_chan (s,r)))
-        t_End
- *)
 | ty_Par :
     forall Γ Δ1 Δ2 P Q,
       disjoint Δ1 Δ2 ->
@@ -1977,17 +1988,114 @@ Inductive has_type_ln: ictx -> lctx -> term_ln -> term_ln -> Prop :=
         (t_Par P Q)
         t_End
 
-(* | ty_Fork :
-    forall Σ Γ Δ P,
-      has_type_ln Σ Γ empty_lctx P t_End ->
-      has_type_ln Σ Γ Δ (t_Fork P) t_End *)
-
 | ty_conv :
     forall Γ Δ t A B,
       has_type_ln Γ Δ t A ->
       convertible_n_par_ln A B ->
       has_type_ln Γ Δ t B.
 
+(* ====== Configuration semantics (no step_natrec) ====== *)
+
+(* configuration: linear context Δ and process P *)
+Inductive config : Type := 
+  | cfg : lctx -> term_ln -> config.
+
+(* --- keep your original config type --- *)
+(* Inductive config := cfg : lctx -> term_ln -> config. *)
+
+(* New: step_cfg_on indexed by session name s *)
+Inductive step_cfg_on (s : string) : config -> config -> Prop :=
+
+(* ================================================= *)
+(* Message Communication (session s)                 *)
+(* ================================================= *)
+
+| step_comm_on :
+    forall Δ r1 r2
+           T1 T2
+           A S1 S2
+           v P body
+           Δ',
+
+      LM.find (s, r1) Δ = Some T1 ->
+      LM.find (s, r2) Δ = Some T2 ->
+
+      convertible_n_par_ln
+        T1 (t_SendTy r2 A S1) ->
+
+      convertible_n_par_ln
+        T2 (t_RecvTy r1 A S2) ->
+
+      value_ln v ->
+
+      Δ' =
+        LM.add (s, r1) (open_ln S1 v)
+        (LM.add (s, r2) (open_ln S2 v)
+          (LM.remove (s, r1)
+            (LM.remove (s, r2) Δ))) ->
+
+      step_cfg_on s
+        (cfg Δ
+           (t_Par
+              (t_SendV r2 (t_chan (s, r1)) v P)
+              (t_Recv  r1 (t_chan (s, r2)) body)))
+        (cfg Δ'
+           (t_Par
+              P
+              (open_ln body v)))
+
+(* ================================================= *)
+(* Labelled Choice Communication (session s)         *)
+(* ================================================= *)
+
+| step_choice_on :
+    forall Δ p q
+           T1 T2
+           branches
+           l S
+           P local_branches body_l
+           Δ',
+
+      LM.find (s, p) Δ = Some T1 ->
+      LM.find (s, q) Δ = Some T2 ->
+
+      convertible_n_par_ln
+        T1 (t_SelectTy q branches) ->
+
+      convertible_n_par_ln
+        T2 (t_BranchTy p branches) ->
+
+      lookup_branch l branches = Some S ->
+      lookup_branch l local_branches = Some body_l ->
+
+      Δ' =
+        LM.add (s, p) S
+        (LM.add (s, q) S
+          (LM.remove (s, p)
+            (LM.remove (s, q) Δ))) ->
+
+      step_cfg_on s
+        (cfg Δ
+           (t_Par
+              (t_Select q l (t_chan (s, p)) P)
+              (t_Branch p (t_chan (s, q)) local_branches)))
+        (cfg Δ'
+           (t_Par
+              P
+              body_l)).
+
+(* well-typed configuration: P has type t_End under Δ *)
+Definition has_type_cfg (Γ : ictx) (c : config) : Prop :=
+  match c with
+  | cfg Δ P => has_type_ln Γ Δ P t_End
+  end.
+
+Definition step (s : string) (G : gtype)
+  (acc : lctx) (r : string) : lctx :=
+  match project r G with
+  | Some ST => LM.add (s,r) ST acc
+  | None => acc
+  end.
 
 (* ================================================= *)
 (* Roles extraction (assumed duplicates removed)     *)
@@ -2022,6 +2130,13 @@ Fixpoint remove_dups (xs : list string) : list string :=
 
 Definition roles (G : gtype) : list string :=
   remove_dups (roles_of G).
+
+Definition init_session
+  (s : string)
+  (G : gtype)
+  : lctx :=
+  fold_left (step s G) (roles G) empty_lctx.
+
 
 (* ================================================= *)
 (* Branch merge consistency                          *)
@@ -2099,7 +2214,7 @@ Definition projection_total (G : gtype) :=
 (* Session Initialization                            *)
 (* ================================================= *)
 
-Definition init_session
+(* Definition init_session
   (s : string)
   (G : gtype)
   : lctx :=
@@ -2111,7 +2226,7 @@ Definition init_session
        end)
     (roles G)
     empty_lctx.
-
+ *)
 
 Lemma In_remove_dups :
   forall xs x,
@@ -2377,12 +2492,12 @@ Qed.
 (* Linear Context Coherence                          *)
 (* ================================================= *)
 
-Definition coherent_session (s : string) (Δ : lctx) : Prop :=
+(* Definition coherent_session (s : string) (Δ : lctx) : Prop :=
   exists G,
     gtype_wf G /\
     forall r S,
       LM.find (s,r) Δ = Some S ->
-      project r G = Some S.
+      project r G = Some S. *)
 
 Fixpoint lc_branches_ln (k : nat)
          (bs : list (string * term_ln)) : Prop :=
@@ -2442,7 +2557,7 @@ Section term_ln_ind_strong.
       P n ->
       P (t_NatRec_ln P0 z s n).
 
-  Hypothesis P_Session : P t_Session.
+(*   Hypothesis P_Session : P t_Session. *)
   Hypothesis P_End : P t_End.
   Hypothesis P_chan : forall e, P (t_chan e).
   
@@ -2533,7 +2648,7 @@ Proof.
 
   (* ---------------- Session Types ---------------- *)
 
-  - apply P_Session.
+(*   - apply P_Session. *)
   - apply P_End.
   - apply P_SendTy; apply term_ln_ind_strong.
   - apply P_RecvTy; apply term_ln_ind_strong.
@@ -2601,37 +2716,37 @@ Proof. intro t.
        1: { simpl. easy. }
        3: { simpl. simpl in H0.
             split. apply IHt1 with (k := k). lia. easy.
-            apply IHt2 with (k := k). lia. easy.
+            apply IHt2 with (k := S k). lia. easy.
           }
-       5: { simpl. simpl in H0.
+       4: { simpl. simpl in H0.
             split. apply IHt1 with (k := k). lia. easy.
             apply IHt2 with (k := S k). lia. easy.
           }
-       8: { simpl. simpl in H0.
+       7: { simpl. simpl in H0.
             split. apply IHt1 with (k := k). lia. easy.
             apply IHt2 with (k := k). lia. easy.
           }
-       4: { simpl. simpl in H0.
+       3: { simpl. simpl in H0.
             split. apply IHt1 with (k := k). lia. easy.
             split. apply IHt2 with (k := k). lia. easy.
             apply IHt3 with (k := k). lia. easy.
           }
-       3: { simpl in H0. simpl.
+       2: { simpl in H0. simpl.
             split. apply IHt1 with (k := k). lia. easy.
             apply IHt2 with (k := S k). lia. easy.
           }
-       8: { simpl. simpl in H0.
+       7: { simpl. simpl in H0.
             split. apply IHt1 with (k := k). lia. easy.
             apply IHt2 with (k := k). lia. easy.
           }
-       4: { simpl. simpl in H0.
+       3: { simpl. simpl in H0.
             apply IHt with (k := k). lia. easy.
           }
-       3: { simpl in H0. simpl.
+       2: { simpl in H0. simpl.
             apply IHt with (k := k). lia. easy.
           }
-       2: { simpl in H0. simpl. easy. }
-       1: { simpl. easy. }
+       1: { simpl in H0. simpl. easy. }
+(*        1: { simpl. easy. } *)
        1: { simpl in H0. simpl.
             apply IHt with (k := k). lia. easy. }
        3: { simpl.
@@ -2776,14 +2891,14 @@ Proof. intro t.
        simpl.
        split. apply cl_larger with (k := k); easy.
        split. apply IHt1 with (k := k); easy.
-       split. apply IHt2 with (k := k); easy.
+       split. apply IHt2 with (k := S k). lia. easy.
        apply cl_larger with (k := k); easy.
        }
        2:{
        simpl in H0. simpl.
        split.
        apply cl_larger with (k := k); easy.
-       apply IHt with (k := k); easy.
+       apply IHt with (k := k); try lia. easy.
        }
        1:{
        simpl. easy.
@@ -2892,10 +3007,10 @@ Proof. intro G.
            split. easy. split.
            apply IHG1 with (r := r); easy.
            split.
-           split. easy. split. easy.
+           split. easy. 
            apply IHG2 with (r := r); try easy.
-           apply gl_larger with (k := k). lia. easy. 
-           easy.
+          (*  apply gl_larger with (k := S k). lia.  *) easy. 
+           (* easy. *)
          + rewrite H1 in H0. easy.
        - rewrite H in H0. easy.
        }
@@ -2910,7 +3025,8 @@ Proof. intro G.
          + rewrite H2 in H0.
            inversion H0. subst. simpl. split. easy.
            cbn.
-           apply IHG with (r := r). easy.
+           apply IHG with (r := r).
+           apply gl_larger with (k := k). lia. easy. 
            easy.
          + rewrite H2 in H0. easy.
        - rewrite H1 in H0.
@@ -3114,8 +3230,9 @@ Proof.
     rewrite IHt4.
     reflexivity.
 
-  (* t_Session *)
-  - reflexivity.
+
+(*   (* t_Session *)
+  - reflexivity. *)
 
   (* t_End *)
   - reflexivity.
@@ -3403,8 +3520,475 @@ Proof.
     destruct(IHHwf2 r) as (S2,Hb).
     rewrite Ha, Hb.
     simpl.
-    exists (t_NatRec_ln P S1 (t_Lam t_Nat (t_Lam t_Session S2)) n).
+    exists (t_NatRec_ln P S1 (t_Lam t_Nat S2) n).
     easy.
 Qed.
+
+Fixpoint lookup_gbranch
+  (l : string)
+  (bs : list (string * gtype))
+  : option gtype :=
+  match bs with
+  | [] => None
+  | (l0, G) :: bs' =>
+      if String.eqb l l0
+      then Some G
+      else lookup_gbranch l bs'
+  end.
+
+Inductive step_gtype : gtype -> gtype -> Prop :=
+
+| g_step_msg :
+    forall p q A G',
+      step_gtype (g_msg p q A G') G'
+
+| g_step_choice :
+    forall p q branches l G',
+      lookup_gbranch l branches = Some G' ->
+      step_gtype (g_choice p q branches) G'.
+
+(* Definition coherent_session (s : string) (Δ : lctx) : Prop :=
+  exists G,
+    gtype_wf G /\
+    forall r T,
+      LM.find (s,r) Δ = Some T ->
+      exists S,
+        project r G = Some S /\
+        convertible_n_par_ln T S. *)
+
+Definition coherent_session
+  (s : string)
+  (Δ : lctx)
+  (G : gtype) : Prop :=
+  gtype_wf G /\
+  forall r T,
+    LM.find (s,r) Δ = Some T ->
+    exists S,
+      project r G = Some S /\
+      convertible_n_par_ln T S.
+
+Require Import Coq.FSets.FMapFacts.
+Module LMFacts := FMapFacts.Facts(LM).
+
+Lemma fold_preserves_other_key :
+  forall rs G s r  acc,
+    ~ In r rs ->
+    LM.find (s,r)
+      (fold_left (step s G) rs acc)
+    =
+    LM.find (s,r) acc.
+Proof. intro l.
+       induction l; intros.
+       - cbn. easy.
+       - cbn.
+         simpl in H. unfold not in H.
+          (* First extract the two useful facts from H *)
+          assert (Hneq : r <> a).
+          {
+            intro Heq.
+            apply H.
+            left.
+            symmetry.
+            exact Heq.
+          }
+
+          assert (Hnotin : ~ In r l).
+          {
+            intro Hin.
+            apply H.
+            right.
+            exact Hin.
+          }
+
+          (* Now apply the IH to the fold over l *)
+          rewrite IHl.
+          + (* Now goal reduces to showing step does not affect (s,r) *)
+            unfold step.
+            destruct (project a G) eqn:Hproj.
+
+            * (* project a G = Some ST *)
+              apply LMFacts.add_neq_o.
+              intros Heq.
+              inversion Heq.
+              subst. simpl in H1. subst.
+              contradiction.
+
+            * (* project a G = None *)
+              reflexivity.
+
+          + (* discharge IH premise *)
+            exact Hnotin.
+Qed.
+
+Lemma existsb_eqb_false_notin :
+  forall xs x,
+    existsb (String.eqb x) xs = false ->
+    ~ In x xs.
+Proof. intro l.
+       induction l; intros.
+       - easy.
+       - simpl. simpl in IHl. simpl in H.
+         apply orb_false_iff in H.
+         destruct H as (Ha, Hb).
+         unfold not. intros.
+         destruct H.
+         + subst. rewrite String.eqb_refl in Ha. easy.
+         + apply IHl in Hb. easy. 
+Qed.
+
+Lemma not_in_propa: forall l a, ~ In a l -> ~ In a (remove_dups l).
+Proof. intro l.
+       induction l; intros.
+       - simpl. easy.
+       - simpl. simpl in H.
+         unfold not. intros.
+         case_eq(existsb (String.eqb a) l); intros.
+         + unfold not in H.
+           assert(a = a0 -> False).
+           { intros. apply H. left. easy. }
+           assert( In a0 l -> False).
+           { intros. apply H. right. easy. }
+           apply IHl in H3.
+           apply H3. rewrite H1 in H0. easy.
+         + rewrite H1 in H0.
+           apply existsb_eqb_false_notin in H1.
+           simpl in H0.
+           assert( In a0 l -> False).
+           { intros. apply H. right. easy. }
+           apply IHl in H2.
+           destruct H0.
+           apply H. subst. left. easy.
+           easy.
+Qed.
+
+Lemma nd_rd: forall l, NoDup (remove_dups l).
+Proof. induction l; intros.
+       - simpl. constructor.
+       - simpl.
+         case_eq(existsb (String.eqb a) l); intros.
+         + apply existsb_exists in H.
+           destruct H as (x,(Ha,Hb)).
+           easy.
+         + constructor; try easy.
+           apply existsb_eqb_false_notin in H.
+           apply not_in_propa. easy.
+Qed.
+
+Lemma roles_NoDup :
+  forall G, NoDup (roles G).
+Proof.
+  intros G.
+  apply nd_rd.
+Qed.
+
+Lemma fold_left_preserves_find :
+  forall rs G s r acc1 acc2,
+    LM.find (s,r) acc1 = LM.find (s,r) acc2 ->
+    LM.find (s,r)
+      (fold_left (step s G) rs acc1)
+    =
+    LM.find (s,r)
+      (fold_left (step s G) rs acc2).
+Proof. intro l.
+       induction l; intros.
+       - cbn. easy.
+       - cbn. 
+        unfold step at 2.
+        unfold step at 3.
+        destruct (project a G) eqn:Hproj.
+
+        + (* project a G = Some ST *)
+
+          simpl.
+
+          destruct (String.eqb r a) eqn:Heq.
+
+          * (* r = a *)
+            apply String.eqb_eq in Heq.
+            subst.
+            rewrite IHl with (acc2 := (LM.add (s, a) t acc2)). easy.
+            
+            (* both sides become Some ST *)
+            rewrite LMFacts.add_eq_o.
+            rewrite LMFacts.add_eq_o.
+            easy. easy. easy.
+          * (* r <> a *)
+            apply String.eqb_neq in Heq.
+            rewrite IHl with (acc2 := (LM.add (s, a) t acc2)). easy.
+            rewrite LMFacts.add_neq_o.
+            rewrite LMFacts.add_neq_o.
+            easy.
+            unfold not. intros.
+            destruct H0. simpl in H1. subst. easy.
+            unfold not. intros.
+            destruct H0. simpl in H1. subst. easy.
+        + rewrite IHl with (acc2 := acc2); easy.
+Qed.
+
+Lemma fold_init_session_find :
+  forall rs G s r S,
+    In r rs ->
+    NoDup rs ->
+    project r G = Some S ->
+    LM.find (s,r)
+      (fold_left (step s G) rs empty_lctx)
+    = Some S.
+Proof. intro l.
+       induction l; intros.
+       - simpl in H. easy.
+       - simpl. simpl in H.
+         destruct H.
+         + subst.
+           unfold step at 2. rewrite H1.
+           inversion H0. subst.
+           rewrite fold_preserves_other_key; try easy.
+           rewrite LMFacts.add_eq_o. easy. easy.
+         + inversion H0. subst.
+           specialize(IHl G s r S H H5 H1).
+           rewrite <- IHl.
+           apply fold_left_preserves_find.
+           unfold step.
+           assert (Hneq : r <> a).
+           {
+             intro Heq.
+             subst.
+             apply H4.
+             exact H.
+           }
+           destruct (project a G).
+           ++ apply LMFacts.add_neq_o.
+              unfold not. intros. 
+              destruct H2. simpl in H3. subst. easy.
+           ++ cbn. easy.
+Qed.
+
+Lemma init_session_find :
+  forall G s r S,
+    In r (roles G) ->
+    project r G = Some S ->
+    LM.find (s,r) (init_session s G) = Some S.
+Proof.
+  intros G s r S Ha Hb.
+  unfold init_session.
+(*   unfold step. *)
+
+  remember (roles G) as rs.
+  revert r S Ha Hb. revert G Heqrs s.
+  induction rs as [| r0 rs IH]; intros.
+  - (* roles G = [] *)
+    simpl. inversion Ha.
+  - simpl in Ha.
+    destruct Ha as [Ha | Ha].
+    + subst.
+      cbn.
+      rewrite fold_preserves_other_key.
+      unfold step. rewrite Hb.
+      rewrite LMFacts.add_eq_o. easy.
+      easy.
+      unfold not. intros.
+      specialize(roles_NoDup G); intro HH.
+      rewrite <- Heqrs in HH.
+      inversion HH. subst. easy.
+    + cbn.
+      assert(r <> r0).
+      { unfold not. intros. subst.
+        specialize(roles_NoDup G); intro HH.
+        rewrite <- Heqrs in HH.
+        inversion HH. subst. easy.
+      }
+      (*       rewrite fold_preserves_other_key. *)
+      assert (Hstep :
+        LM.find (s,r) (step s G empty_lctx r0)
+        =
+        LM.find (s,r) empty_lctx).
+      {
+        unfold step.
+        destruct (project r0 G).
+        - apply LMFacts.add_neq_o.
+          intros Heq.
+          inversion Heq. simpl in H1.
+          subst.
+          contradiction.
+        - reflexivity.
+      }
+      apply fold_left_preserves_find with (rs := rs) (G := G) in Hstep.
+      rewrite Hstep.
+      apply fold_init_session_find; try easy.
+      specialize(roles_NoDup G); intro HH.
+      rewrite <- Heqrs in HH.
+      inversion HH. subst. easy.
+Qed.
+
+Lemma init_session_find_inv :
+  forall G s r T,
+    LM.find (s,r) (init_session s G) = Some T ->
+    In r (roles G).
+Proof.
+  intros G s r T.
+  unfold init_session.
+  remember (roles G) as rs eqn:Heqrs.
+  clear Heqrs.
+  revert G (* Heqrs *) r T.
+  
+  induction rs as [|r0 rs IH]; intros G (* Heqrs *) r T Hfind.
+  - (* rs = [] *)
+    simpl in Hfind.
+    discriminate.
+  - simpl in Hfind.
+    unfold step in Hfind at 2.
+    destruct (project r0 G) eqn:Hproj.
+    + simpl in Hfind.
+      destruct (EndpointOT.eq_dec (s,r) (s,r0)) as [Heq | Hneq].
+      * (* (s,r) = (s,r0) *)
+        inversion Heq; subst. simpl in H0.
+        simpl. left; easy.
+      * assert (Hstep :
+        LM.find (s,r)
+          (fold_left (step s G) rs empty_lctx)
+        = Some T).
+        {
+          (* strip the initial add *)
+          assert (Hbase :
+            LM.find (s,r)
+              (LM.add (s,r0) t empty_lctx)
+            =
+            LM.find (s,r) empty_lctx).
+          {
+            apply LMFacts.add_neq_o.
+            intro Heq.
+            apply Hneq.
+            simpl. unfold EndpointOT.eq. split; easy.
+          }
+
+          (* lift through fold *)
+          erewrite fold_left_preserves_find with (acc2 := empty_lctx) in Hfind.
+          - easy.
+          - apply LMFacts.add_neq_o.
+            intro Heq.
+            apply Hneq.
+            simpl. unfold EndpointOT.eq. split; easy.
+        }
+        simpl. right.
+        eapply IH; eauto.
+        +
+        simpl. right.
+        eapply IH; eauto.
+      Qed.
+
+Lemma init_session_coherent :
+  forall G s,
+    gtype_wf G ->
+    coherent_session s (init_session s G) G.
+Proof.
+  intros G s Hwf.
+  unfold coherent_session.
+  split.
+  - exact Hwf.
+  - intros r T Hfind.
+
+    (* Show r must be in roles G *)
+    assert (Hin : In r (roles G)).
+    {
+      (* If LM.find (s,r) returns Some T in init_session,
+         then r must have been inserted,
+         so r ∈ roles G *)
+      unfold init_session in Hfind.
+      eapply init_session_find_inv; eauto.
+    }
+
+    (* Now use init_session_find to identify the inserted type *)
+    unfold init_session in Hfind.
+
+    (* From init_session_find *)
+    assert (Hexact :
+      exists S0,
+        project r G = Some S0 /\
+        LM.find (s,r) (init_session s G) = Some S0).
+    {
+      (* projection_total gives existence *)
+      destruct (projection_total_wf G Hwf r) as [S0 Hproj].
+      exists S0.
+      split.
+      - exact Hproj.
+      - apply init_session_find; auto.
+    }
+
+    destruct Hexact as [S0 [Hproj Hfind0]].
+    unfold init_session in Hfind0.
+    rewrite Hfind in Hfind0.
+    inversion Hfind0.
+    subst T.
+
+    exists S0.
+    split.
+    + exact Hproj.
+    + (* stored type equals projection exactly *)
+      apply rst_refl.
+Qed.
+
+
+Lemma project_msg_inv :
+  forall p q (A : term_ln) (G' : gtype) (r : string) (S : term_ln),
+    project r (g_msg p q A G') = Some S ->
+    (r = p /\
+       exists Sp, S = t_SendTy q A Sp /\ project p G' = Some Sp)
+    \/
+    (r = q /\
+       exists Sp, S = t_RecvTy p A Sp /\ project q G' = Some Sp)
+    \/
+    (r <> p /\ r <> q /\ project r G' = Some S).
+Proof.
+  intros p q A G' r S Hproj.
+  simpl in Hproj.
+  (* decide whether r = p or r = q or neither *)
+  destruct (String.eqb r p) eqn:Heq_p.
+  - (* r = p case *)
+    apply String.eqb_eq in Heq_p; subst r.
+    (* project p (g_msg p q A G') = option_map ... (project p G') *)
+    simpl in Hproj.
+    destruct (project p G') eqn:HpG.
+    + simpl in Hproj. inversion Hproj; subst.
+      left. split; [reflexivity|].
+      exists t. split; easy.
+    + (* option_map None = None, contradiction with Some S *)
+      simpl in Hproj. discriminate.
+  - (* r <> p *)
+    destruct (String.eqb r q) eqn:Heq_q.
+    + (* r = q case *)
+      apply String.eqb_eq in Heq_q; subst r.
+      simpl in Hproj.
+      destruct (project q G') eqn:HqG.
+      * simpl in Hproj. inversion Hproj; subst.
+        right. left. split; [reflexivity|].
+        exists t. split; easy.
+      * simpl in Hproj. discriminate.
+    + (* r <> p and r <> q: projection stays as project r G' *)
+      simpl in Hproj.
+      (* in this branch project r (g_msg ...) = project r G' *)
+      right. right.
+      rewrite String.eqb_neq in Heq_p, Heq_q.
+      easy.
+Qed.
+
+Lemma coherence_preserved_by_step :
+  forall s G G' Δ Δ' P P',
+    lc_rec_gtype 0 G ->
+    coherent_session s Δ G ->
+
+    step_gtype G G' ->
+
+    step_cfg_on s (cfg Δ P)
+                  (cfg Δ' P') ->
+
+    coherent_session s Δ' G'.
+Proof. intros.
+inversion H1; subst.
+inversion H2; subst.
+unfold coherent_session in *.
+destruct H0 as (H0,Ha).
+inversion H0. subst. split. easy.
+inversion H as (Hi1,Hi2).
+intros.
+Admitted.
 
 
