@@ -4875,6 +4875,17 @@ Proof.
   exact step_branches_preserves.
 Qed.
 
+Lemma step_branches_preserves_labels :
+  forall act bs bs',
+    step_branches act bs bs' ->
+    map fst bs' = map fst bs.
+Proof.
+  induction 1.
+  - reflexivity.
+  - simpl.
+    rewrite IHstep_branches.
+    reflexivity.
+Qed.
 
 Lemma lookup_gbranch_in :
   forall bs lbl G,
@@ -4904,7 +4915,10 @@ Lemma step_branches_preserves_nodup :
     step_branches act bs bs' ->
     NoDup (map fst bs) ->
     NoDup (map fst bs').
-Admitted.
+Proof. intros.
+       apply step_branches_preserves_labels in H.
+       rewrite H. easy.
+Qed.
 
 Definition P_g_sel  G act G' :=
   forall r1 r2 l Ss Bs Se,
@@ -5103,7 +5117,9 @@ Proof.  apply step_mutind.
               inversion Hndup.
               subst.
               constructor.
-              admit.
+              specialize(step_branches_preserves_labels _ _ _ H20); intros HH.
+              rewrite HH.
+              easy.
               eapply step_branches_preserves_nodup; eauto.
             }
             specialize (H H3 H4 lbl G' Hlookup).
