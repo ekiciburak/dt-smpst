@@ -3536,7 +3536,7 @@ Fixpoint lookup_gbranch
       else lookup_gbranch l bs'
   end.
 
-Inductive step_gtype : gtype -> gtype -> Prop :=
+(* Inductive step_gtype : gtype -> gtype -> Prop :=
 
 | g_step_msg :
     forall p q A G',
@@ -3545,7 +3545,7 @@ Inductive step_gtype : gtype -> gtype -> Prop :=
 | g_step_choice :
     forall p q branches l G',
       lookup_gbranch l branches = Some G' ->
-      step_gtype (g_choice p q branches) G'.
+      step_gtype (g_choice p q branches) G'. *)
 
 (* Definition coherent_session (s : string) (Δ : lctx) : Prop :=
   exists G,
@@ -3556,16 +3556,7 @@ Inductive step_gtype : gtype -> gtype -> Prop :=
         project r G = Some S /\
         convertible_n_par_ln T S. *)
 
-Definition coherent_session
-  (s : string)
-  (Δ : lctx)
-  (G : gtype) : Prop :=
-  gtype_wf G /\
-  forall r T,
-    LM.find (s,r) Δ = Some T ->
-    exists S,
-      project r G = Some S /\
-      convertible_n_par_ln T S.
+
 
 Require Import Coq.FSets.FMapFacts.
 Module LMFacts := FMapFacts.Facts(LM).
@@ -3875,16 +3866,67 @@ Proof.
         eapply IH; eauto.
       Qed.
 
+Inductive nat_canonical : term_ln -> Prop :=
+| nc_zero :
+    nat_canonical t_Zero
+| nc_succ :
+    forall n,
+      nat_canonical n ->
+      nat_canonical (t_Succ n).
+
+Inductive branches_canonical : list (string * gtype) -> Prop :=
+| bc_nil :
+    branches_canonical []
+| bc_cons :
+    forall l G bs,
+      gtype_indices_canonical G ->
+      branches_canonical bs ->
+      branches_canonical ((l, G) :: bs)
+with gtype_indices_canonical : gtype -> Prop :=
+| gc_end :
+    gtype_indices_canonical g_end
+| gc_bvar :
+    forall n,
+      gtype_indices_canonical (g_bvar n)
+| gc_msg :
+    forall p q A G,
+      gtype_indices_canonical G ->
+      gtype_indices_canonical (g_msg p q A G)
+| gc_choice :
+    forall p q branches,
+      branches_canonical branches ->
+      gtype_indices_canonical (g_choice p q branches)
+| gc_natrec :
+    forall P z s n,
+      nat_canonical n ->
+      gtype_indices_canonical z ->
+      gtype_indices_canonical s ->
+      gtype_indices_canonical (g_natrec P z s n).
+
+Definition coherent_session
+  (s : string)
+  (Δ : lctx)
+  (G : gtype) : Prop :=
+  gtype_wf G /\
+  gtype_indices_canonical G /\
+  forall r T,
+    LM.find (s,r) Δ = Some T ->
+    exists S,
+      project r G = Some S /\
+      convertible_n_par_ln T S.
+
 Lemma init_session_coherent :
   forall G s,
     gtype_wf G ->
+    gtype_indices_canonical G ->
     coherent_session s (init_session s G) G.
 Proof.
   intros G s Hwf.
   unfold coherent_session.
   split.
   - exact Hwf.
-  - intros r T Hfind.
+  - split. exact H. clear H.
+    intros r T Hfind.
 
     (* Show r must be in roles G *)
     assert (Hin : In r (roles G)).
@@ -3925,7 +3967,6 @@ Proof.
     + (* stored type equals projection exactly *)
       apply rst_refl.
 Qed.
-
 
 Lemma project_msg_inv :
   forall p q (A : term_ln) (G' : gtype) (r : string) (S : term_ln),
@@ -3970,25 +4011,423 @@ Proof.
       easy.
 Qed.
 
-Lemma coherence_preserved_by_step :
-  forall s G G' Δ Δ' P P',
-    lc_rec_gtype 0 G ->
-    coherent_session s Δ G ->
+Fixpoint update_branch
+  (l : string)
+  (G' : gtype)
+  (bs : list (string * gtype))
+  : list (string * gtype) :=
+  match bs with
+  | [] => []
+  | (l0,G0)::bs' =>
+      if String.eqb l l0
+      then (l0,G')::bs'
+      else (l0,G0)::update_branch l G' bs'
+  end.
 
-    step_gtype G G' ->
+Inductive gaction :=
+| act_msg : string -> string -> gaction
+| act_sel : string -> string -> string -> gaction.
 
-    step_cfg_on s (cfg Δ P)
-                  (cfg Δ' P') ->
 
-    coherent_session s Δ' G'.
+Definition disjoint_roles (p q r1 r2 : string) : Prop :=
+  r1 <> p /\ r1 <> q /\ r2 <> p /\ r2 <> q.
+
+Inductive step_gtype :
+  gtype -> gaction -> gtype -> Prop :=
+
+| g_step_msg :
+    forall p q A G,
+      step_gtype
+        (g_msg p q A G)
+        (act_msg p q)
+        G
+
+| g_step_choice :
+    forall p q branches l G',
+      lookup_gbranch l branches = Some G' ->
+      step_gtype
+        (g_choice p q branches)
+        (act_sel p q l)
+        G'
+
+| g_step_msg_ctx :
+    forall p q A G r1 r2 G',
+      disjoint_roles p q r1 r2 ->
+      step_gtype G (act_msg r1 r2) G' ->
+      step_gtype
+        (g_msg p q A G)
+        (act_msg r1 r2)
+        (g_msg p q A G')
+
+| g_step_choice_ctx :
+    forall p q branches branches' r1 r2,
+      disjoint_roles p q r1 r2 ->
+      step_branches (act_msg r1 r2) branches branches' ->
+      step_gtype
+        (g_choice p q branches)
+        (act_msg r1 r2)
+        (g_choice p q branches')
+
+| g_unfold_natrec_zero :
+    forall P z s n act_tau,
+      convertible_n_par_ln n t_Zero ->
+      step_gtype (g_natrec P z s n) act_tau z
+
+| g_unfold_natrec_succ :
+    forall P z s n n' act_tau,
+      convertible_n_par_ln n (t_Succ n') ->
+      step_gtype (g_natrec P z s n) act_tau s
+
+with step_branches :
+  gaction ->
+  list (string * gtype) ->
+  list (string * gtype) ->
+  Prop :=
+
+| step_branches_nil :
+    forall act,
+      step_branches act [] []
+
+| step_branches_cons :
+    forall act l G G' bs bs',
+      step_gtype G act G' ->
+      step_branches act bs bs' ->
+      step_branches act ((l,G)::bs)
+                        ((l,G')::bs').
+
+Scheme step_gtype_ind'
+  := Induction for step_gtype Sort Prop
+with step_branches_ind'
+  := Induction for step_branches Sort Prop.
+
+Combined Scheme step_mutind
+  from step_gtype_ind', step_branches_ind'.
+
+Definition P_g :=
+  fun (G  : gtype)
+      (act : gaction)
+      (G' : gtype) =>
+    forall r1 r2 A S1 S2,
+      act = act_msg r1 r2 ->
+      project r1 G = Some (t_SendTy r2 A S1) ->
+      project r2 G = Some (t_RecvTy r1 A S2) ->
+      project r1 G' = Some S1 /\
+      project r2 G' = Some S2.
+
+Definition P_b :=
+  fun (act : gaction)
+      (bs  : list (string * gtype))
+      (bs' : list (string * gtype)) =>
+    forall r1 r2 A S1 S2,
+      act = act_msg r1 r2 ->
+      (forall lbl G,
+          In (lbl,G) bs ->
+          project r1 G = Some (t_SendTy r2 A S1) /\
+          project r2 G = Some (t_RecvTy r1 A S2)) ->
+      forall lbl G',
+        In (lbl,G') bs' ->
+        project r1 G' = Some S1 /\
+        project r2 G' = Some S2.
+
+Lemma go_unfold_eq :
+  forall r bs,
+    (fix go (bs : list (string * gtype)) : option (list (string * term_ln)) :=
+       match bs with
+       | [] => Some []
+       | (l, G') :: bs' =>
+           match project r G' with
+           | Some Se =>
+               match go bs' with
+               | Some Ss => Some ((l, Se) :: Ss)
+               | None => None
+               end
+           | None => None
+           end
+       end) bs
+    =
+    project_choice_go r bs.
+Proof.
+  intros r bs.
+  induction bs as [| [l G] bs IH]; simpl; auto.
+  rewrite IH.
+  reflexivity.
+Qed.
+
+
+Lemma Forall2_proj_In :
+  forall r1 (l : list (string * gtype))
+         (Ss : list (string * term_ln))
+         (lbl : string) (G : gtype),
+    Forall2
+      (fun '(lbl0,G0) '(lbl1,Se) =>
+         lbl0 = lbl1 /\ project r1 G0 = Some Se)
+      l Ss ->
+    In (lbl,G) l ->
+    exists Se,
+      In (lbl,Se) Ss /\
+      project r1 G = Some Se.
+Proof.
+  intros r1 l Ss lbl G HForall.
+  induction HForall; intros Hin.
+  - inversion Hin.  
+  - simpl in Hin.
+    destruct Hin as [Hin | Hin].
+    + inversion Hin; subst.
+      destruct y as [lbly Sey].
+      simpl in *.
+      destruct H as [Heq Hproj].
+      subst.
+      exists Sey.
+      split; [left; reflexivity | exact Hproj].
+    + specialize (IHHForall Hin).
+      destruct IHHForall as [Se [HinS Hproj]].
+      exists Se.
+      split; [right; exact HinS | exact Hproj].
+Qed.
+
+Lemma project_choice_go_all_some :
+  forall r branches S,
+    (forall lbl G,
+        In (lbl,G) branches ->
+        project r G = Some S) ->
+    exists Ss,
+      project_choice_go r branches = Some Ss.
+Proof.
+  intros r branches.
+  induction branches as [| [lbl G] bs IH]; intros S Hall.
+
+  (* -------------------- *)
+  (* Base case            *)
+  (* -------------------- *)
+  - simpl.
+    exists [].
+    reflexivity.
+
+  (* -------------------- *)
+  (* Inductive case       *)
+  (* -------------------- *)
+  - simpl in *.
+
+    (* From Hall we know head projection succeeds *)
+    assert (Hhead :
+      project r G = Some S).
+    {
+      apply Hall with (lbl := lbl).
+      left; reflexivity.
+    }
+
+    (* From Hall we know tail projections succeed *)
+    assert (Htail :
+      forall lbl0 G0,
+        In (lbl0,G0) bs ->
+        project r G0 = Some S).
+    {
+      intros lbl0 G0 Hin.
+      apply Hall with (lbl := lbl0).
+      right; exact Hin.
+    }
+
+    (* Apply IH to tail *)
+    destruct (IH S Htail) as [Ss IHs].
+
+    rewrite Hhead.
+    rewrite IHs.
+
+    exists ((lbl, S) :: Ss).
+    reflexivity.
+Qed.
+
+Lemma Forall2_uniform_projection :
+  forall (l  : list (string * gtype))
+         (Ss : list (string * term_ln))
+         r S,
+    Forall2
+      (fun '(lbl,G) '(lbl',Se) =>
+         lbl = lbl' /\ project r G = Some Se)
+      l Ss ->
+    (forall lbl G,
+        In (lbl,G) l ->
+        project r G = Some S) ->
+    forall lbl Se,
+      In (lbl,Se) Ss ->
+      Se = S.
 Proof. intros.
-inversion H1; subst.
-inversion H2; subst.
-unfold coherent_session in *.
-destruct H0 as (H0,Ha).
-inversion H0. subst. split. easy.
-inversion H as (Hi1,Hi2).
-intros.
+       revert S H0 H1. revert lbl Se.
+       induction H; intros.
+       - inversion H1.
+       - simpl in H2.
+         destruct H2 as [H2 | H2].
+         + subst. destruct x.
+           destruct H as (Ha, Hb).
+           subst.
+           specialize(H1 lbl g).
+           assert(In (lbl, g) ((lbl, g) :: l)).
+           left. easy.
+           apply H1 in H. rewrite Hb in H. inversion H. easy.
+         + apply IHForall2 with (lbl := lbl); try easy.
+           intros.
+           apply H1 with (lbl := lbl0). simpl. right. easy.
+Qed.
+
+Lemma step_preserves_project_mutual :
+  (forall G act G', step_gtype G act G' -> P_g G act G')
+  /\
+  (forall act bs bs', step_branches act bs bs' -> P_b act bs bs').
+Proof.  apply step_mutind; intros.
+        8:{ unfold P_g, P_b in *.
+            cbn in *. intros.
+            destruct H3 as [H3 | H3].
+            - inversion H3. subst.
+              specialize(H2 lbl G).
+              assert((lbl, G) = (lbl, G) \/ In (lbl, G) bs).
+              left. easy.
+              apply H2 in H1.
+              destruct H1 as (H1a,H1b).
+              apply H with (S2 := S2) in H1a; try easy.
+            - pose proof H2 as H22.
+              specialize(H2 l G).
+              assert((l, G) = (l, G) \/ In (l, G) bs ).
+              left. easy.
+              apply H2 in H4.
+              destruct H4 as (H1a,H1b).
+              apply H0 with (A := A) (lbl := lbl); try easy.
+              subst.
+              intros.
+              apply H22 with (lbl := lbl0). right. easy.
+          }
+        7:{ unfold P_b. intros.
+            inversion H1.
+          }
+        4:{ unfold P_g, P_b in *.
+            intros.
+            symmetry in H0.
+            inversion H0. subst.
+            simpl in H1.
+            split. 
+            - simpl.
+              unfold disjoint_roles in d.
+              assert((r1 =? p)%string = false).
+              { apply String.eqb_neq. easy. }
+              assert((r1 =? q)%string = false).
+              { apply String.eqb_neq. easy. }
+              rewrite H3, H4.
+              rewrite H3, H4 in H1.
+              assert((r2 =? p)%string = false).
+              { apply String.eqb_neq. easy. }
+              assert((r2 =? q)%string = false).
+              { apply String.eqb_neq. easy. }
+              simpl in H2.
+              rewrite H5, H6 in H2.
+              rewrite go_unfold_eq.
+              rewrite go_unfold_eq in H1, H2.
+              destruct (project_choice_go r2 branches) as [l |] eqn:Hgo.
+              2: discriminate H2.
+              destruct l as [| [lbl0 Se] Ss].
+              1: discriminate H2.
+              apply project_choice_go_some in Hgo.
+              destruct (project_choice_go r1 branches) as [l |] eqn:Hgo1.
+              2: discriminate H1.
+              destruct l as [| [lbl1 Se1] Ss1].
+              1: discriminate H1.
+              apply project_choice_go_some in Hgo1.
+              inversion Hgo. subst.
+              destruct x.
+              inversion Hgo1. subst.
+              case_eq(forallb (fun '(_, S') => term_eqb Se1 S') Ss1); intros.
+              rewrite H7 in H1. inversion H1. subst.
+              case_eq(forallb (fun '(_, S') => term_eqb Se S') Ss); intros.
+              rewrite H8 in H2.
+              inversion H2. subst.
+              destruct H10 as (Ha,Hb).
+              destruct H12 as (Hc,Hd).
+              subst.
+              specialize (H r1 r2 A S1 S2 eq_refl).
+              assert(
+              (forall (lbl : string) (G : gtype),
+                 In (lbl, G) ((lbl1, g) :: l) -> project r1 G = Some (t_SendTy r2 A S1) /\ project r2 G = Some (t_RecvTy r1 A S2))).
+              { intros. simpl in H9. destruct H9.
+                inversion H9. subst. easy.
+                apply Forall2_proj_In with (lbl := lbl) (G := G) in H11.
+                destruct H11 as (Se,(H1a,H1b)).
+                rewrite forallb_forall in H7, H8.
+                specialize(H8 (lbl, Se) H1a).
+                cbn in H8.
+                destruct Se; try easy.
+                apply Forall2_proj_In with (lbl := lbl) (G := G) in H14.
+                destruct H14 as (Se,(H2a,H2b)).
+                specialize(H7 (lbl, Se) H2a).
+                cbn in H7.
+                destruct Se; try easy.
+                admit.
+                easy. easy.
+              }
+              pose proof (H H9) as Hall_full.
+              assert (Hall_r1 :
+                forall lbl G',
+                  In (lbl,G') branches' ->
+                  project r1 G' = Some S1).
+              {
+                intros lbl G' Hin.
+                specialize (Hall_full lbl G' Hin).
+                destruct Hall_full as [Hproj _].
+                exact Hproj.
+              }
+
+              destruct (project_choice_go r1 branches') as [l' |] eqn:Hgo'.
+              destruct l' as [| [lbl0 Se0] Ss0].
+              apply project_choice_go_some in Hgo'.
+              inversion Hgo'. subst.
+              inversion s.
+              apply project_choice_go_some in Hgo'.
+              inversion Hgo'. subst.
+              destruct x.
+              assert (project r1 g0 = Some S1).
+              {
+                apply Hall_r1 with (lbl := s0).
+                left; reflexivity.
+              }
+              destruct H15 as (Ha,Hc).
+              subst.
+              rewrite Hc in H10.
+              inversion H10. subst.
+              assert (Hall_tail :
+                forall lbl G',
+                  In (lbl,G') l0 ->
+                  project r1 G' = Some S1).
+              {
+                intros lbl G' Hin.
+                apply Hall_r1 with (lbl := lbl).
+                right; exact Hin.
+              }
+              destruct l0. inversion H16.
+              cbn. easy.
+              destruct p0.
+              assert (Hunif :
+                forall lbl Se,
+                  In (lbl,Se) Ss0 ->
+                  Se = S1).
+              {
+                apply (Forall2_uniform_projection
+                         ((s0,g1)::l0)
+                         Ss0
+                         r1
+                         S1).
+                - exact H16.
+                - exact Hall_tail.
+              }
+              assert(forallb (fun '(_, S') => term_eqb S1 S') Ss0 = true).
+              { rewrite forallb_forall.
+                intros. destruct x.
+                specialize(Hunif s1 t H12).
+                subst.
+                apply term_eqb_refl.
+              }
+              rewrite H12. easy.
+              apply project_choice_go_all_some in Hall_r1.
+              destruct Hall_r1. rewrite H10 in Hgo'. easy.
+              rewrite H8 in H2. easy.
+              rewrite H7 in H1. easy.
+            - admit. (*here....*)
+        } 
+        
 Admitted.
-
-
