@@ -4931,7 +4931,7 @@ Definition P_g_sel  G act G' :=
     project r2 G' = Some Se.
 
 Definition P_b_sel act bs bs' :=
-(*   NoDup (map fst bs) -> *)
+  NoDup (map fst bs) -> 
   forall r1 r2 l Ss Bs Se,
     act = act_sel r1 r2 l ->
     (forall lbl G,
