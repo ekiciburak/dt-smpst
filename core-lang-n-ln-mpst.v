@@ -5031,7 +5031,7 @@ Proof.  apply step_mutind.
          }
          simpl in H.
 (*        *)
-          specialize(H r1 r2 l0 Ss Bs Se eq_refl H11).
+          specialize(H Hndup r1 r2 l0 Ss Bs Se eq_refl H11).
           destruct (project_choice_go r1 branches') as [l1 |] eqn:Hgo2.
           destruct l1. 
           apply project_choice_go_some in Hgo2.
@@ -5152,5 +5152,82 @@ Proof.  apply step_mutind.
        destruct(project r1 s). easy.
        easy.
        easy.
+     }
+   4:{ unfold P_b_sel, P_g_sel.
+       intros.
+       inversion H0.
+     }
+   3:{ unfold P_b_sel, P_g_sel.
+       intros.
+       inversion H0.
+     }
+   2:{ unfold P_b_sel, P_g_sel.
+       intros.
+       inversion H.
+       subst.
+       inversion g. subst.
+       apply String.eqb_neq in H7.
+       simpl in H0, H1.
+       assert((r2 =? r1)%string = false) by admit.
+       rewrite String.eqb_refl in H0, H1.
+       rewrite H4 in H1.
+       rewrite go_unfold_eq in H0, H1.
+       unfold option_map in H0, H1.
+       case_eq(project_choice_go r1 branches); intros.
+       rewrite H5 in H0. inversion H0. subst.
+       case_eq(project_choice_go r2 branches); intros.
+       rewrite H6 in H1.
+       inversion H1. subst.
+       apply project_choice_go_some in H5, H6.
+       apply Forall2_proj_In with (lbl := l0) (G := G') in H5.
+       destruct H5 as (s1,(H5a,H5b)).
+       assert(s1 = Se) by admit.
+       subst.
+       apply Forall2_proj_In with (lbl := l0) (G := G') in H6.
+       destruct H6 as (s2,(H6a,H6b)).
+       assert(s2 = Se) by admit.
+       subst. easy.
+       admit.
+       admit.
+       rewrite H6 in H1. easy.
+       rewrite H5 in H0. easy.
+    }
+  1:{ unfold P_b_sel, P_g_sel.
+      intros.
+      inversion H.
+    }
+  2:{ unfold P_b_sel, P_g_sel.
+      intros. subst.
+      simpl in H6.
+      case_eq((lbl =? l)%string); intros.
+      - rewrite H2 in H6.
+        rewrite String.eqb_eq in H2. subst.
+        inversion H6. subst.
+        apply H with (l := l0) (Ss := Ss) (Bs:= Bs); try easy.
+        specialize(H3 l G).
+        simpl in H3. rewrite String.eqb_refl in H3.
+        specialize(H3 eq_refl). easy.
+        specialize(H3 l G).
+        simpl in H3. rewrite String.eqb_refl in H3.
+        specialize(H3 eq_refl). easy.
+      - rewrite H2 in H6.
+        simpl in H1. inversion H1. subst.
+        specialize (H0 H10 r1 r2 l0 Ss Bs Se eq_refl).
+        assert(
+        (forall (lbl : string) (G : gtype),
+           lookup_gbranch lbl bs = Some G ->
+           project r1 G = Some (t_SelectTy r2 Ss) /\ project r2 G = Some (t_BranchTy r1 Bs)) 
+        ).
+        intros.
+        apply H3 with (lbl := lbl0).
+        simpl.
+        assert((lbl0 =? l)%string = false) by admit.
+        rewrite H8. easy.
+        specialize(H0 H7 H4 H5).
+        apply H0 with (lbl := lbl). easy.
+     }
+   1:{ unfold P_b_sel, P_g_sel.
+       intros. subst.
+       simpl in H4. easy.
      }
 Admitted.
