@@ -7252,7 +7252,27 @@ Lemma lookup_branch_transport :
     exists S',
       lookup_branch l bs = Some S' /\
       convertible_n_par_ln S' S.
-Admitted.
+Proof. intro l.
+       induction l; intros.
+       - inversion H. subst.
+         simpl in H0. easy.
+       - inversion H.
+         subst.
+         destruct a, y.
+         destruct H3. subst.
+         simpl in H0.
+         case_eq((l0 =? s0)%string ); intros.
+         rewrite H1 in H0.
+         inversion H0. subst.
+         rewrite String.eqb_eq in H1. subst.
+         exists t. simpl.
+         rewrite String.eqb_refl. split. easy. easy.
+         rewrite H1 in H0.
+         eapply IHl with (l := l0) (S := S) in H5.
+         destruct H5 as (S',(H5a,H5b)).
+         exists S'. split. simpl. rewrite H1. easy. easy.
+         easy.
+Qed.
 
 Lemma local_global_simulation :
   forall s Δ Δ' P P' G,
