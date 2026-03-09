@@ -5751,6 +5751,24 @@ Proof.
       exact H.
 Qed.
 
+Lemma lookup_branch_In :
+  forall l bs G,
+    lookup_branch l bs = Some G ->
+    In (l, G) bs.
+Proof.
+  intros l bs.
+  induction bs as [| [lbl G0] bs IH]; intros G H.
+  - simpl in H. discriminate.
+  - simpl in H.
+    destruct (String.eqb l lbl) eqn:E.
+    + apply String.eqb_eq in E.
+      inversion H; subst.
+      left; subst; reflexivity.
+    + right.
+      apply IH.
+      exact H.
+Qed.
+
 Lemma project_choice_go_from_Forall2 :
   forall p l1 l',
     Forall2
@@ -7240,7 +7258,318 @@ Lemma project_select_implies_global_step :
     lookup_branch l bs1 = Some S ->
     exists G',
       step_gtype G (act_sel p q l) G'.
-Admitted.
+Proof. intro G.
+       induction G using gtype_ind_strong; intros.
+       3:{ rename p0 into r1.
+           rename q0 into r2.
+           simpl in H1, H2.
+           case_eq((r1 =? p)%string); intros.
+           rewrite H4 in H1.
+           rewrite String.eqb_eq in H4. subst.
+           case_eq((r2 =? p)%string); intros.
+           rewrite H4 in H2.
+           rewrite String.eqb_eq in H4. subst.
+           rewrite go_unfold_eq in H1,H2.
+           unfold option_map in H1,H2.
+           destruct(project_choice_go p branches); easy.
+           rewrite H4 in H2.
+           case_eq((r2 =? q)%string); intros.
+           rewrite H5 in H2.
+           rewrite String.eqb_eq in H5. subst.
+           rewrite go_unfold_eq in H1,H2.
+           unfold option_map in H1,H2.
+           destruct (project_choice_go p branches) as [l1 |] eqn:Hgo1.
+           inversion H1. subst.
+           destruct (project_choice_go q branches) as [l2 |] eqn:Hgo2.
+           inversion H2. subst.
+           pose proof Hgo1 as Hgo3.
+           pose proof Hgo2 as Hgo4.
+           rewrite Forall_forall in H.
+           pose proof H0 as H00.
+           inversion H0. subst.
+           apply project_choice_go_some in Hgo1, Hgo2.
+           apply Forall2_In_right with (y := (l,S)) in Hgo1.
+           destruct Hgo1 as (l0,G0).
+           destruct l0.
+           destruct G0. destruct H6. subst.
+           specialize(H11 l g H5).
+           specialize(H (l,g) H5 p q l bs1 bs2 S H11).
+           exists g.
+           constructor; try easy.
+           apply lookup_gbranch_in; easy.
+           apply lookup_branch_In; easy.
+           easy. easy.
+           rewrite H5 in H2.
+           rewrite go_unfold_eq in H1,H2.
+           unfold option_map in H1,H2.
+           destruct (project_choice_go p branches) as [l1 |] eqn:Hgo1.
+           inversion H1. subst.
+           destruct (project_choice_go r2 branches) as [l2 |] eqn:Hgo2.
+           destruct l2 as [| [lbl2 Se2] Ss2].
+           1: discriminate H2.
+           case_eq(forallb (fun '(_, S') => term_eqb Se2 S') Ss2); intros.
+           rewrite H6 in H2.
+           inversion H2. subst.
+           apply project_choice_go_some in Hgo1, Hgo2.
+           inversion Hgo2. subst.
+           destruct x. destruct H10. subst.
+           inversion Hgo1. subst.
+           destruct y. destruct H10. subst.
+           rewrite forallb_forall in H6.
+           simpl in H3.
+           case_eq((l =? s)%string); intros.
+           rewrite H7 in H3.
+           rewrite String.eqb_eq in H7. subst.
+           inversion H3. subst.
+           exists g.
+           constructor. easy. simpl. rewrite String.eqb_refl. easy.
+           rewrite H7 in H3.
+           apply Forall2_In_right with (y := (l,S)) in H13.
+           2: apply lookup_branch_In; easy.
+           destruct H13 as (x,H13).
+           destruct x. destruct H13. destruct H12. subst.
+           exists g0. constructor. easy.
+           simpl. rewrite H7.
+           apply lookup_gbranch_in.
+           inversion H0. subst. simpl in H18. inversion H18. easy.
+           easy.
+           rewrite H6 in H2. easy. easy. easy.
+           
+           rewrite H4 in H1.
+           case_eq((r1 =? q)%string); intros.
+           rewrite H5 in H1.
+           rewrite String.eqb_eq in H5. subst.
+           case_eq((r2 =? p)%string); intros.
+           rewrite H5 in H2.
+           rewrite String.eqb_eq in H5. subst.
+           rewrite go_unfold_eq in H1,H2.
+           unfold option_map in H1,H2.
+           destruct(project_choice_go p branches); easy.
+           rewrite H5 in H2.
+           case_eq((r2 =? q)%string); intros.
+           rewrite H6 in H2.
+           rewrite String.eqb_eq in H6. subst.
+           rewrite go_unfold_eq in H1,H2.
+           unfold option_map in H1,H2.
+           destruct(project_choice_go q branches); easy.
+           rewrite H6 in H2.
+           rewrite go_unfold_eq in H1,H2.
+           unfold option_map in H1,H2.
+           destruct(project_choice_go q branches); easy.
+           
+           rewrite H5 in H1.
+           case_eq((r2 =? p)%string); intros.
+           rewrite H6 in H2.
+           rewrite String.eqb_eq in H6. subst.
+           rewrite go_unfold_eq in H1,H2.
+           unfold option_map in H1,H2.
+           destruct(project_choice_go p branches); easy.
+           rewrite H6 in H2.
+           case_eq((r2 =? q)%string); intros.
+           rewrite H7 in H2.
+           rewrite String.eqb_eq in H7. subst.
+           rewrite go_unfold_eq in H1,H2.
+           unfold option_map in H1,H2.
+           destruct (project_choice_go q branches) as [l1 |] eqn:Hgo1.
+           inversion H2. subst.
+           destruct (project_choice_go r1 branches) as [l2 |] eqn:Hgo2.
+           destruct l2 as [| [lbl2 Se2] Ss2].
+           1: discriminate H1.
+           case_eq(forallb (fun '(_, S') => term_eqb Se2 S') Ss2); intros.
+           rewrite H7 in H1.
+           inversion H1. subst.
+           apply project_choice_go_some in Hgo1, Hgo2.
+           inversion Hgo2. subst.
+           destruct x. destruct H11. subst.
+           inversion Hgo1. subst.
+           destruct y. destruct H11. subst.
+           rewrite String.eqb_refl in H4. easy.
+           rewrite H7 in H1. easy.
+           easy. easy.
+           
+           rewrite H7 in H2.
+           rewrite go_unfold_eq in H1,H2.
+           unfold option_map in H1,H2.
+           destruct (project_choice_go r1 branches) as [l1 |] eqn:Hgo1.
+           destruct l1 as [| [lbl1 Se1] Ss1]. easy.
+           destruct (project_choice_go r2 branches) as [l2 |] eqn:Hgo2.
+           destruct l2 as [| [lbl2 Se2] Ss2].
+           1: discriminate H2.
+           case_eq(forallb (fun '(_, S') => term_eqb Se1 S') Ss1); intros.
+           rewrite H8 in H1. inversion H1. subst.
+           case_eq(forallb (fun '(_, S') => term_eqb Se2 S') Ss2); intros.
+           rewrite H9 in H2. 
+           inversion H2. subst.
+           apply project_choice_go_some in Hgo1, Hgo2.
+           inversion Hgo1. subst. destruct x. destruct H13. subst.
+           inversion Hgo2. subst. destruct H15. subst.
+           pose proof H0 as H00.
+           inversion H0. subst.
+           assert( In (lbl2, g) ((lbl2, g) :: l0)). left. easy.
+           specialize(H20 lbl2 g H10).
+           pose proof H as HH.
+           rewrite Forall_forall in H.
+           specialize(H (lbl2,g) H10 r1 r2 l bs1 bs2 S H20 H11 H12 H3).
+           destruct H as (g',H).
+
+           assert (exists l',
+               step_branches (act_sel r1 r2 l) l0 l').
+               {
+                clear (* H23 *) H10 Hgo1 Hgo2 H18 H00. (*  H16 (* H12 H15 *) H22 H20 Hgo1 Hgo2. *)
+                revert Ss1 Ss2 H8 H9 H14 H17.
+                induction l0 as [| [lbl G] l0 IH]; intros.
+              - exists [].
+                constructor.
+              - inversion H17. subst.
+                destruct y. destruct H15. subst.
+                inversion H14. subst.
+                destruct y. destruct H18. subst.
+                assert(gtype_wf (g_choice p q ((lbl2, g) :: l0))) as HN1.
+                { constructor. easy. easy.
+                  inversion H0. subst. inversion H27. subst.
+                  simpl. constructor. unfold not. intros.
+                  apply H23. simpl. right. easy.
+                  inversion H30. easy.
+                  intros.
+                  inversion H0. subst.
+                  simpl in H10. destruct H10. inversion H10. subst.
+                  apply H29 with (lbl := lbl). left. easy.
+                  apply H29 with (lbl := lbl). right. right. easy.
+                  unfold third_party_consistent in *.
+                  intros.
+                  unfold branches_agree_for in *.
+                  case_eq(project r g); intros.
+                  specialize(H21 r H10 H18).
+                  rewrite H23 in H21.
+                  apply H21 with (lbl := lbl). right. easy.
+                  specialize(H21 r H10 H18).
+                  rewrite H23 in H21.
+                  easy.
+                }
+                assert(NoDup (map fst ((lbl2, g) :: l0))) as HN2.
+                { inversion H0. subst.
+                  simpl. simpl in H27.
+                  constructor.
+                  inversion H27. subst.
+                  unfold not. intros. apply H23.
+                  right. easy.
+                  inversion H27. subst. inversion H30. easy.
+                }
+                assert(third_party_consistent p q ((lbl2, g) :: l0)) as HN3.
+                { inversion H0. subst.
+                  unfold third_party_consistent in *.
+                  intros.
+                  specialize(H21 r H10 H18).
+                  unfold branches_agree_for in *.
+                  case_eq(project r g); intros.
+                  rewrite H23 in H21.
+                  apply H21 with (lbl := lbl). right. easy.
+                  rewrite H23 in H21. easy.
+                }
+                specialize(IH HN1 HN2 HN3).
+                assert(Forall
+                  (fun '(_, G) =>
+                   forall (p q l : string) (bs1 bs2 : list (string * term_ln)) (S : term_ln),
+                   gtype_wf G ->
+                   project p G = Some (t_SelectTy q bs1) ->
+                   project q G = Some (t_BranchTy p bs2) ->
+                   lookup_branch l bs1 = Some S -> exists G' : gtype, step_gtype G (act_sel p q l) G')
+                  ((lbl2, g) :: l0)) as HNIH.
+                inversion HH. subst.
+                constructor. easy.
+                inversion H25. subst. easy.
+                specialize(IH HNIH l'0 l').
+                assert(forallb (fun '(_, S') => term_eqb (t_SelectTy r2 bs1) S') l'0 = true) as HN4.
+                { rewrite forallb_forall.
+                  rewrite forallb_forall in H8.
+                  intros.
+                  destruct x.
+                  assert(In (s, t1) ((s0, t0) :: l'0) ). right. easy.
+                  specialize(H8 (s,t1) H18).
+                  cbn in H8.
+                  destruct t1; try easy.
+                }
+                assert(forallb (fun '(_, S') => term_eqb (t_BranchTy r1 bs2) S') l' = true) as HN5.
+                { rewrite forallb_forall.
+                  rewrite forallb_forall in H9.
+                  intros.
+                  destruct x.
+                  assert(In (s, t1) ((s0, t) :: l') ). right. easy.
+                  specialize(H9 (s,t1) H18).
+                  cbn in H9.
+                  destruct t1; try easy.
+                }
+                specialize(IH HN4 HN5 H24 H22).
+                destruct IH as (l2,IH).
+                rewrite forallb_forall in H8.
+                assert(In (s0, t0) ((s0, t0) :: l'0)). left. easy.
+                specialize(H8 (s0,t0) H10).
+                cbn in H8.
+                destruct t0; try easy.
+                rewrite andb_true_iff in H8.
+                destruct H8 as (H8a,H8b).
+                apply term_br_eqb_eq in H8b.
+                apply String.eqb_eq in H8a. subst.
+                rewrite forallb_forall in H9.
+                assert(In (s0, t) ((s0, t) :: l')). left. easy.
+                specialize(H9 (s0,t) H8).
+                cbn in H9.
+                destruct t; try easy.
+                rewrite andb_true_iff in H9.
+                destruct H9 as (H9a,H9b).
+                apply term_br_eqb_eq in H9b.
+                apply String.eqb_eq in H9a. subst.
+                rewrite Forall_forall in HH.
+                specialize(HH (s0, G)).
+                assert((lbl2, g) = (s0, G) \/ (s0, G) = (s0, G) \/ In (s0, G) l0). right. left. easy.
+                simpl in HH.
+                assert(gtype_wf G).
+                { inversion H0.
+                  subst.
+                  apply H29 with (lbl := s0); easy.
+                }
+                specialize(HH H9 s1 s l l1 l3 S H18 H15 H13 H3).
+                destruct HH as (G',HH).
+                exists(((s0, G') :: l2)).
+                constructor; easy.
+                }
+                destruct H13 as (l',H13).
+                exists((g_choice p q ((lbl2, g') :: l'))).
+                constructor; try easy.
+                unfold disjoint_roles.
+                split. apply String.eqb_neq. easy.
+                split. apply String.eqb_neq. easy.
+                split. apply String.eqb_neq. easy.
+                apply String.eqb_neq. easy.
+                constructor; easy.
+                rewrite H9 in H2. easy.
+                rewrite H8 in H1. easy.
+                easy. easy.
+          }
+        2:{ rename p0 into r1.
+            rename q0 into r2.
+            simpl in H0, H1.
+            case_eq((r1 =? p)%string); intros.
+            rewrite H3 in H0.
+            rewrite String.eqb_eq in H3. subst.
+            unfold option_map in H0.
+            destruct( project p G); easy.
+            rewrite H3 in H0.
+            case_eq((r1 =? q)%string); intros.
+            rewrite H4 in H0.
+            rewrite String.eqb_eq in H4. subst.
+            unfold option_map in H0.
+            destruct( project q G); easy.
+            rewrite H4 in H0.
+            unfold option_map in H0.
+            destruct( project r1 G); easy.
+          }
+        2:{ simpl in H0, H1.
+            destruct(project p G1); destruct(project p G2); easy.
+          }
+        2:{ simpl in H0. easy. }
+        1:{ simpl in H0. easy. }
+Qed.
 
 Lemma lookup_branch_transport :
   forall bs branches l S,
